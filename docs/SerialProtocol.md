@@ -52,7 +52,7 @@ After the machine sends "BOS" at 57600 bauds, it will revert to sending "BOS" at
 
 ## The Protocol Reset Command
 
-The "RF?" command causes the machine to reset it's protocol state. If you send a command and get "Q", "?" or "!" and an echo back, something is not quite right and you may be stuck until the protocol reset command much be sent before sending more commands. This command can also be used to initially find the machine on the serial bus.
+The "RF?" command causes the machine to reset it's protocol state. If you send a command and get "Q", "?" or "!" as an echo back, something is not quite right and you may be stuck until the protocol reset command is sent, only then can you start sending more commands. This command can also be used to initially find the machine on the serial bus.
 
 ## The Read Command
 
