@@ -31,13 +31,13 @@ file=output.txt
 
 ### Running the Application
 
-```bash
+```
 dotnet run
 ```
 
 Or run the compiled executable:
 
-```bash
+```
 cd bin\Debug\net8.0
 SerialCapture.exe
 ```
@@ -62,20 +62,10 @@ The log file contains entries in the following format:
 
 - .NET 8.0 SDK
 - Windows, Linux, or macOS
-- Access to the serial ports (may require administrator/root privileges)
+- Access to the serial ports (may require administrator privileges)
 
 ## Troubleshooting
 
 **"Port is already in use" error:**
 - Ensure no other application (terminal emulator, IDE, etc.) has the ports open
 - Close any serial monitoring tools
-
-**"Access denied" error:**
-- On Windows: Run as Administrator
-- On Linux: Add user to `dialout` group: `sudo usermod -a -G dialout $USER`
-- On macOS: Ensure proper permissions for `/dev/tty.*` devices
-
-**"Port not found" error:**
-- Verify the port names in `config.ini` match actual ports on your system
-- On Windows: Check Device Manager
-- On Linux/macOS: List ports with `ls /dev/tty*` or `ls /dev/cu.*`

@@ -4,7 +4,7 @@ A C# console application that captures and logs serial communication between sof
 
 ![image](https://github.com/Ylianst/EMB-Serial/blob/main/docs/images/SerialCapture-HighLevel02.png)
 
-This software will attempt detect a switch from 19200 to 57600 baud and automatically follow and confinue to forward traffic at the new higher speed.
+This software will attempt detect a switch command from 19200 to 57600 baud and automatically follow and continue to forward traffic at the new higher speed.
 
 ## Features
 
@@ -103,7 +103,7 @@ The console displays one command per line with its response:
 
 - .NET 8.0 SDK
 - Windows, Linux, or macOS
-- Access to the serial ports (may require administrator/root privileges)
+- Access to the serial ports (may require administrator privileges)
 - Two serial ports (real or virtual) for man-in-the-middle setup
 
 ## Troubleshooting
@@ -111,16 +111,6 @@ The console displays one command per line with its response:
 **"Port is already in use" error:**
 - Ensure no other application has the ports open
 - Close any serial monitoring tools or terminal emulators
-
-**"Access denied" error:**
-- On Windows: Run as Administrator
-- On Linux: Add user to `dialout` group: `sudo usermod -a -G dialout $USER`
-- On macOS: Ensure proper permissions for `/dev/tty.*` devices
-
-**"Port not found" error:**
-- Verify the port names in `config.ini` match actual ports on your system
-- On Windows: Check Device Manager
-- On Linux/macOS: List ports with `ls /dev/tty*` or `ls /dev/cu.*`
 
 **Commands not displaying:**
 - Check that data is flowing (forwarding must be enabled with 'R' command)
