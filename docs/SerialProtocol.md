@@ -48,7 +48,7 @@ RFFFD24   - Echoed back + Data Block
 ...
 ```
 
-After the machine sends "BOS" at 57600 bauds, it will revert to sending "BOS" at 19200 bauds periodically (every second). So, you may need to be quick to change baudrates and send "EBYQ" to the machine to keep it at the new speed or maybe you ahve time and this is expected? Not sure.
+After the machine sends "BOS" at 57600 bauds, it will revert to sending "BOS" at 19200 bauds periodically (every second). So, you may need to be quick to change baudrates and send "EBYQ" to the machine to keep it at the new speed. If the machine goes back to 19200 baud and sends "BOS" periodically, the machine is no longer is a resoverable state, even the original Windows XP software will not be able to talk to it anymore and so, you have to turn off/on the machine to have it reset to 19200 baud.
 
 ## The Protocol Reset Command
 
