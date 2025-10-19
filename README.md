@@ -10,11 +10,11 @@ Once the basics of the protocol have been understood, the high level communicati
 
 I have a bunch of tools that can be useful to work on figuring out the serial protocol. All tools here at C# and build with Visual Studio 2022.
 
-- [SerialComm](https://github.com/Ylianst/EMB-Serial/tree/main/Tools/SerialComm), this is a high level tool that will find the machine's baud rate, connect to it and allow common low-level protocol operations like Read/Write/Load. Useful to work on the high level protocol.
-- [MemoryDump](https://github.com/Ylianst/EMB-Serial/tree/main/Tools/MemoryDump), this tool downloads the entire content of the machine's memory. It take less than an hour to do depending on the serial speed and generates a 16 megabyte file.
-- [SerialCapture](https://github.com/Ylianst/EMB-Serial/tree/main/Tools/SerialCapture), this tool in intended to be used between software and machine to look at the traffic on the wire. You need to specify both machine and software COM ports and the starting baud rate. It will generate low level and high level output files.
-- [SerialCapture-Basic](https://github.com/Ylianst/EMB-Serial/tree/main/Tools/SerialCapture-Basic), this is an early version of the SerialCapture tool that captures raw serial traffic. Probably not useful anymore because the other tools are better.
-- [SerialCapture-HighLevel](https://github.com/Ylianst/EMB-Serial/tree/main/Tools/SerialCapture-HighLevel), another version of the SerialCapture tool, but only generates very high level logs. This is the most useful tool for figuring out the high level protocol.
+- [SerialComm](https://github.com/Ylianst/EMB-Serial/tree/main/tools/SerialComm), this is a high level tool that will find the machine's baud rate, connect to it and allow common low-level protocol operations like Read/Write/Load. Useful to work on the high level protocol.
+- [MemoryDump](https://github.com/Ylianst/EMB-Serial/tree/main/tools/MemoryDump), this tool downloads the entire content of the machine's memory. It take less than an hour to do depending on the serial speed and generates a 16 megabyte file.
+- [SerialCapture](https://github.com/Ylianst/EMB-Serial/tree/main/tools/SerialCapture), this tool in intended to be used between software and machine to look at the traffic on the wire. You need to specify both machine and software COM ports and the starting baud rate. It will generate low level and high level output files.
+- [SerialCapture-Basic](https://github.com/Ylianst/EMB-Serial/tree/main/tools/SerialCapture-Basic), this is an early version of the SerialCapture tool that captures raw serial traffic. Probably not useful anymore because the other tools are better.
+- [SerialCapture-HighLevel](https://github.com/Ylianst/EMB-Serial/tree/main/tools/SerialCapture-HighLevel), another version of the SerialCapture tool, but only generates very high level logs. This is the most useful tool for figuring out the high level protocol.
 
 In addition to these tools, I here are some traffic capture files here:
 
