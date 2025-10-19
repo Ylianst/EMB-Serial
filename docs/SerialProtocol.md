@@ -104,7 +104,9 @@ The first command will write 0x01 to address 0x0201E1, the second command will w
 
 At the start of a session, the software will send a session start command. On the serial port, it's "TrMEYQ". The machine will echo back each character and confim with a "O" reply. There is an example:
 
-"TrMEYQ" will replay "O"
+```
+"TrMEYQ" will reply "O"
+```
 
 It's not known what the machine does with this. It's possible to send read commands before the session start and it will work.
 
