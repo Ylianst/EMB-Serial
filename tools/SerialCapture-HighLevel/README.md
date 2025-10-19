@@ -2,6 +2,8 @@
 
 A C# console application that captures and logs serial communication between software and a Bernina machine, displaying high-level protocol commands instead of individual characters. This tool acts as a transparent man-in-the-middle, forwarding all data while parsing and displaying complete commands and responses.
 
+![image](https://github.com/Ylianst/EMB-Serial/blob/main/docs/images/SerialCapture-HighLevel02.png)
+
 ## Features
 
 - **High-level command parsing**: Displays complete commands (R, N, W, TrME, etc.) instead of individual bytes
