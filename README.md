@@ -1,6 +1,6 @@
 # Embroidery Serial
 
-This is an attempt at learning how the serial protocol of the Bernina Artista 180 works. This is a embroidery machine from the late 90's with a DB9 serial port at what quite popular at the time. There is old software for it on Windows XP that no longer works on new operating systems, but we can looks at the serial traffic by putting a modern computers in the middle and taking a look at the traffic.
+This is an attempt at learning how the serial protocol of the Bernina Artista 180 works. This is a embroidery machine from the late 90's with a DB9 serial port at what quite popular at the time. There is old software for it on Windows XP that no longer works on new operating systems, but we can look at the serial traffic by putting a modern computers in the middle and capturing the traffic flowing in both directions.
 
 ![image](https://github.com/Ylianst/EMB-Serial/blob/main/docs/images/serial-setup.png)
 
