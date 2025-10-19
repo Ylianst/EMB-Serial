@@ -1,17 +1,17 @@
-# Bernina Low-Level Serial Protocol
+# Low-Level Serial Protocol
 
 This is the serial protocol between "software" and "machine". The serial protocol is always over 57600 baud N,8,1 with no Handshake. The protocol is generally ASCII based except when binary data is sent.
 
 ## Bernina CPU
 
-The Bernina Artista uses a Hitachi H8 CPU. CPU part number is H8/3003, HD6413003F16.
-Programming Manual: https://www.renesas.com/en/document/gde/h8300-programming-manual
-The CPU manual is at: https://www.renesas.com/en/document/mah/h83003-hardware-manual
-CPU emulator: http://bitsavers.informatik.uni-stuttgart.de/test_equipment/hp/64700/64784-97011_H8_3003_Softkey.PDF
-Documents and tools: https://www.renesas.com/en/products/h8-3003?tab=documentation
-GCC compiler support: https://h8300-hms.sourceforge.net/
-Memory map: 0FFD10 - 0FFF0F, page 501 of the manual.
-The DMA controller regs are 0xFFFF20 - 0xFFFF5F.
+- The Bernina Artista uses a Hitachi H8 CPU. CPU part number is H8/3003, HD6413003F16.
+- Programming Manual: https://www.renesas.com/en/document/gde/h8300-programming-manual
+- The CPU manual is at: https://www.renesas.com/en/document/mah/h83003-hardware-manual
+- CPU emulator: http://bitsavers.informatik.uni-stuttgart.de/test_equipment/hp/64700/64784-97011_H8_3003_Softkey.PDF
+- Documents and tools: https://www.renesas.com/en/products/h8-3003?tab=documentation
+- GCC compiler support: https://h8300-hms.sourceforge.net/
+- Memory map: 0FFD10 - 0FFF0F, page 501 of the manual.
+- The DMA controller regs are 0xFFFF20 - 0xFFFF5F.
 
 ## General Concepts
 
@@ -23,13 +23,17 @@ The DMA controller regs are 0xFFFF20 - 0xFFFF5F.
 - When the machine first starts, it will be at 19200 bauds and send out "BOSN" (In HEX: 42 4F 53 4E)
 - When the machine turned off, I see a single 0x00
 - Then the software first starts, the software will send data in 4 groups at different baud rates.
+
+```
 52 52 52 52 52                 - at 19200 bauds (RRRRR)
 52 52 52 02 66 03 6B 52 52 52  - at 57600 bauds
 52 52 52 02 66 03 6B 52 52 52  - at 115200 bauds
 52 52 52 52 52                 - at 4800 bauds
+```
 
 The software seems to be trying 4 different baud rates to see if the machine will answer on one of them. It's trying to send the "RF?" command. If the software gets back a "RF?" echo, it will start talking to the machine. The start sequence at 19200 bauds is:
 
+```
 RF?       - Just echoed back
 R57FF80   - Echoed back + Data Block
 TrME      - Just echoed back
@@ -42,6 +46,7 @@ RF?       - Just echoed back
 R200100   - Echoed back + Data Block
 RFFFD24   - Echoed back + Data Block
 ...
+```
 
 After the machine sends "BOS" at 57600 bauds, it will revert to sending "BOS" at 19200 bauds periodically (every second). So, you may need to be quick to change baudrates and send "EBYQ" to the machine to keep it at the new speed or maybe you ahve time and this is expected? Not sure.
 
@@ -53,26 +58,32 @@ The "RF?" command causes the machine to reset it's protocol state. If you send a
 
 A "Read" command will cause the machine with return 32 bytes of data starting at the address specified by the command. This is fixed, all "Read" commands return this ammount of data back. The read command starts with a capital R followed by 6 characters that are the address to the read. Here are two value examples:
 
+```
 "R200100"  (52 32 30 30 31 30 30)
 "RFFFED9"
+```
 
 - When receiving a "Read" command, the machine will respond with 65 characters. The data block is HEX encoded followed by the character "O". For example:
 
+```
 "R200100" will return:
 "53524D5630332E30312000467269747A204765676175662041470D004F637420O"
 
 "RFFFED9" will return:
 "8300330000000000000000000000000200000100000000000000000000000000O"
+```
 
 ## The Large Read Command
 
 In addition to the read command, there is a "Large Read" command that worked the same way as "Read", but return 256 bytes of binary encoded data instead of 32 bytes of HEX encoded data. The command in "N" on the serial protocol followed by 6 HEX characters for the address. Here are two examples:
 
+```
 "N0240F5" will return:
 "LisaV45Rev8.....................BlackBoardv45Rev61..............SwissBlock v45 rev6a............Zurichv45rev6a..................ALICE v6m Rev5 Firmware v3......BAMBOO v6m Rev8 Firmware v3.....Lg5060..........................Cs021...........................O"
 
 "N0241F5"  will return:
 "Fl081...........................Nv772...........................Nv722...........................Nv799...........................Bd130...........................Bd115v2.........................Cr070...........................Cr060...........................O"
+```
 
 Like the "Read" command, the "Large Read" command also completes the block with a capital "O". So, 256 characters of data are returned along with the ending capital "O".
 
@@ -82,8 +93,10 @@ When downloading a lot of data, the software will use the Large Read (N) command
 
 It's also possible to write using the W command. Just like the read command, it's a W followed by 6 HEX characters for the address followed by the data to write in HEX and "?" to complete the command. Here are two examples of write commands:
 
+```
 "W0201E101?"
 "WFFFED00061?"
+```
 
 The first command will write 0x01 to address 0x0201E1, the second command will write 0x0061 to address 0xFFFED0. There is no confirmation given that the write operation was a success, so often times the software with perform a read (R) operation after a set of writes to make sure the operation was a success.
 
@@ -103,21 +116,27 @@ At the end of a session, the software will tell the machine it's done using the 
 
 There is a "L" command that is L followed by 12 serial characters in HEX format. The machine will reply with HEX values followed by "O" when competed. For example:
 
+```
 "L0240D5000360" will reply "00004CC9O"
 "L0240D5000240" will reply "00001C79O"
+```
 
 In the first example, it could indicate LOAD 0x360 byteso data at position 0x0240D5. The first 6 bytes of the HEX is certainly a memory pointer and the second part looks like a size since the number is in the right range.
 
 
 ## Reading the Machine Name & Version
 
-N200100 --> "NMMV03.01·English     ·Bernina Electronic  AG  ·July 98"
 Reading at 0x200100 will give you the machine firmware version. You also see the firmware language and manufacturer after this. We can use a large read (N) to get the entire string in one go.
+
+```
+N200100 --> "NMMV03.01·English     ·Bernina Electronic  AG  ·July 98"
+```
 
 ## Startup Sequence
 
 This sequence is done when you first enter the ArtLink software and reads the BIOS version and the name of all of the embroidery files. The user will then be presented with a list of file that they can preview or download. The preview and download flows will be covered later.
 
+```
 (Start)
 R57FF80 --> B4A5000020DF002B797D03700FCE0C08535332FF0370FFFFFFFFFFFFFFFFFFFF
 
@@ -186,9 +205,13 @@ R0206A0 --> 1D1B2A0300002C070200000305000000FFFFFF00FC6000000000000000000000
 WFFFED00101? --> Write 0101 to FFFED0
 RFFFED0 --> 000000000040000000830063000000000000000000000000FF00000100000000
 (End)
+```
 
 ## The odd FFFED0 address
 
+Still looking into this:
+
+```
 (Other commands)
 WFFFED00031? --> Write 0031 to FFFED0
 RFFFED0 --> 0002000000400000008300630000000000000000000000000300000130000000
@@ -201,3 +224,4 @@ RFFFED0 --> 0002000000400000008300630000000000000000000000000300000160000000
 WFFFED00101? --> Write 0101 to FFFED0
 RFFFED0 --> 000000000040000000830063000000000000000000000000FF00000100000000
 (End)
+```
