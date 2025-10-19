@@ -1,6 +1,6 @@
 # Low-Level Serial Protocol
 
-This is the serial protocol between "software" and "machine". The serial protocol is always over 57600 baud N,8,1 with no Handshake. The protocol is generally ASCII based except when binary data is sent.
+This is the serial protocol between "software" and "machine". The machine starts at 19200 baud, but the software will instruct it to move to 57600 baud. All serial communication is N,8,1 with no Handshake, so CTS/DTS does not play a factor. The protocol is generally ASCII based except when binary data is sent.
 
 ## Bernina CPU
 
