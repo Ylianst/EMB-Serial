@@ -22,7 +22,7 @@ This is the serial protocol between "software" and "machine". The machine starts
 - The software seems to sometimes generate invalid Read commands, they are R commands followed by bytes that are not valid for a HEX value. In this case, the machine returns error response and the software seems to try again with a valid read value.
 - When the machine first starts, it will be at 19200 bauds and send out "BOSN" (In HEX: 42 4F 53 4E)
 - When the machine turned off, I see a single 0x00
-- Then the software first starts, the software will send data in 4 groups at different baud rates.
+- When the software first starts, the software will send data in 4 groups at different baud rates.
 
 ```
 52 52 52 52 52                 - at 19200 bauds (RRRRR)
@@ -31,7 +31,7 @@ This is the serial protocol between "software" and "machine". The machine starts
 52 52 52 52 52                 - at 4800 bauds
 ```
 
-The software seems to be trying 4 different baud rates to see if the machine will answer on one of them. It's trying to send the "RF?" command. If the software gets back a "RF?" echo, it will start talking to the machine. The start sequence at 19200 bauds is:
+The software seems to be trying 4 different baud rates to see if the machine will answer on one of them. It's trying to send the "RF?" command. If the software gets back a "RF?" echo, it will start talking to the machine. One the machine is detected, the start sequence at 19200 bauds is:
 
 ```
 RF?       - Just echoed back
