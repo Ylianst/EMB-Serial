@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.14.36414.22 d17.14
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MemoryDump", "MemoryDump.csproj", "{84A4153B-07EA-4A42-BCC7-7D12DB67FEBB}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{84A4153B-07EA-4A42-BCC7-7D12DB67FEBB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{84A4153B-07EA-4A42-BCC7-7D12DB67FEBB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{84A4153B-07EA-4A42-BCC7-7D12DB67FEBB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{84A4153B-07EA-4A42-BCC7-7D12DB67FEBB}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {BE1EF1BB-AE12-4E68-BE71-F60593572DF5}
+	EndGlobalSection
+EndGlobal
