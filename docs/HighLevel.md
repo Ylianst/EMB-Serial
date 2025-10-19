@@ -1,10 +1,12 @@
-# Bernina High Level Workings
+# High Level Protocol
 
 Now that we have the basics of the serial protocol understood, we can build code that reads an area of memory, writes at a location and we have this load (?) operation. You can build a low-level stack in code that will do all that and we now need to figure out the high level workings of the machine.
 
 ## Machine Name, Language & Version
 
+```
 N200100 --> "NMMV03.01·English     ·Bernina Electronic  AG  ·July 98"
+```
 
 Reading memory at 0x200100 will give you the machine firmware version. You also see the firmware language and manufacturer after this. It's a set of fixed length null terminated strings.
 
@@ -12,6 +14,7 @@ Reading memory at 0x200100 will give you the machine firmware version. You also 
 
 This sequence is performed when you first enter the software and reads the BIOS version and the name of all of the embroidery files. The user will then be presented with a list of file that they can preview or download. The preview and download flows will be covered later.
 
+```
 (Start)
 R57FF80 --> B4A5000020DF002B797D03700FCE0C08535332FF0370FFFFFFFFFFFFFFFFFFFF
 
@@ -80,9 +83,11 @@ R0206A0 --> 1D1B2A0300002C070200000305000000FFFFFF00FC6000000000000000000000
 WFFFED00101? --> Write 0101 to FFFED0
 RFFFED0 --> 000000000040000000830063000000000000000000000000FF00000100000000
 (End)
+```
 
 ## The odd FFFED0 address
 
+```
 (Other commands)
 WFFFED00031? --> Write 0031 to FFFED0
 RFFFED0 --> 0002000000400000008300630000000000000000000000000300000130000000
@@ -95,3 +100,4 @@ RFFFED0 --> 0002000000400000008300630000000000000000000000000300000160000000
 WFFFED00101? --> Write 0101 to FFFED0
 RFFFED0 --> 000000000040000000830063000000000000000000000000FF00000100000000
 (End)
+```
