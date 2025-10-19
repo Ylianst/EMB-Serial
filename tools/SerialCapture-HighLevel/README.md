@@ -4,6 +4,8 @@ A C# console application that captures and logs serial communication between sof
 
 ![image](https://github.com/Ylianst/EMB-Serial/blob/main/docs/images/SerialCapture-HighLevel02.png)
 
+This software will attempt detect a switch from 19200 to 57600 baud and automatically follow and confinue to forward traffic at the new higher speed.
+
 ## Features
 
 - **High-level command parsing**: Displays complete commands (R, N, W, TrME, etc.) instead of individual bytes
@@ -33,8 +35,11 @@ Edit `config.ini` to configure the serial ports:
 Software=COM7
 Machine=COM15
 Baud=19200
+#Baud=57600
 file=output.txt
 ```
+
+The baud rate specified here is the initial rate which is 19200 bauds when first turning on the machine. If the machine was already changed to using 57600 bauds before starting this application, you need to change the initial baud rate to 57600. The line `#Baud=57600` is commented out (not active). Change the # to the other line to switch baudrates.
 
 **Settings:**
 - `Software`: Serial port connected to the software (e.g., COM7)
