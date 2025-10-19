@@ -1,6 +1,6 @@
 # Serial Port Man-in-the-Middle Capture Tool
 
-A C# console application that captures and logs bidirectional serial communication between two serial ports. This tool acts as a transparent man-in-the-middle, forwarding all data while logging everything for analysis.
+A C# console application that captures and logs bidirectional serial communication between two serial ports. This tool acts as a transparent man-in-the-middle, forwarding all data while logging everything for analysis. Note that this tool will not change baud rates in the middle of a capture, so, if you are capturing traffic and the software tells the machine to switch from 19200 baud to 57600 baud, the software will not follow and so, all traffic after this will not be forwarded correctly.
 
 ## Features
 
@@ -58,19 +58,6 @@ The log file contains entries in the following format:
 [2025-10-14 18:37:45.456] COM9 → COM8: 4F 4B (OK)
 ```
 
-Each entry includes:
-- **Timestamp**: Date and time with millisecond precision
-- **Source → Destination**: Which port received the data and where it was forwarded
-- **Hex data**: Byte values in hexadecimal format
-- **ASCII representation**: Printable characters (non-printable shown as '.')
-
-## Use Cases
-
-- **Protocol analysis**: Capture communication between two devices to reverse-engineer protocols
-- **Debugging**: Monitor serial communication to identify issues
-- **Testing**: Verify data integrity in serial communications
-- **Development**: Understand how devices communicate before writing custom code
-
 ## Requirements
 
 - .NET 8.0 SDK
@@ -92,14 +79,3 @@ Each entry includes:
 - Verify the port names in `config.ini` match actual ports on your system
 - On Windows: Check Device Manager
 - On Linux/macOS: List ports with `ls /dev/tty*` or `ls /dev/cu.*`
-
-## Building from Source
-
-```bash
-dotnet restore
-dotnet build
-```
-
-## License
-
-This is a utility tool created for educational and development purposes.
