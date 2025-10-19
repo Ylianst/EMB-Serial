@@ -16,4 +16,9 @@ I have a bunch of tools that can be useful to work on figuring out the serial pr
 - [SerialCapture-Basic](https://github.com/Ylianst/EMB-Serial/blob/main/Tools/SerialCapture-Basic), this is an early version of the SerialCapture tool that captures raw serial traffic. Probably not useful anymore because the other tools are better.
 - [SerialCapture-HighLevel](https://github.com/Ylianst/EMB-Serial/blob/main/Tools/SerialCapture-HighLevel), another version of the SerialCapture tool, but only generates very high level logs. This is the most useful tool for figuring out the high level protocol.
 
+In addition to these tools, I here are some traffic capture files here:
+
+- [High Level Traffic Captures](https://github.com/Ylianst/EMB-Serial/tree/main/tools/SerialCapture-HighLevel/captures), these where generated using the SerialCapture-HighLevel tool.
+- [Low Level Traffic Captures](https://github.com/Ylianst/EMB-Serial/tree/main/tools/SerialCapture/captures), these where generated using the SerialCapture tool and have both the high level and low level capture files. These where useful to figure out the low-level protocol, but probably not useful anymore.
+
 If you have any information on this machine, [please open an issue in GitHub](https://github.com/Ylianst/EMB-Serial/issues).
