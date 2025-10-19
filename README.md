@@ -4,9 +4,9 @@ This is an attempt at learning how the serial protocol of the Bernina Artista 18
 
 ![image](https://github.com/Ylianst/EMB-Serial/blob/main/docs/images/serial-setup.png)
 
-The 180 will start at 19200 bauds N,8,1 serial settings but can be told to go up to a higher speed. The software will send out traffic at various baud rates to try to find the machine since, if it's been told to move to a higher speed, it will no longer be responsive at the default 19200 baud speed. The low level protocol has been wroked out and you can take a [look at it here](https://github.com/Ylianst/EMB-Serial/blob/main/docs/SerialProtocol.md). There is a basic set of commands: Read/LargeRead/Write/Load. Here is a [C# Serial Stack](https://github.com/Ylianst/EMB-Serial/blob/main/Tools/SerialComm/SerialStack.cs) class that implements the low-level protocol.
+The 180 will start at 19200 bauds N,8,1 serial settings but can be told to go up to a higher speed. The software will send out traffic at various baud rates to try to find the machine since, if it's been told to move to a higher speed, it will no longer be responsive at the default 19200 baud speed. The low level protocol has been wroked out and you can take a [look at it here](https://github.com/Ylianst/EMB-Serial/blob/main/docs/SerialProtocol.md). There is a basic set of commands: Read/LargeRead/Write/Load. Here is a [C# Serial Stack](https://github.com/Ylianst/EMB-Serial/blob/main/Tools/SerialComm/SerialStack.cs) class that implements the low-level protocol so you can easily build software to perform these commands.
 
-Once the basics of the protocol have been understood, the high level communication needs to be mastered next. I have a document on the [high-level protocol](https://github.com/Ylianst/EMB-Serial/blob/main/docs/SerialProtocol.md). It's not complete and much work remains to be done.
+Once the basics of the protocol have been understood, the high level communication needs to be mastered next. I have an early document on the [high-level protocol](https://github.com/Ylianst/EMB-Serial/blob/main/docs/SerialProtocol.md). Much work remains to be done.
 
 I have a bunch of tools that can be useful to work on figuring out the serial protocol. All tools here at C# and build with Visual Studio 2022.
 
