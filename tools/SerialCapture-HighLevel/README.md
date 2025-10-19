@@ -92,25 +92,6 @@ The console displays one command per line with its response:
 [14:23:47.205] << ERROR: Machine responded with 'Q'
 ```
 
-## Protocol Details
-
-The application understands the Bernina low-level serial protocol:
-
-1. **Character echoing**: Machine echoes each character from software
-2. **Command buffering**: Software commands are buffered until complete
-3. **Response parsing**: Machine responses are captured and displayed
-4. **Baud rate switching**: Automatic switch to 57600 when `TrMEJ05` detected
-5. **Error handling**: Detects and displays Q, ?, ! error responses
-
-See `SerialProtocol.md` in the DataReader documentation for full protocol details.
-
-## Use Cases
-
-- **Protocol monitoring**: Watch high-level communication between software and machine
-- **Debugging**: Identify communication issues at the command level
-- **Development**: Understand command sequences and responses
-- **Analysis**: Study how the software interacts with the machine
-
 ## Requirements
 
 - .NET 8.0 SDK
@@ -138,23 +119,3 @@ See `SerialProtocol.md` in the DataReader documentation for full protocol detail
 - Check that data is flowing (forwarding must be enabled with 'R' command)
 - Verify baud rate is correct in config.ini
 - Check that both ports are properly connected
-
-## Building from Source
-
-```bash
-dotnet restore
-dotnet build
-```
-
-## Architecture
-
-The application uses a state machine to:
-1. Buffer incoming characters from software
-2. Detect complete commands based on protocol rules
-3. Wait for and capture machine responses
-4. Display commands with their responses
-5. Handle special cases (baud rate changes, errors, unsolicited messages)
-
-## License
-
-This is a utility tool created for educational and development purposes.
