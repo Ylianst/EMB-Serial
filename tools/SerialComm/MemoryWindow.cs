@@ -22,12 +22,11 @@ namespace SerialComm
             // Set default values
             txtAddress.Text = "200100";
             txtLength.Text = "256";
-            chkAutoRefresh.Checked = false;
-            numRefreshInterval.Value = 1;
-            numRefreshInterval.Enabled = false;
             
-            // Set up hex viewer
+            // Set up hex viewer with green on black theme (matching main window)
             txtHexView.Font = new Font("Consolas", 9);
+            txtHexView.BackColor = Color.Black;
+            txtHexView.ForeColor = Color.Lime;
             txtHexView.ReadOnly = true;
             txtHexView.WordWrap = false;
         }
@@ -180,7 +179,8 @@ namespace SerialComm
             txtHexView.Text = sb.ToString();
         }
 
-        private void btnRefresh_Click(object sender, EventArgs e)
+        // Menu item handlers
+        private void refreshToolStripMenuItem_Click(object sender, EventArgs e)
         {
             if (_memoryData != null)
             {
@@ -193,38 +193,7 @@ namespace SerialComm
             }
         }
 
-        private void chkAutoRefresh_CheckedChanged(object sender, EventArgs e)
-        {
-            numRefreshInterval.Enabled = chkAutoRefresh.Checked;
-
-            if (chkAutoRefresh.Checked)
-            {
-                // Start auto-refresh timer
-                int intervalSeconds = (int)numRefreshInterval.Value;
-                _refreshTimer = new System.Threading.Timer(async _ =>
-                {
-                    if (InvokeRequired)
-                    {
-                        Invoke(new Action(async () => await LoadMemoryAsync()));
-                    }
-                    else
-                    {
-                        await LoadMemoryAsync();
-                    }
-                }, null, intervalSeconds * 1000, intervalSeconds * 1000);
-
-                lblStatus.Text = $"Auto-refresh enabled ({intervalSeconds}s interval)";
-            }
-            else
-            {
-                // Stop auto-refresh timer
-                _refreshTimer?.Dispose();
-                _refreshTimer = null;
-                lblStatus.Text = "Auto-refresh disabled";
-            }
-        }
-
-        private void btnExport_Click(object sender, EventArgs e)
+        private void exportToolStripMenuItem_Click(object sender, EventArgs e)
         {
             if (_memoryData == null)
             {
@@ -253,6 +222,11 @@ namespace SerialComm
                     }
                 }
             }
+        }
+
+        private void exitToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            Close();
         }
 
         private void MemoryWindow_FormClosing(object sender, FormClosingEventArgs e)

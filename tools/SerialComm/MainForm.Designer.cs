@@ -44,23 +44,22 @@
             readToolStripMenuItem = new ToolStripMenuItem();
             largeReadToolStripMenuItem = new ToolStripMenuItem();
             writeToolStripMenuItem = new ToolStripMenuItem();
-            lCommandToolStripMenuItem = new ToolStripMenuItem();
+            loadToolStripMenuItem = new ToolStripMenuItem();
             toolStripSeparator3 = new ToolStripSeparator();
             memoryViewerToolStripMenuItem = new ToolStripMenuItem();
-            showSerialTrafficToolStripMenuItem = new ToolStripMenuItem();
             helpToolStripMenuItem = new ToolStripMenuItem();
             aboutToolStripMenuItem = new ToolStripMenuItem();
             statusStrip1 = new StatusStrip();
             toolStripStatusLabel = new ToolStripStatusLabel();
             toolStripStatusLabelConnection = new ToolStripStatusLabel();
-            groupBoxConnection = new GroupBox();
             btnDisconnect = new Button();
             btnConnect = new Button();
             comboBoxComPort = new ComboBox();
             label1 = new Label();
-            groupBoxCommands = new GroupBox();
-            btnLCommand = new Button();
-            txtLCommand = new TextBox();
+            btnLoad = new Button();
+            txtLoadLength = new TextBox();
+            label7 = new Label();
+            txtLoadAddress = new TextBox();
             label6 = new Label();
             btnWrite = new Button();
             txtWriteData = new TextBox();
@@ -73,13 +72,11 @@
             label2 = new Label();
             txtLargeReadAddress = new TextBox();
             label3 = new Label();
-            groupBoxOutput = new GroupBox();
             txtOutput = new TextBox();
+            panel1 = new Panel();
             menuStrip1.SuspendLayout();
             statusStrip1.SuspendLayout();
-            groupBoxConnection.SuspendLayout();
-            groupBoxCommands.SuspendLayout();
-            groupBoxOutput.SuspendLayout();
+            panel1.SuspendLayout();
             SuspendLayout();
             // 
             // menuStrip1
@@ -103,31 +100,31 @@
             // 
             showSerialTrafficToolStripMenuItem.CheckOnClick = true;
             showSerialTrafficToolStripMenuItem.Name = "showSerialTrafficToolStripMenuItem";
-            showSerialTrafficToolStripMenuItem.Size = new Size(224, 26);
+            showSerialTrafficToolStripMenuItem.Size = new Size(214, 26);
             showSerialTrafficToolStripMenuItem.Text = "&Show Serial Traffic";
             showSerialTrafficToolStripMenuItem.Click += showSerialTrafficToolStripMenuItem_Click;
             // 
             // toolStripSeparator2
             // 
             toolStripSeparator2.Name = "toolStripSeparator2";
-            toolStripSeparator2.Size = new Size(221, 6);
+            toolStripSeparator2.Size = new Size(211, 6);
             // 
             // clearOutputToolStripMenuItem
             // 
             clearOutputToolStripMenuItem.Name = "clearOutputToolStripMenuItem";
-            clearOutputToolStripMenuItem.Size = new Size(224, 26);
+            clearOutputToolStripMenuItem.Size = new Size(214, 26);
             clearOutputToolStripMenuItem.Text = "&Clear Output";
             clearOutputToolStripMenuItem.Click += clearOutputToolStripMenuItem_Click;
             // 
             // toolStripSeparator4
             // 
             toolStripSeparator4.Name = "toolStripSeparator4";
-            toolStripSeparator4.Size = new Size(221, 6);
+            toolStripSeparator4.Size = new Size(211, 6);
             // 
             // exitToolStripMenuItem
             // 
             exitToolStripMenuItem.Name = "exitToolStripMenuItem";
-            exitToolStripMenuItem.Size = new Size(224, 26);
+            exitToolStripMenuItem.Size = new Size(214, 26);
             exitToolStripMenuItem.Text = "E&xit";
             exitToolStripMenuItem.Click += exitToolStripMenuItem_Click;
             // 
@@ -168,7 +165,7 @@
             // 
             // commandsToolStripMenuItem
             // 
-            commandsToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { readToolStripMenuItem, largeReadToolStripMenuItem, writeToolStripMenuItem, lCommandToolStripMenuItem, toolStripSeparator3, memoryViewerToolStripMenuItem });
+            commandsToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { readToolStripMenuItem, largeReadToolStripMenuItem, writeToolStripMenuItem, loadToolStripMenuItem, toolStripSeparator3, memoryViewerToolStripMenuItem });
             commandsToolStripMenuItem.Name = "commandsToolStripMenuItem";
             commandsToolStripMenuItem.Size = new Size(98, 24);
             commandsToolStripMenuItem.Text = "C&ommands";
@@ -177,7 +174,7 @@
             // 
             readToolStripMenuItem.Enabled = false;
             readToolStripMenuItem.Name = "readToolStripMenuItem";
-            readToolStripMenuItem.Size = new Size(172, 26);
+            readToolStripMenuItem.Size = new Size(205, 26);
             readToolStripMenuItem.Text = "&Read";
             readToolStripMenuItem.Click += readToolStripMenuItem_Click;
             // 
@@ -185,7 +182,7 @@
             // 
             largeReadToolStripMenuItem.Enabled = false;
             largeReadToolStripMenuItem.Name = "largeReadToolStripMenuItem";
-            largeReadToolStripMenuItem.Size = new Size(172, 26);
+            largeReadToolStripMenuItem.Size = new Size(205, 26);
             largeReadToolStripMenuItem.Text = "&Large Read";
             largeReadToolStripMenuItem.Click += largeReadToolStripMenuItem_Click;
             // 
@@ -193,28 +190,28 @@
             // 
             writeToolStripMenuItem.Enabled = false;
             writeToolStripMenuItem.Name = "writeToolStripMenuItem";
-            writeToolStripMenuItem.Size = new Size(172, 26);
+            writeToolStripMenuItem.Size = new Size(205, 26);
             writeToolStripMenuItem.Text = "&Write";
             writeToolStripMenuItem.Click += writeToolStripMenuItem_Click;
             // 
-            // lCommandToolStripMenuItem
+            // loadToolStripMenuItem
             // 
-            lCommandToolStripMenuItem.Enabled = false;
-            lCommandToolStripMenuItem.Name = "lCommandToolStripMenuItem";
-            lCommandToolStripMenuItem.Size = new Size(190, 26);
-            lCommandToolStripMenuItem.Text = "L C&ommand";
-            lCommandToolStripMenuItem.Click += lCommandToolStripMenuItem_Click;
+            loadToolStripMenuItem.Enabled = false;
+            loadToolStripMenuItem.Name = "loadToolStripMenuItem";
+            loadToolStripMenuItem.Size = new Size(205, 26);
+            loadToolStripMenuItem.Text = "L&oad";
+            loadToolStripMenuItem.Click += loadToolStripMenuItem_Click;
             // 
             // toolStripSeparator3
             // 
             toolStripSeparator3.Name = "toolStripSeparator3";
-            toolStripSeparator3.Size = new Size(187, 6);
+            toolStripSeparator3.Size = new Size(202, 6);
             // 
             // memoryViewerToolStripMenuItem
             // 
             memoryViewerToolStripMenuItem.Enabled = false;
             memoryViewerToolStripMenuItem.Name = "memoryViewerToolStripMenuItem";
-            memoryViewerToolStripMenuItem.Size = new Size(190, 26);
+            memoryViewerToolStripMenuItem.Size = new Size(205, 26);
             memoryViewerToolStripMenuItem.Text = "&Memory Viewer...";
             memoryViewerToolStripMenuItem.Click += memoryViewerToolStripMenuItem_Click;
             // 
@@ -256,24 +253,10 @@
             toolStripStatusLabelConnection.Text = "Disconnected";
             toolStripStatusLabelConnection.TextAlign = ContentAlignment.MiddleRight;
             // 
-            // groupBoxConnection
-            // 
-            groupBoxConnection.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
-            groupBoxConnection.Controls.Add(btnDisconnect);
-            groupBoxConnection.Controls.Add(btnConnect);
-            groupBoxConnection.Controls.Add(comboBoxComPort);
-            groupBoxConnection.Controls.Add(label1);
-            groupBoxConnection.Location = new Point(12, 35);
-            groupBoxConnection.Name = "groupBoxConnection";
-            groupBoxConnection.Size = new Size(976, 80);
-            groupBoxConnection.TabIndex = 2;
-            groupBoxConnection.TabStop = false;
-            groupBoxConnection.Text = "Connection";
-            // 
             // btnDisconnect
             // 
             btnDisconnect.Enabled = false;
-            btnDisconnect.Location = new Point(409, 32);
+            btnDisconnect.Location = new Point(409, 6);
             btnDisconnect.Name = "btnDisconnect";
             btnDisconnect.Size = new Size(120, 29);
             btnDisconnect.TabIndex = 3;
@@ -283,7 +266,7 @@
             // 
             // btnConnect
             // 
-            btnConnect.Location = new Point(283, 32);
+            btnConnect.Location = new Point(283, 7);
             btnConnect.Name = "btnConnect";
             btnConnect.Size = new Size(120, 29);
             btnConnect.TabIndex = 2;
@@ -295,7 +278,7 @@
             // 
             comboBoxComPort.DropDownStyle = ComboBoxStyle.DropDownList;
             comboBoxComPort.FormattingEnabled = true;
-            comboBoxComPort.Location = new Point(103, 33);
+            comboBoxComPort.Location = new Point(103, 7);
             comboBoxComPort.Name = "comboBoxComPort";
             comboBoxComPort.Size = new Size(160, 28);
             comboBoxComPort.TabIndex = 1;
@@ -303,66 +286,61 @@
             // label1
             // 
             label1.AutoSize = true;
-            label1.Location = new Point(18, 36);
+            label1.Location = new Point(18, 10);
             label1.Name = "label1";
             label1.Size = new Size(75, 20);
             label1.TabIndex = 0;
             label1.Text = "COM Port:";
             // 
-            // groupBoxCommands
+            // btnLoad
             // 
-            groupBoxCommands.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
-            groupBoxCommands.Controls.Add(btnLCommand);
-            groupBoxCommands.Controls.Add(txtLCommand);
-            groupBoxCommands.Controls.Add(label6);
-            groupBoxCommands.Controls.Add(btnWrite);
-            groupBoxCommands.Controls.Add(txtWriteData);
-            groupBoxCommands.Controls.Add(label5);
-            groupBoxCommands.Controls.Add(txtWriteAddress);
-            groupBoxCommands.Controls.Add(label4);
-            groupBoxCommands.Controls.Add(btnLargeRead);
-            groupBoxCommands.Controls.Add(btnRead);
-            groupBoxCommands.Controls.Add(txtReadAddress);
-            groupBoxCommands.Controls.Add(label2);
-            groupBoxCommands.Enabled = false;
-            groupBoxCommands.Location = new Point(12, 121);
-            groupBoxCommands.Name = "groupBoxCommands";
-            groupBoxCommands.Size = new Size(976, 143);
-            groupBoxCommands.TabIndex = 3;
-            groupBoxCommands.TabStop = false;
-            groupBoxCommands.Text = "Commands";
+            btnLoad.Location = new Point(393, 112);
+            btnLoad.Name = "btnLoad";
+            btnLoad.Size = new Size(120, 29);
+            btnLoad.TabIndex = 15;
+            btnLoad.Text = "Load";
+            btnLoad.UseVisualStyleBackColor = true;
+            btnLoad.Click += btnLoad_Click;
             // 
-            // btnLCommand
+            // txtLoadLength
             // 
-            btnLCommand.Location = new Point(416, 106);
-            btnLCommand.Name = "btnLCommand";
-            btnLCommand.Size = new Size(120, 29);
-            btnLCommand.TabIndex = 13;
-            btnLCommand.Text = "L Command";
-            btnLCommand.UseVisualStyleBackColor = true;
-            btnLCommand.Click += btnLCommand_Click;
+            txtLoadLength.Location = new Point(288, 113);
+            txtLoadLength.MaxLength = 6;
+            txtLoadLength.Name = "txtLoadLength";
+            txtLoadLength.PlaceholderText = "Hex (000360)";
+            txtLoadLength.Size = new Size(85, 27);
+            txtLoadLength.TabIndex = 14;
             // 
-            // txtLCommand
+            // label7
             // 
-            txtLCommand.Location = new Point(128, 107);
-            txtLCommand.MaxLength = 12;
-            txtLCommand.Name = "txtLCommand";
-            txtLCommand.PlaceholderText = "12 hex chars (e.g., 0240D5000360)";
-            txtLCommand.Size = new Size(270, 27);
-            txtLCommand.TabIndex = 12;
+            label7.AutoSize = true;
+            label7.Location = new Point(231, 116);
+            label7.Name = "label7";
+            label7.Size = new Size(57, 20);
+            label7.TabIndex = 13;
+            label7.Text = "Length:";
+            // 
+            // txtLoadAddress
+            // 
+            txtLoadAddress.Location = new Point(103, 113);
+            txtLoadAddress.MaxLength = 6;
+            txtLoadAddress.Name = "txtLoadAddress";
+            txtLoadAddress.PlaceholderText = "Hex (0240D5)";
+            txtLoadAddress.Size = new Size(108, 27);
+            txtLoadAddress.TabIndex = 12;
             // 
             // label6
             // 
             label6.AutoSize = true;
-            label6.Location = new Point(20, 110);
+            label6.Location = new Point(20, 116);
             label6.Name = "label6";
-            label6.Size = new Size(96, 20);
+            label6.Size = new Size(82, 20);
             label6.TabIndex = 11;
-            label6.Text = "L Parameters:";
+            label6.Text = "Load Addr:";
             // 
             // btnWrite
             // 
-            btnWrite.Location = new Point(427, 70);
+            btnWrite.Location = new Point(427, 76);
             btnWrite.Name = "btnWrite";
             btnWrite.Size = new Size(120, 29);
             btnWrite.TabIndex = 10;
@@ -372,17 +350,17 @@
             // 
             // txtWriteData
             // 
-            txtWriteData.Location = new Point(281, 71);
+            txtWriteData.Location = new Point(281, 77);
             txtWriteData.MaxLength = 100;
             txtWriteData.Name = "txtWriteData";
-            txtWriteData.PlaceholderText = "Hex data (e.g., 01 or 0102)";
+            txtWriteData.PlaceholderText = "Hex (01 or 0102)";
             txtWriteData.Size = new Size(128, 27);
             txtWriteData.TabIndex = 9;
             // 
             // label5
             // 
             label5.AutoSize = true;
-            label5.Location = new Point(229, 74);
+            label5.Location = new Point(229, 80);
             label5.Name = "label5";
             label5.Size = new Size(44, 20);
             label5.TabIndex = 8;
@@ -390,25 +368,25 @@
             // 
             // txtWriteAddress
             // 
-            txtWriteAddress.Location = new Point(101, 71);
+            txtWriteAddress.Location = new Point(101, 77);
             txtWriteAddress.MaxLength = 6;
             txtWriteAddress.Name = "txtWriteAddress";
-            txtWriteAddress.PlaceholderText = "Hex (e.g., 200100)";
+            txtWriteAddress.PlaceholderText = "Hex (200100)";
             txtWriteAddress.Size = new Size(110, 27);
             txtWriteAddress.TabIndex = 7;
             // 
             // label4
             // 
             label4.AutoSize = true;
-            label4.Location = new Point(20, 74);
+            label4.Location = new Point(20, 80);
             label4.Name = "label4";
-            label4.Size = new Size(76, 20);
+            label4.Size = new Size(85, 20);
             label4.TabIndex = 6;
-            label4.Text = "Write Adr:";
+            label4.Text = "Write Addr:";
             // 
             // btnLargeRead
             // 
-            btnLargeRead.Location = new Point(323, 35);
+            btnLargeRead.Location = new Point(323, 41);
             btnLargeRead.Name = "btnLargeRead";
             btnLargeRead.Size = new Size(120, 29);
             btnLargeRead.TabIndex = 3;
@@ -418,7 +396,7 @@
             // 
             // btnRead
             // 
-            btnRead.Location = new Point(197, 35);
+            btnRead.Location = new Point(197, 41);
             btnRead.Name = "btnRead";
             btnRead.Size = new Size(120, 29);
             btnRead.TabIndex = 2;
@@ -428,7 +406,7 @@
             // 
             // txtReadAddress
             // 
-            txtReadAddress.Location = new Point(103, 36);
+            txtReadAddress.Location = new Point(103, 42);
             txtReadAddress.MaxLength = 6;
             txtReadAddress.Name = "txtReadAddress";
             txtReadAddress.PlaceholderText = "Hex (e.g., 200100)";
@@ -439,7 +417,7 @@
             // label2
             // 
             label2.AutoSize = true;
-            label2.Location = new Point(18, 39);
+            label2.Location = new Point(18, 45);
             label2.Name = "label2";
             label2.Size = new Size(65, 20);
             label2.TabIndex = 0;
@@ -459,57 +437,67 @@
             label3.Size = new Size(100, 23);
             label3.TabIndex = 0;
             // 
-            // groupBoxOutput
-            // 
-            groupBoxOutput.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
-            groupBoxOutput.Controls.Add(txtOutput);
-            groupBoxOutput.Location = new Point(12, 279);
-            groupBoxOutput.Name = "groupBoxOutput";
-            groupBoxOutput.Size = new Size(976, 344);
-            groupBoxOutput.TabIndex = 4;
-            groupBoxOutput.TabStop = false;
-            groupBoxOutput.Text = "Output";
-            // 
             // txtOutput
             // 
-            txtOutput.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
             txtOutput.BackColor = Color.Black;
+            txtOutput.Dock = DockStyle.Fill;
             txtOutput.Font = new Font("Consolas", 9F);
             txtOutput.ForeColor = Color.Lime;
-            txtOutput.Location = new Point(6, 26);
+            txtOutput.Location = new Point(0, 178);
             txtOutput.Multiline = true;
             txtOutput.Name = "txtOutput";
             txtOutput.ReadOnly = true;
-            txtOutput.ScrollBars = ScrollBars.Both;
-            txtOutput.Size = new Size(964, 312);
+            txtOutput.ScrollBars = ScrollBars.Vertical;
+            txtOutput.Size = new Size(1000, 448);
             txtOutput.TabIndex = 0;
             txtOutput.WordWrap = false;
+            // 
+            // panel1
+            // 
+            panel1.Controls.Add(btnLoad);
+            panel1.Controls.Add(btnDisconnect);
+            panel1.Controls.Add(txtLoadLength);
+            panel1.Controls.Add(label1);
+            panel1.Controls.Add(label7);
+            panel1.Controls.Add(btnConnect);
+            panel1.Controls.Add(txtLoadAddress);
+            panel1.Controls.Add(comboBoxComPort);
+            panel1.Controls.Add(label6);
+            panel1.Controls.Add(label2);
+            panel1.Controls.Add(btnWrite);
+            panel1.Controls.Add(txtReadAddress);
+            panel1.Controls.Add(txtWriteData);
+            panel1.Controls.Add(btnRead);
+            panel1.Controls.Add(label5);
+            panel1.Controls.Add(btnLargeRead);
+            panel1.Controls.Add(txtWriteAddress);
+            panel1.Controls.Add(label4);
+            panel1.Dock = DockStyle.Top;
+            panel1.Location = new Point(0, 28);
+            panel1.Name = "panel1";
+            panel1.Size = new Size(1000, 150);
+            panel1.TabIndex = 5;
             // 
             // MainForm
             // 
             AutoScaleDimensions = new SizeF(8F, 20F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(1000, 652);
-            Controls.Add(groupBoxOutput);
-            Controls.Add(groupBoxCommands);
-            Controls.Add(groupBoxConnection);
+            Controls.Add(txtOutput);
+            Controls.Add(panel1);
             Controls.Add(statusStrip1);
             Controls.Add(menuStrip1);
             MainMenuStrip = menuStrip1;
             Name = "MainForm";
-            Text = "Bernina Serial Communication";
+            Text = "Emboidery Serial Communication";
             FormClosing += MainForm_FormClosing;
             Load += MainForm_Load;
             menuStrip1.ResumeLayout(false);
             menuStrip1.PerformLayout();
             statusStrip1.ResumeLayout(false);
             statusStrip1.PerformLayout();
-            groupBoxConnection.ResumeLayout(false);
-            groupBoxConnection.PerformLayout();
-            groupBoxCommands.ResumeLayout(false);
-            groupBoxCommands.PerformLayout();
-            groupBoxOutput.ResumeLayout(false);
-            groupBoxOutput.PerformLayout();
+            panel1.ResumeLayout(false);
+            panel1.PerformLayout();
             ResumeLayout(false);
             PerformLayout();
         }
@@ -521,12 +509,10 @@
         private ToolStripMenuItem exitToolStripMenuItem;
         private StatusStrip statusStrip1;
         private ToolStripStatusLabel toolStripStatusLabel;
-        private GroupBox groupBoxConnection;
         private ComboBox comboBoxComPort;
         private Label label1;
         private Button btnConnect;
         private Button btnDisconnect;
-        private GroupBox groupBoxCommands;
         private Label label2;
         private TextBox txtReadAddress;
         private Button btnRead;
@@ -538,10 +524,11 @@
         private Label label5;
         private TextBox txtWriteAddress;
         private Label label4;
-        private Button btnLCommand;
-        private TextBox txtLCommand;
+        private Button btnLoad;
+        private TextBox txtLoadAddress;
+        private TextBox txtLoadLength;
         private Label label6;
-        private GroupBox groupBoxOutput;
+        private Label label7;
         private TextBox txtOutput;
         private ToolStripMenuItem connectionToolStripMenuItem;
         private ToolStripMenuItem connectToolStripMenuItem;
@@ -550,7 +537,7 @@
         private ToolStripMenuItem readToolStripMenuItem;
         private ToolStripMenuItem largeReadToolStripMenuItem;
         private ToolStripMenuItem writeToolStripMenuItem;
-        private ToolStripMenuItem lCommandToolStripMenuItem;
+        private ToolStripMenuItem loadToolStripMenuItem;
         private ToolStripMenuItem helpToolStripMenuItem;
         private ToolStripMenuItem aboutToolStripMenuItem;
         private ToolStripStatusLabel toolStripStatusLabelConnection;
@@ -562,5 +549,6 @@
         private ToolStripMenuItem memoryViewerToolStripMenuItem;
         private ToolStripMenuItem showSerialTrafficToolStripMenuItem;
         private ToolStripSeparator toolStripSeparator4;
+        private Panel panel1;
     }
 }

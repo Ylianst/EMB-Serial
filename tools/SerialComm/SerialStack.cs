@@ -247,6 +247,7 @@ namespace Bernina.SerialStack
 
         /// <summary>
         /// Reads a block of memory by breaking it down into multiple Read (32 bytes) and LargeRead (256 bytes) commands
+        /// For efficiency, always uses LargeRead when reading more than 32 bytes to minimize command count
         /// </summary>
         /// <param name="address">The starting address to read from</param>
         /// <param name="length">The number of bytes to read</param>
@@ -283,8 +284,9 @@ namespace Bernina.SerialStack
                     int remainingBytes = length - bytesRead;
                     CommandResult result;
 
-                    // Use LargeRead (256 bytes) for larger chunks, Read (32 bytes) for smaller
-                    if (remainingBytes >= 256)
+                    // Optimization: Always use LargeRead (256 bytes) when more than 32 bytes remain
+                    // This minimizes the number of commands sent to the machine
+                    if (remainingBytes > 32)
                     {
                         result = await LargeReadAsync(currentAddress);
                         if (result.Success && result.BinaryData != null)
@@ -303,32 +305,13 @@ namespace Bernina.SerialStack
                             };
                         }
                     }
-                    else if (remainingBytes >= 32)
+                    else
                     {
+                        // Only use Read (32 bytes) for the final chunk of 32 bytes or less
                         result = await ReadAsync(currentAddress);
                         if (result.Success && result.BinaryData != null)
                         {
                             int bytesToCopy = Math.Min(32, remainingBytes);
-                            Array.Copy(result.BinaryData, 0, completeData, bytesRead, bytesToCopy);
-                            bytesRead += bytesToCopy;
-                            currentAddress += bytesToCopy;
-                        }
-                        else
-                        {
-                            return new CommandResult
-                            {
-                                Success = false,
-                                ErrorMessage = $"Read failed at address 0x{currentAddress:X6}: {result.ErrorMessage}"
-                            };
-                        }
-                    }
-                    else
-                    {
-                        // For remaining bytes less than 32, still use Read but only copy what we need
-                        result = await ReadAsync(currentAddress);
-                        if (result.Success && result.BinaryData != null)
-                        {
-                            int bytesToCopy = remainingBytes;
                             Array.Copy(result.BinaryData, 0, completeData, bytesRead, bytesToCopy);
                             bytesRead += bytesToCopy;
                             currentAddress += bytesToCopy;

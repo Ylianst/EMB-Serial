@@ -22,13 +22,13 @@ namespace SerialComm
         {
             // Populate COM port list
             RefreshComPorts();
-            
+
             // Set default read address
             txtReadAddress.Text = "200100";
-            
+
             // Load last used COM port from registry
             LoadLastComPort();
-            
+
             // Initialize status
             UpdateConnectionStatus("Disconnected", false);
         }
@@ -37,7 +37,7 @@ namespace SerialComm
         {
             comboBoxComPort.Items.Clear();
             string[] ports = SerialPort.GetPortNames();
-            
+
             if (ports.Length > 0)
             {
                 foreach (string port in ports)
@@ -102,7 +102,7 @@ namespace SerialComm
 
         private async Task ConnectAsync()
         {
-            if (comboBoxComPort.SelectedItem == null || 
+            if (comboBoxComPort.SelectedItem == null ||
                 comboBoxComPort.SelectedItem.ToString() == "No ports available")
             {
                 MessageBox.Show("Please select a valid COM port.", "Connection Error",
@@ -111,42 +111,41 @@ namespace SerialComm
             }
 
             string portName = comboBoxComPort.SelectedItem.ToString()!;
-            
+
             // Disable connection controls
             btnConnect.Enabled = false;
             comboBoxComPort.Enabled = false;
             connectToolStripMenuItem.Enabled = false;
-            
+
             UpdateStatus("Connecting to " + portName + "...");
             UpdateConnectionStatus("Connecting...", false);
             AppendOutput("Attempting to connect to " + portName);
-            
+
             try
             {
                 // Create serial stack
                 _serialStack = new SerialStack(portName);
-                
+
                 // Subscribe to events
                 _serialStack.ConnectionStateChanged += OnConnectionStateChanged;
                 _serialStack.CommandCompleted += OnCommandCompleted;
                 _serialStack.SerialTraffic += OnSerialTraffic;
-                
+
                 // Try to connect
                 bool connected = await _serialStack.OpenAsync();
-                
+
                 if (connected)
                 {
                     _isConnected = true;
-                    
+
                     // Save the COM port to registry for next time
                     SaveLastComPort(portName);
-                    
+
                     // Update UI
                     btnConnect.Enabled = false;
                     btnDisconnect.Enabled = true;
                     comboBoxComPort.Enabled = false;
-                    groupBoxCommands.Enabled = true;
-                    
+
                     // Update menu items
                     connectToolStripMenuItem.Enabled = false;
                     disconnectToolStripMenuItem.Enabled = true;
@@ -154,9 +153,9 @@ namespace SerialComm
                     readToolStripMenuItem.Enabled = true;
                     largeReadToolStripMenuItem.Enabled = true;
                     writeToolStripMenuItem.Enabled = true;
-                    lCommandToolStripMenuItem.Enabled = true;
+                    loadToolStripMenuItem.Enabled = true;
                     memoryViewerToolStripMenuItem.Enabled = true;
-                    
+
                     UpdateStatus("Connected");
                     UpdateConnectionStatus($"Connected: {portName} @ {_serialStack.BaudRate} baud", true);
                     AppendOutput($"Connected successfully at {_serialStack.BaudRate} baud");
@@ -167,15 +166,15 @@ namespace SerialComm
                 {
                     _serialStack?.Dispose();
                     _serialStack = null;
-                    
+
                     btnConnect.Enabled = true;
                     comboBoxComPort.Enabled = true;
                     connectToolStripMenuItem.Enabled = true;
-                    
+
                     UpdateStatus("Connection failed");
                     UpdateConnectionStatus("Disconnected", false);
                     AppendOutput("Connection failed - machine did not respond");
-                    
+
                     MessageBox.Show("Failed to connect. Make sure the machine is powered on and connected.",
                         "Connection Failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
@@ -184,15 +183,15 @@ namespace SerialComm
             {
                 _serialStack?.Dispose();
                 _serialStack = null;
-                
+
                 btnConnect.Enabled = true;
                 comboBoxComPort.Enabled = true;
                 connectToolStripMenuItem.Enabled = true;
-                
+
                 UpdateStatus("Connection error");
                 UpdateConnectionStatus("Disconnected", false);
                 AppendOutput($"Connection error: {ex.Message}");
-                
+
                 MessageBox.Show($"Connection error: {ex.Message}", "Error",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
@@ -212,25 +211,24 @@ namespace SerialComm
                 _serialStack.Dispose();
                 _serialStack = null;
             }
-            
+
             _isConnected = false;
-            
+
             // Update UI
             btnConnect.Enabled = true;
             btnDisconnect.Enabled = false;
             comboBoxComPort.Enabled = true;
-            groupBoxCommands.Enabled = false;
-            
+
             // Update menu items
             connectToolStripMenuItem.Enabled = true;
             disconnectToolStripMenuItem.Enabled = false;
             switchTo57600BaudToolStripMenuItem.Enabled = false;
-                    readToolStripMenuItem.Enabled = false;
-                    largeReadToolStripMenuItem.Enabled = false;
-                    writeToolStripMenuItem.Enabled = false;
-                    lCommandToolStripMenuItem.Enabled = false;
-                    memoryViewerToolStripMenuItem.Enabled = false;
-            
+            readToolStripMenuItem.Enabled = false;
+            largeReadToolStripMenuItem.Enabled = false;
+            writeToolStripMenuItem.Enabled = false;
+            loadToolStripMenuItem.Enabled = false;
+            memoryViewerToolStripMenuItem.Enabled = false;
+
             UpdateStatus("Disconnected");
             UpdateConnectionStatus("Disconnected", false);
             AppendOutput("Disconnected");
@@ -262,17 +260,17 @@ namespace SerialComm
             try
             {
                 int address = Convert.ToInt32(addressStr, 16);
-                
+
                 UpdateStatus($"Reading from 0x{address:X6}...");
                 AppendOutput($"Read command: Address 0x{address:X6}");
-                
+
                 var result = await _serialStack.ReadAsync(address);
-                
+
                 if (result.Success)
                 {
                     AppendOutput($"Read successful:");
                     AppendOutput($"  Hex Data: {result.Response}");
-                    
+
                     if (result.BinaryData != null && result.BinaryData.Length > 0)
                     {
                         // Display as ASCII if printable
@@ -285,25 +283,25 @@ namespace SerialComm
                                 ascii.Append('.');
                         }
                         AppendOutput($"  ASCII: {ascii}");
-                        
+
                         // Display hex dump
                         AppendOutput($"  Hex Dump:");
                         for (int i = 0; i < result.BinaryData.Length; i += 16)
                         {
                             StringBuilder hexLine = new StringBuilder($"    {i:X4}: ");
                             StringBuilder asciiLine = new StringBuilder("  ");
-                            
+
                             for (int j = 0; j < 16 && i + j < result.BinaryData.Length; j++)
                             {
                                 byte b = result.BinaryData[i + j];
                                 hexLine.Append($"{b:X2} ");
                                 asciiLine.Append((b >= 32 && b <= 126) ? (char)b : '.');
                             }
-                            
+
                             AppendOutput(hexLine.ToString() + asciiLine.ToString());
                         }
                     }
-                    
+
                     UpdateStatus("Read complete");
                 }
                 else
@@ -313,7 +311,7 @@ namespace SerialComm
                     MessageBox.Show($"Read failed: {result.ErrorMessage}", "Command Error",
                         MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
-                
+
                 AppendOutput("");
             }
             catch (Exception ex)
@@ -350,16 +348,16 @@ namespace SerialComm
             try
             {
                 int address = Convert.ToInt32(addressStr, 16);
-                
+
                 UpdateStatus($"Large reading from 0x{address:X6}...");
                 AppendOutput($"Large Read command: Address 0x{address:X6}");
-                
+
                 var result = await _serialStack.LargeReadAsync(address);
-                
+
                 if (result.Success)
                 {
                     AppendOutput($"Large Read successful:");
-                    
+
                     if (result.BinaryData != null && result.BinaryData.Length > 0)
                     {
                         // Display as ASCII
@@ -372,25 +370,25 @@ namespace SerialComm
                                 ascii.Append('.');
                         }
                         AppendOutput($"  ASCII: {ascii}");
-                        
+
                         // Display hex dump
                         AppendOutput($"  Hex Dump:");
                         for (int i = 0; i < result.BinaryData.Length; i += 16)
                         {
                             StringBuilder hexLine = new StringBuilder($"    {i:X4}: ");
                             StringBuilder asciiLine = new StringBuilder("  ");
-                            
+
                             for (int j = 0; j < 16 && i + j < result.BinaryData.Length; j++)
                             {
                                 byte b = result.BinaryData[i + j];
                                 hexLine.Append($"{b:X2} ");
                                 asciiLine.Append((b >= 32 && b <= 126) ? (char)b : '.');
                             }
-                            
+
                             AppendOutput(hexLine.ToString() + asciiLine.ToString());
                         }
                     }
-                    
+
                     UpdateStatus("Large Read complete");
                 }
                 else
@@ -400,7 +398,7 @@ namespace SerialComm
                     MessageBox.Show($"Large Read failed: {result.ErrorMessage}", "Command Error",
                         MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
-                
+
                 AppendOutput("");
             }
             catch (Exception ex)
@@ -428,14 +426,14 @@ namespace SerialComm
 
             string addressStr = txtWriteAddress.Text.Trim();
             string dataStr = txtWriteData.Text.Trim().Replace(" ", "");
-            
+
             if (string.IsNullOrWhiteSpace(addressStr))
             {
                 MessageBox.Show("Please enter a write address.", "Input Error",
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
-            
+
             if (string.IsNullOrWhiteSpace(dataStr))
             {
                 MessageBox.Show("Please enter data to write.", "Input Error",
@@ -446,7 +444,7 @@ namespace SerialComm
             try
             {
                 int address = Convert.ToInt32(addressStr, 16);
-                
+
                 // Convert hex string to byte array
                 if (dataStr.Length % 2 != 0)
                 {
@@ -454,18 +452,18 @@ namespace SerialComm
                         MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
                 }
-                
+
                 byte[] data = new byte[dataStr.Length / 2];
                 for (int i = 0; i < dataStr.Length; i += 2)
                 {
                     data[i / 2] = Convert.ToByte(dataStr.Substring(i, 2), 16);
                 }
-                
+
                 UpdateStatus($"Writing to 0x{address:X6}...");
                 AppendOutput($"Write command: Address 0x{address:X6}, Data: {dataStr}");
-                
+
                 var result = await _serialStack.WriteAsync(address, data);
-                
+
                 if (result.Success)
                 {
                     AppendOutput($"Write successful");
@@ -478,7 +476,7 @@ namespace SerialComm
                     MessageBox.Show($"Write failed: {result.ErrorMessage}", "Command Error",
                         MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
-                
+
                 AppendOutput("");
             }
             catch (Exception ex)
@@ -490,12 +488,12 @@ namespace SerialComm
             }
         }
 
-        private async void btnLCommand_Click(object sender, EventArgs e)
+        private async void btnLoad_Click(object sender, EventArgs e)
         {
-            await PerformLCommandAsync();
+            await PerformLoadAsync();
         }
 
-        private async Task PerformLCommandAsync()
+        private async Task PerformLoadAsync()
         {
             if (_serialStack == null || !_isConnected)
             {
@@ -504,41 +502,51 @@ namespace SerialComm
                 return;
             }
 
-            string parameters = txtLCommand.Text.Trim();
-            
-            if (string.IsNullOrWhiteSpace(parameters) || parameters.Length != 12)
+            string addressStr = txtLoadAddress.Text.Trim();
+            string lengthStr = txtLoadLength.Text.Trim();
+
+            if (string.IsNullOrWhiteSpace(addressStr) || addressStr.Length != 6)
             {
-                MessageBox.Show("L command requires exactly 12 hex characters.", "Input Error",
+                MessageBox.Show("Load command requires a 6-character hex address (e.g., 0240D5).", "Input Error",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(lengthStr) || lengthStr.Length != 6)
+            {
+                MessageBox.Show("Load command requires a 6-character hex length (e.g., 000360).", "Input Error",
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
             try
             {
-                UpdateStatus($"Sending L command...");
-                AppendOutput($"L Command: {parameters}");
-                
+                string parameters = addressStr + lengthStr;
+
+                UpdateStatus($"Sending Load command...");
+                AppendOutput($"Load Command: Address 0x{addressStr}, Length 0x{lengthStr}");
+
                 var result = await _serialStack.LCommandAsync(parameters);
-                
+
                 if (result.Success)
                 {
-                    AppendOutput($"L Command successful:");
+                    AppendOutput($"Load Command successful:");
                     AppendOutput($"  Response: {result.Response}");
-                    UpdateStatus("L Command complete");
+                    UpdateStatus("Load Command complete");
                 }
                 else
                 {
-                    AppendOutput($"L Command failed: {result.ErrorMessage}");
-                    UpdateStatus("L Command failed");
-                    MessageBox.Show($"L Command failed: {result.ErrorMessage}", "Command Error",
+                    AppendOutput($"Load Command failed: {result.ErrorMessage}");
+                    UpdateStatus("Load Command failed");
+                    MessageBox.Show($"Load Command failed: {result.ErrorMessage}", "Command Error",
                         MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
-                
+
                 AppendOutput("");
             }
             catch (Exception ex)
             {
-                AppendOutput($"L Command error: {ex.Message}");
+                AppendOutput($"Load Command error: {ex.Message}");
                 UpdateStatus("Error");
                 MessageBox.Show($"Error: {ex.Message}", "Command Error",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
@@ -568,9 +576,9 @@ namespace SerialComm
 
             UpdateStatus("Switching to 57600 baud...");
             AppendOutput($"Switching from {_serialStack.BaudRate} to 57600 baud...");
-            
+
             bool success = await _serialStack.ChangeTo57600BaudAsync();
-            
+
             if (success)
             {
                 AppendOutput($"Successfully switched to 57600 baud");
@@ -584,7 +592,7 @@ namespace SerialComm
                 MessageBox.Show("Failed to switch to 57600 baud.", "Error",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
-            
+
             AppendOutput("");
         }
 
@@ -614,9 +622,9 @@ namespace SerialComm
             btnWrite_Click(sender, e);
         }
 
-        private void lCommandToolStripMenuItem_Click(object sender, EventArgs e)
+        private void loadToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            btnLCommand_Click(sender, e);
+            btnLoad_Click(sender, e);
         }
 
         private void switchTo57600BaudToolStripMenuItem_Click(object sender, EventArgs e)
@@ -652,7 +660,7 @@ namespace SerialComm
                 "• Automatic baud rate detection\n" +
                 "• Read and Large Read commands\n" +
                 "• Write operations\n" +
-                "• L command support\n" +
+                "• Load command support\n" +
                 "• Baud rate switching to 57600\n" +
                 "• Memory Viewer for monitoring multiple memory regions\n\n" +
                 "Built with SerialStack.cs",
@@ -670,7 +678,7 @@ namespace SerialComm
         private void showSerialTrafficToolStripMenuItem_Click(object sender, EventArgs e)
         {
             _showSerialTraffic = showSerialTrafficToolStripMenuItem.Checked;
-            
+
             if (_showSerialTraffic)
             {
                 AppendOutput("--- Serial traffic debug mode ENABLED ---");
@@ -741,7 +749,7 @@ namespace SerialComm
             }
 
             toolStripStatusLabelConnection.Text = message;
-            
+
             if (connected)
             {
                 toolStripStatusLabelConnection.ForeColor = Color.Green;
@@ -813,5 +821,6 @@ namespace SerialComm
                 _serialStack = null;
             }
         }
+
     }
 }
