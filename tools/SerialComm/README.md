@@ -4,6 +4,6 @@ This tool will find the right baud rate for your machine and connect to it. You 
 
 ![image](https://github.com/Ylianst/EMB-Serial/blob/main/docs/images/SerialComm01.png)
 
-This tool is intended for software developers and people who want to figure out the high level protocol of the machine.
+This tool is intended for software developers and people who want to figure out the high level protocol of the machine. There is an option in the menus to siwtch to 57600 baud if you are at 19200 bauds now, but this does not yet work correctly.
 
 If you have any information on this machine, [please open an issue in GitHub](https://github.com/Ylianst/EMB-Serial/issues).
