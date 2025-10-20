@@ -30,8 +30,10 @@
         {
             menuStrip1 = new MenuStrip();
             fileToolStripMenuItem = new ToolStripMenuItem();
-            clearOutputToolStripMenuItem = new ToolStripMenuItem();
+            showSerialTrafficToolStripMenuItem = new ToolStripMenuItem();
             toolStripSeparator2 = new ToolStripSeparator();
+            clearOutputToolStripMenuItem = new ToolStripMenuItem();
+            toolStripSeparator4 = new ToolStripSeparator();
             exitToolStripMenuItem = new ToolStripMenuItem();
             connectionToolStripMenuItem = new ToolStripMenuItem();
             connectToolStripMenuItem = new ToolStripMenuItem();
@@ -45,6 +47,7 @@
             lCommandToolStripMenuItem = new ToolStripMenuItem();
             toolStripSeparator3 = new ToolStripSeparator();
             memoryViewerToolStripMenuItem = new ToolStripMenuItem();
+            showSerialTrafficToolStripMenuItem = new ToolStripMenuItem();
             helpToolStripMenuItem = new ToolStripMenuItem();
             aboutToolStripMenuItem = new ToolStripMenuItem();
             statusStrip1 = new StatusStrip();
@@ -91,27 +94,40 @@
             // 
             // fileToolStripMenuItem
             // 
-            fileToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { clearOutputToolStripMenuItem, toolStripSeparator2, exitToolStripMenuItem });
+            fileToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { showSerialTrafficToolStripMenuItem, toolStripSeparator2, clearOutputToolStripMenuItem, toolStripSeparator4, exitToolStripMenuItem });
             fileToolStripMenuItem.Name = "fileToolStripMenuItem";
             fileToolStripMenuItem.Size = new Size(46, 24);
             fileToolStripMenuItem.Text = "&File";
             // 
-            // clearOutputToolStripMenuItem
+            // showSerialTrafficToolStripMenuItem
             // 
-            clearOutputToolStripMenuItem.Name = "clearOutputToolStripMenuItem";
-            clearOutputToolStripMenuItem.Size = new Size(180, 26);
-            clearOutputToolStripMenuItem.Text = "&Clear Output";
-            clearOutputToolStripMenuItem.Click += clearOutputToolStripMenuItem_Click;
+            showSerialTrafficToolStripMenuItem.CheckOnClick = true;
+            showSerialTrafficToolStripMenuItem.Name = "showSerialTrafficToolStripMenuItem";
+            showSerialTrafficToolStripMenuItem.Size = new Size(224, 26);
+            showSerialTrafficToolStripMenuItem.Text = "&Show Serial Traffic";
+            showSerialTrafficToolStripMenuItem.Click += showSerialTrafficToolStripMenuItem_Click;
             // 
             // toolStripSeparator2
             // 
             toolStripSeparator2.Name = "toolStripSeparator2";
-            toolStripSeparator2.Size = new Size(177, 6);
+            toolStripSeparator2.Size = new Size(221, 6);
+            // 
+            // clearOutputToolStripMenuItem
+            // 
+            clearOutputToolStripMenuItem.Name = "clearOutputToolStripMenuItem";
+            clearOutputToolStripMenuItem.Size = new Size(224, 26);
+            clearOutputToolStripMenuItem.Text = "&Clear Output";
+            clearOutputToolStripMenuItem.Click += clearOutputToolStripMenuItem_Click;
+            // 
+            // toolStripSeparator4
+            // 
+            toolStripSeparator4.Name = "toolStripSeparator4";
+            toolStripSeparator4.Size = new Size(221, 6);
             // 
             // exitToolStripMenuItem
             // 
             exitToolStripMenuItem.Name = "exitToolStripMenuItem";
-            exitToolStripMenuItem.Size = new Size(180, 26);
+            exitToolStripMenuItem.Size = new Size(224, 26);
             exitToolStripMenuItem.Text = "E&xit";
             exitToolStripMenuItem.Click += exitToolStripMenuItem_Click;
             // 
@@ -544,5 +560,7 @@
         private ToolStripSeparator toolStripSeparator2;
         private ToolStripSeparator toolStripSeparator3;
         private ToolStripMenuItem memoryViewerToolStripMenuItem;
+        private ToolStripMenuItem showSerialTrafficToolStripMenuItem;
+        private ToolStripSeparator toolStripSeparator4;
     }
 }

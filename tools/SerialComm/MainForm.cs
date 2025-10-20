@@ -9,6 +9,7 @@ namespace SerialComm
     {
         private SerialStack? _serialStack;
         private bool _isConnected = false;
+        private bool _showSerialTraffic = false;
         private const string RegistryKeyPath = @"Software\BerninaSerialComm";
         private const string ComPortValueName = "LastComPort";
 
@@ -128,6 +129,7 @@ namespace SerialComm
                 // Subscribe to events
                 _serialStack.ConnectionStateChanged += OnConnectionStateChanged;
                 _serialStack.CommandCompleted += OnCommandCompleted;
+                _serialStack.SerialTraffic += OnSerialTraffic;
                 
                 // Try to connect
                 bool connected = await _serialStack.OpenAsync();
@@ -665,6 +667,23 @@ namespace SerialComm
             AppendOutput("Output cleared");
         }
 
+        private void showSerialTrafficToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            _showSerialTraffic = showSerialTrafficToolStripMenuItem.Checked;
+            
+            if (_showSerialTraffic)
+            {
+                AppendOutput("--- Serial traffic debug mode ENABLED ---");
+                AppendOutput("All bytes sent/received will be displayed in ASCII and HEX");
+                AppendOutput("");
+            }
+            else
+            {
+                AppendOutput("--- Serial traffic debug mode DISABLED ---");
+                AppendOutput("");
+            }
+        }
+
         // Event handlers
         private void OnConnectionStateChanged(object? sender, ConnectionStateChangedEventArgs e)
         {
@@ -686,6 +705,19 @@ namespace SerialComm
             }
 
             // Already handled in individual command methods
+        }
+
+        private void OnSerialTraffic(object? sender, SerialTrafficEventArgs e)
+        {
+            if (InvokeRequired)
+            {
+                Invoke(new Action(() => OnSerialTraffic(sender, e)));
+                return;
+            }
+
+            // Display serial traffic if debug mode is enabled
+            string direction = e.IsSent ? "TX" : "RX";
+            AppendSerialTraffic(direction, e.Data);
         }
 
         // Helper methods
@@ -729,6 +761,47 @@ namespace SerialComm
             }
 
             txtOutput.AppendText($"[{DateTime.Now:HH:mm:ss}] {message}\r\n");
+        }
+
+        private void AppendSerialTraffic(string direction, byte[] data)
+        {
+            if (!_showSerialTraffic || data == null || data.Length == 0)
+            {
+                return;
+            }
+
+            if (InvokeRequired)
+            {
+                Invoke(new Action(() => AppendSerialTraffic(direction, data)));
+                return;
+            }
+
+            // Build ASCII representation
+            StringBuilder ascii = new StringBuilder();
+            foreach (byte b in data)
+            {
+                if (b >= 32 && b <= 126)
+                    ascii.Append((char)b);
+                else if (b == 0x0D)
+                    ascii.Append("\\r");
+                else if (b == 0x0A)
+                    ascii.Append("\\n");
+                else if (b == 0x09)
+                    ascii.Append("\\t");
+                else
+                    ascii.Append($"[{b:X2}]");
+            }
+
+            // Build HEX representation
+            StringBuilder hex = new StringBuilder();
+            foreach (byte b in data)
+            {
+                hex.Append($"{b:X2} ");
+            }
+
+            // Output to display
+            txtOutput.AppendText($"[{DateTime.Now:HH:mm:ss.fff}] {direction}: {ascii}\r\n");
+            txtOutput.AppendText($"{"".PadLeft(22)}HEX: {hex}\r\n");
         }
 
         private void MainForm_FormClosing(object sender, FormClosingEventArgs e)

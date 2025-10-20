@@ -40,6 +40,15 @@ namespace Bernina.SerialStack
     }
 
     /// <summary>
+    /// Event arguments for serial traffic debug
+    /// </summary>
+    public class SerialTrafficEventArgs : EventArgs
+    {
+        public bool IsSent { get; set; }
+        public byte[] Data { get; set; } = Array.Empty<byte>();
+    }
+
+    /// <summary>
     /// Represents a queued command
     /// </summary>
     internal class QueuedCommand
@@ -99,6 +108,11 @@ namespace Bernina.SerialStack
         /// Event raised when a command completes
         /// </summary>
         public event EventHandler<CommandCompletedEventArgs>? CommandCompleted;
+
+        /// <summary>
+        /// Event raised when serial traffic occurs (for debugging)
+        /// </summary>
+        public event EventHandler<SerialTrafficEventArgs>? SerialTraffic;
 
         /// <summary>
         /// Gets the current connection state
@@ -457,59 +471,41 @@ namespace Bernina.SerialStack
 
                 _responseBuffer.Clear();
                 
-                // Send each character and wait for echo
+                // Send each character and wait for echo - as soon as last '5' is echoed, we switch baud rate
                 string command = "TrMEJ05";
-                foreach (char c in command)
+                for (int i = 0; i < command.Length; i++)
                 {
+                    char c = command[i];
                     if (!await SendAndWaitForEchoAsync(c, 500))
                     {
                         SetConnectionState(ConnectionState.Error, $"TrMEJ05 command failed - no echo for '{c}'");
                         return false;
                     }
+                    
+                    // As soon as the last '5' is echoed back, switch to 57600 immediately
+                    if (i == command.Length - 1)
+                    {
+                        ConnectionStateChanged?.Invoke(this, new ConnectionStateChangedEventArgs 
+                        { 
+                            OldState = State, 
+                            NewState = State, 
+                            Message = "Last character '5' echoed, switching to 57600 baud immediately..." 
+                        });
+                        break;
+                    }
                 }
-
-                ConnectionStateChanged?.Invoke(this, new ConnectionStateChangedEventArgs 
-                { 
-                    OldState = State, 
-                    NewState = State, 
-                    Message = "TrMEJ05 command sent successfully, all characters echoed" 
-                });
-
-                // Wait a bit for the machine to process the command
-                await Task.Delay(200);
-
-                ConnectionStateChanged?.Invoke(this, new ConnectionStateChangedEventArgs 
-                { 
-                    OldState = State, 
-                    NewState = State, 
-                    Message = "Stopping command processing..." 
-                });
 
                 // Stop command processing temporarily
                 _processingCts?.Cancel();
                 await Task.WhenAny(_processingTask ?? Task.CompletedTask, Task.Delay(1000));
 
-                ConnectionStateChanged?.Invoke(this, new ConnectionStateChangedEventArgs 
-                { 
-                    OldState = State, 
-                    NewState = State, 
-                    Message = "Closing serial port..." 
-                });
-
-                // Close and reopen port at new baud rate
+                // Close and reopen port at new baud rate immediately (no delay)
                 if (_serialPort?.IsOpen == true)
                 {
                     _serialPort.DataReceived -= OnDataReceived;
                     _serialPort.Close();
                 }
                 _serialPort?.Dispose();
-
-                ConnectionStateChanged?.Invoke(this, new ConnectionStateChangedEventArgs 
-                { 
-                    OldState = State, 
-                    NewState = State, 
-                    Message = "Opening serial port at 57600 baud..." 
-                });
 
                 // Create new serial port at 57600 baud
                 _serialPort = new SerialPort(_portName, 57600)
@@ -533,74 +529,82 @@ namespace Bernina.SerialStack
                 { 
                     OldState = State, 
                     NewState = State, 
-                    Message = "Port opened at 57600 baud, waiting for machine to send BOS..." 
+                    Message = "Port opened at 57600 baud, listening for BOS..." 
                 });
 
-                // Wait for machine to send "BOS" at 57600 baud
+                // Wait for machine to send "BOS" at 57600 baud (no delay, start listening immediately)
                 _responseBuffer.Clear();
                 bool bosReceived = await WaitForStringAsync("BOS", 2000);
                 
                 if (!bosReceived)
                 {
-                    ConnectionStateChanged?.Invoke(this, new ConnectionStateChangedEventArgs 
-                    { 
-                        OldState = State, 
-                        NewState = State, 
-                        Message = "Warning: Did not receive BOS from machine, continuing anyway..." 
-                    });
-                }
-                else
-                {
-                    ConnectionStateChanged?.Invoke(this, new ConnectionStateChangedEventArgs 
-                    { 
-                        OldState = State, 
-                        NewState = State, 
-                        Message = "Received BOS from machine at 57600 baud" 
-                    });
+                    SetConnectionState(ConnectionState.Error, "Did not receive BOS from machine at 57600 baud");
+                    return false;
                 }
 
                 ConnectionStateChanged?.Invoke(this, new ConnectionStateChangedEventArgs 
                 { 
                     OldState = State, 
                     NewState = State, 
-                    Message = "Sending EBYQ confirmation command..." 
+                    Message = "Received BOS from machine, sending EBYQ confirmation..." 
                 });
 
-                // Send EBYQ to confirm new baud rate (as per protocol documentation)
+                // Send EBYQ to confirm new baud rate
+                // Each character will be echoed by the machine, plus an extra 'O' at the end
                 _responseBuffer.Clear();
-                bool ebyqSent = await SendAndWaitForEchoAsync('E', 500) &&
-                               await SendAndWaitForEchoAsync('B', 500) &&
-                               await SendAndWaitForEchoAsync('Y', 500) &&
-                               await SendAndWaitForEchoAsync('Q', 500);
-
-                if (!ebyqSent)
+                
+                // Send 'E' and wait for echo
+                if (!await SendAndWaitForEchoAsync('E', 500))
                 {
-                    ConnectionStateChanged?.Invoke(this, new ConnectionStateChangedEventArgs 
-                    { 
-                        OldState = State, 
-                        NewState = State, 
-                        Message = "EBYQ command failed, trying RF? instead..." 
-                    });
-                    
-                    // Try RF? as fallback
-                    _responseBuffer.Clear();
-                    bool reconnected = await SendAndWaitForEchoAsync('R', 500) &&
-                                      await SendAndWaitForEchoAsync('F', 500) &&
-                                      await SendAndWaitForEchoAsync('?', 500);
-
-                    if (!reconnected)
-                    {
-                        SetConnectionState(ConnectionState.Error, "Failed to re-establish connection at 57600 baud");
-                        return false;
-                    }
+                    SetConnectionState(ConnectionState.Error, "EBYQ failed - no echo for 'E'");
+                    return false;
+                }
+                
+                // Send 'B' and wait for echo
+                if (!await SendAndWaitForEchoAsync('B', 500))
+                {
+                    SetConnectionState(ConnectionState.Error, "EBYQ failed - no echo for 'B'");
+                    return false;
+                }
+                
+                // Send 'Y' and wait for echo
+                if (!await SendAndWaitForEchoAsync('Y', 500))
+                {
+                    SetConnectionState(ConnectionState.Error, "EBYQ failed - no echo for 'Y'");
+                    return false;
+                }
+                
+                // Send 'Q' and wait for echo
+                if (!await SendAndWaitForEchoAsync('Q', 500))
+                {
+                    SetConnectionState(ConnectionState.Error, "EBYQ failed - no echo for 'Q'");
+                    return false;
                 }
 
                 ConnectionStateChanged?.Invoke(this, new ConnectionStateChangedEventArgs 
                 { 
                     OldState = State, 
                     NewState = State, 
-                    Message = "Confirmation command sent, restarting command processing..." 
+                    Message = "EBYQ echoed, waiting for confirmation 'O'..." 
                 });
+
+                // Wait for the extra 'O' confirmation character
+                bool oReceived = await WaitForCharAsync('O', 1000);
+                if (!oReceived)
+                {
+                    SetConnectionState(ConnectionState.Error, "Did not receive confirmation 'O' after EBYQ");
+                    return false;
+                }
+
+                ConnectionStateChanged?.Invoke(this, new ConnectionStateChangedEventArgs 
+                { 
+                    OldState = State, 
+                    NewState = State, 
+                    Message = "Received confirmation 'O', baud rate switch complete" 
+                });
+
+                // Clear the buffer before restarting command processing
+                _responseBuffer.Clear();
 
                 // Restart command processing
                 _processingCts = new CancellationTokenSource();
@@ -671,7 +675,14 @@ namespace Bernina.SerialStack
             try
             {
                 _responseBuffer.Clear();
-                _serialPort.Write(new char[] { c }, 0, 1);
+                byte[] data = new byte[] { (byte)c };
+                _serialPort.Write(data, 0, 1);
+                
+                // Flush the output buffer to ensure data is sent immediately
+                _serialPort.BaseStream.Flush();
+                
+                // Raise event for sent data
+                SerialTraffic?.Invoke(this, new SerialTrafficEventArgs { IsSent = true, Data = data });
 
                 // Wait for echo
                 var cts = new CancellationTokenSource(timeoutMs);
@@ -721,6 +732,34 @@ namespace Bernina.SerialStack
             }
         }
 
+        private async Task<bool> WaitForCharAsync(char expectedChar, int timeoutMs)
+        {
+            if (_serialPort == null || !_serialPort.IsOpen)
+            {
+                return false;
+            }
+
+            try
+            {
+                var cts = new CancellationTokenSource(timeoutMs);
+                while (!cts.Token.IsCancellationRequested)
+                {
+                    string currentBuffer = _responseBuffer.ToString();
+                    if (currentBuffer.Contains(expectedChar))
+                    {
+                        return true;
+                    }
+                    await Task.Delay(10, cts.Token);
+                }
+
+                return false;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
         private void OnDataReceived(object sender, SerialDataReceivedEventArgs e)
         {
             if (_serialPort == null || !_serialPort.IsOpen)
@@ -739,6 +778,14 @@ namespace Bernina.SerialStack
                 byte[] buffer = new byte[bytesToRead];
                 int bytesRead = _serialPort.Read(buffer, 0, bytesToRead);
 
+                // Raise event for received data
+                if (bytesRead > 0)
+                {
+                    byte[] actualData = new byte[bytesRead];
+                    Array.Copy(buffer, actualData, bytesRead);
+                    SerialTraffic?.Invoke(this, new SerialTrafficEventArgs { IsSent = false, Data = actualData });
+                }
+
                 for (int i = 0; i < bytesRead; i++)
                 {
                     char c = (char)buffer[i];
@@ -754,6 +801,23 @@ namespace Bernina.SerialStack
                     else
                     {
                         ResetResponseTimeout();
+                    }
+                    
+                    // Check if we have a complete response after each character
+                    if (_currentCommand != null)
+                    {
+                        string currentResponse = _responseBuffer.ToString();
+                        if (IsResponseCompleteAsync(_currentCommand.Command, currentResponse).Result)
+                        {
+                            // Cancel the timeout timer since we're complete
+                            _responseTimeoutTimer?.Dispose();
+                            _responseTimeoutTimer = null;
+                            
+                            // Complete the command immediately
+                            CompleteCurrentCommand(currentResponse);
+                            _responseBuffer.Clear();
+                            break; // Exit the loop since command is complete
+                        }
                     }
                 }
             }
@@ -775,7 +839,16 @@ namespace Bernina.SerialStack
         private void ResetResponseTimeout()
         {
             _responseTimeoutTimer?.Dispose();
-            _responseTimeoutTimer = new System.Threading.Timer(_ => OnResponseTimeout(), null, _charTimeoutMs, Timeout.Infinite);
+            
+            // Use longer character timeout for Read and Large Read commands
+            int charTimeout = _charTimeoutMs;
+            if (_currentCommand != null && 
+                (_currentCommand.Command.StartsWith("R") || _currentCommand.Command.StartsWith("N")))
+            {
+                charTimeout = 2000; // 2 seconds between characters for read commands
+            }
+            
+            _responseTimeoutTimer = new System.Threading.Timer(_ => OnResponseTimeout(), null, charTimeout, Timeout.Infinite);
         }
 
         private async void OnResponseTimeout()
@@ -1035,6 +1108,14 @@ namespace Bernina.SerialStack
                     return;
                 }
 
+                // Determine timeout based on command type
+                // Read (R) and Large Read (N) commands can be slow, give them longer timeout
+                int commandTimeout = _responseTimeoutMs;
+                if (queuedCommand.Command.StartsWith("R") || queuedCommand.Command.StartsWith("N"))
+                {
+                    commandTimeout = 5000; // 5 seconds for read commands
+                }
+
                 // Send command character by character, waiting for echo
                 foreach (char c in queuedCommand.Command)
                 {
@@ -1043,7 +1124,14 @@ namespace Bernina.SerialStack
                         break;
                     }
 
-                    _serialPort.Write(new char[] { c }, 0, 1);
+                    byte[] data = new byte[] { (byte)c };
+                    _serialPort.Write(data, 0, 1);
+                    
+                    // Flush the output buffer to ensure data is sent immediately
+                    _serialPort.BaseStream.Flush();
+                    
+                    // Raise event for sent data
+                    SerialTraffic?.Invoke(this, new SerialTrafficEventArgs { IsSent = true, Data = data });
                     
                     // Wait a bit for echo
                     await Task.Delay(20, cancellationToken);
@@ -1052,8 +1140,8 @@ namespace Bernina.SerialStack
                 // Start response timeout
                 ResetResponseTimeout();
 
-                // Wait for completion or timeout
-                var timeoutTask = Task.Delay(_responseTimeoutMs, cancellationToken);
+                // Wait for completion or timeout (using command-specific timeout)
+                var timeoutTask = Task.Delay(commandTimeout, cancellationToken);
                 var completedTask = await Task.WhenAny(queuedCommand.CompletionSource.Task, timeoutTask);
 
                 if (completedTask == timeoutTask)
