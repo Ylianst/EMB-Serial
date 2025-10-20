@@ -12,6 +12,12 @@ class SerialCapture
     private static string? softwarePort;
     private static string? machinePort;
     private static bool logHex = false;
+    private static int currentBaudRate = 57600;
+    
+    // Baud rate switch detection
+    private static readonly byte[] baudSwitchSequence = Encoding.ASCII.GetBytes("TrMEJ05");
+    private static List<byte> machineDataBuffer = new List<byte>();
+    private static readonly int maxBufferSize = 100; // Keep buffer reasonable size
     
     // High-level protocol analysis state
     private static byte? commandBuffer = null;
@@ -53,7 +59,17 @@ class SerialCapture
 
             softwarePort = config["Software"];
             machinePort = config["Machine"];
-            const int baudRate = 57600;  // Hard-coded baud rate
+            
+            // Read baud rate from config, default to 57600 if not specified
+            int baudRate = 57600;
+            if (config.ContainsKey("Baud") && int.TryParse(config["Baud"], out int configBaudRate))
+            {
+                baudRate = configBaudRate;
+            }
+            
+            // Set the current baud rate
+            currentBaudRate = baudRate;
+            
             string logFile = config["file"];
             string hLogFile = config["hfile"];
             
@@ -361,6 +377,12 @@ class SerialCapture
                                 Console.ResetColor();
                             }
 
+                            // Check for baud rate switch sequence if data is from Machine
+                            if (sourceName == "Machine")
+                            {
+                                CheckForBaudRateSwitch(dataToForward, lengthToForward);
+                            }
+
                             // Process each byte for high-level protocol analysis
                             for (int i = 0; i < lengthToForward; i++)
                             {
@@ -518,6 +540,152 @@ class SerialCapture
         
         currentDataType = newDataType;
         accumulationStartTime = null;
+    }
+
+    private static void CheckForBaudRateSwitch(byte[] data, int length)
+    {
+        // Add new bytes to the buffer
+        for (int i = 0; i < length; i++)
+        {
+            machineDataBuffer.Add(data[i]);
+            
+            // Keep buffer size reasonable
+            if (machineDataBuffer.Count > maxBufferSize)
+            {
+                machineDataBuffer.RemoveAt(0);
+            }
+        }
+        
+        // Check if the buffer contains the baud rate switch sequence
+        if (machineDataBuffer.Count >= baudSwitchSequence.Length)
+        {
+            // Check for the sequence in the buffer
+            for (int i = 0; i <= machineDataBuffer.Count - baudSwitchSequence.Length; i++)
+            {
+                bool found = true;
+                for (int j = 0; j < baudSwitchSequence.Length; j++)
+                {
+                    if (machineDataBuffer[i + j] != baudSwitchSequence[j])
+                    {
+                        found = false;
+                        break;
+                    }
+                }
+                
+                if (found)
+                {
+                    // Sequence detected!
+                    string sequenceStr = Encoding.ASCII.GetString(baudSwitchSequence);
+                    Console.ForegroundColor = ConsoleColor.Magenta;
+                    Console.WriteLine($"\n*** Baud rate switch sequence detected: \"{sequenceStr}\" ***");
+                    Console.ResetColor();
+                    WriteLog($"*** Baud rate switch sequence detected: \"{sequenceStr}\" ***");
+                    WriteHLog($"*** Baud rate switch sequence detected: \"{sequenceStr}\" ***");
+                    
+                    // Switch to 57600 baud if not already at that rate
+                    if (currentBaudRate != 57600)
+                    {
+                        SwitchBaudRate(57600);
+                    }
+                    else
+                    {
+                        Console.ForegroundColor = ConsoleColor.Yellow;
+                        Console.WriteLine("*** Already at 57600 baud - no action needed ***\n");
+                        Console.ResetColor();
+                        WriteLog("*** Already at 57600 baud - no action needed ***");
+                        WriteHLog("*** Already at 57600 baud - no action needed ***");
+                    }
+                    
+                    // Clear the buffer after detection
+                    machineDataBuffer.Clear();
+                    return;
+                }
+            }
+        }
+    }
+    
+    private static void SwitchBaudRate(int newBaudRate)
+    {
+        try
+        {
+            Console.ForegroundColor = ConsoleColor.Magenta;
+            Console.WriteLine($"*** Switching baud rate from {currentBaudRate} to {newBaudRate} ***");
+            Console.ResetColor();
+            WriteLog($"*** Switching baud rate from {currentBaudRate} to {newBaudRate} ***");
+            WriteHLog($"*** Switching baud rate from {currentBaudRate} to {newBaudRate} ***");
+            
+            // Remove event handlers before closing
+            if (port1 != null)
+            {
+                port1.DataReceived -= (sender, e) => OnDataReceived(port1, port2, "Software", "Machine");
+            }
+            if (port2 != null)
+            {
+                port2.DataReceived -= (sender, e) => OnDataReceived(port2, port1, "Machine", "Software");
+            }
+            
+            // Close both ports
+            if (port1 != null && port1.IsOpen)
+            {
+                Console.WriteLine($"  Closing Software port ({softwarePort})...");
+                port1.Close();
+            }
+            
+            if (port2 != null && port2.IsOpen)
+            {
+                Console.WriteLine($"  Closing Machine port ({machinePort})...");
+                port2.Close();
+            }
+            
+            // Wait a moment for ports to fully close
+            Thread.Sleep(100);
+            
+            // Reopen ports with new baud rate
+            Console.WriteLine($"  Reopening Software port ({softwarePort}) at {newBaudRate} baud...");
+            port1 = new SerialPort(softwarePort!, newBaudRate)
+            {
+                DataBits = 8,
+                Parity = Parity.None,
+                StopBits = StopBits.One,
+                Handshake = Handshake.None,
+                ReadTimeout = 500,
+                WriteTimeout = 500
+            };
+            port1.Open();
+            
+            Console.WriteLine($"  Reopening Machine port ({machinePort}) at {newBaudRate} baud...");
+            port2 = new SerialPort(machinePort!, newBaudRate)
+            {
+                DataBits = 8,
+                Parity = Parity.None,
+                StopBits = StopBits.One,
+                Handshake = Handshake.None,
+                ReadTimeout = 500,
+                WriteTimeout = 500
+            };
+            port2.Open();
+            
+            // Re-attach event handlers
+            port1.DataReceived += (sender, e) => OnDataReceived(port1, port2, "Software", "Machine");
+            port2.DataReceived += (sender, e) => OnDataReceived(port2, port1, "Machine", "Software");
+            
+            // Update current baud rate
+            currentBaudRate = newBaudRate;
+            
+            Console.ForegroundColor = ConsoleColor.Green;
+            Console.WriteLine($"*** Baud rate switch completed successfully - now at {newBaudRate} ***\n");
+            Console.ResetColor();
+            WriteLog($"*** Baud rate switch completed successfully - now at {newBaudRate} ***");
+            WriteHLog($"*** Baud rate switch completed successfully - now at {newBaudRate} ***");
+        }
+        catch (Exception ex)
+        {
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine($"*** ERROR during baud rate switch: {ex.Message} ***\n");
+            Console.ResetColor();
+            WriteLog($"*** ERROR during baud rate switch: {ex.Message} ***");
+            WriteHLog($"*** ERROR during baud rate switch: {ex.Message} ***");
+        }
     }
 
     private static void FlushSerialPort(SerialPort port, string portName)
