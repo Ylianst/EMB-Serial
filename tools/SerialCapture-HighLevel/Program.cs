@@ -116,9 +116,8 @@ class SerialCapture
             // Initialize log file
             logWriter = new StreamWriter(logFile, false, Encoding.UTF8);
             logWriter.AutoFlush = true;
-            WriteLog($"Serial Capture Session Started - {DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}");
+            WriteLog($"Serial Capture Session - {DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}");
             WriteLog($"Software: {softwarePort}, Machine: {machinePort}, Initial Baud: {currentBaudRate}");
-            WriteLog("=".PadRight(80, '='));
             WriteLog("");
 
             // Initialize serial ports
@@ -609,38 +608,28 @@ class SerialCapture
 
     private static void DisplayCommand(string command, string response, CommandType type)
     {
-        string timestamp = commandStartTime.ToString("HH:mm:ss.fff");
-        
         // Check for errors
         if (response == "Q" || response == "?" || response == "!")
         {
             // Only log and show errors if showErrors is enabled
             if (showErrors)
             {
-                string errorMsg = $"[{timestamp}] >> {command}";
-                string errResponse = $"[{timestamp}] << ERROR: Machine responded with '{response}'";
+                string errorMsg = $"{command} --> ERROR: Machine responded with '{response}'";
                 
                 WriteLog(errorMsg);
-                WriteLog(errResponse);
                 
-                Console.ForegroundColor = ConsoleColor.Cyan;
-                Console.WriteLine(errorMsg);
                 Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine(errResponse);
+                Console.WriteLine(errorMsg);
                 Console.ResetColor();
             }
             return;
         }
         
-        // Display command
-        string cmdMsg = $"[{timestamp}] >> {command}";
-        LogMessage(cmdMsg, ConsoleColor.Cyan);
-        
-        // Display response based on command type
+        // Format output based on command type
         if (type == CommandType.Read || type == CommandType.LargeRead)
         {
             // Response format: [command echo][data][O]
-            // We need to extract only the data part
+            // Extract only the data part
             string data = "";
             
             if (response.Length > command.Length)
@@ -657,39 +646,75 @@ class SerialCapture
             
             if (type == CommandType.LargeRead)
             {
-                // For N command, show both ASCII and HEX
+                // For N command, show both ASCII and HEX on separate indented lines
                 string ascii = GetPrintableAscii(data);
                 string hex = BytesToHex(Encoding.ASCII.GetBytes(data));
-                string respMsg = $"[{timestamp}] << Response ({data.Length} bytes):";
-                LogMessage(respMsg, ConsoleColor.Yellow);
-                LogMessage($"   ASCII: {ascii}", ConsoleColor.Yellow);
-                LogMessage($"   HEX: {hex}", ConsoleColor.DarkGray);
+                
+                Console.ForegroundColor = ConsoleColor.Cyan;
+                Console.WriteLine($"{command} -->");
+                Console.ResetColor();
+                Console.ForegroundColor = ConsoleColor.Yellow;
+                Console.WriteLine($"   ASCII: {ascii}");
+                Console.ForegroundColor = ConsoleColor.DarkGray;
+                Console.WriteLine($"   HEX: {hex}");
+                Console.ResetColor();
+                
+                WriteLog($"{command} -->");
+                WriteLog($"   ASCII: {ascii}");
+                WriteLog($"   HEX: {hex}");
             }
             else
             {
-                // For R command, show ASCII
-                string ascii = GetPrintableAscii(data);
-                string respMsg = $"[{timestamp}] << Response: {ascii}";
-                LogMessage(respMsg, ConsoleColor.Yellow);
+                // For R command, data is hex-encoded, so decode it
+                // HEX: show the raw hex characters with spaces
+                // ASCII: decode the hex to show actual values
+                string hexDisplay = FormatHexWithSpaces(data); // Format hex with spaces
+                string asciiDisplay = DecodeHexString(data); // Decode hex to ASCII
+                
+                Console.ForegroundColor = ConsoleColor.Cyan;
+                Console.WriteLine($"{command} -->");
+                Console.ResetColor();
+                Console.ForegroundColor = ConsoleColor.Yellow;
+                Console.WriteLine($"   ASCII: {asciiDisplay}");
+                Console.ForegroundColor = ConsoleColor.DarkGray;
+                Console.WriteLine($"   HEX: {hexDisplay}");
+                Console.ResetColor();
+                
+                WriteLog($"{command} -->");
+                WriteLog($"   ASCII: {asciiDisplay}");
+                WriteLog($"   HEX: {hexDisplay}");
             }
         }
         else if (type == CommandType.Write)
         {
-            // Write command - just echo
-            LogMessage($"[{timestamp}] << Write acknowledged", ConsoleColor.Yellow);
+            // Parse write command to extract address and data
+            // Format: W + 6 hex (address) + data + ?
+            string writeInfo = "Acknowledged";
+            if (command.Length > 7)
+            {
+                string address = command.Substring(1, 6);
+                string dataStr = command.Substring(7, command.Length - 8); // Remove W, address, and ?
+                writeInfo = $"Write {dataStr} to {address}";
+            }
+            
+            string msg = $"{command} --> {writeInfo}";
+            Console.ForegroundColor = ConsoleColor.Cyan;
+            Console.Write(command);
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine($" --> {writeInfo}");
+            Console.ResetColor();
+            WriteLog(msg);
         }
         else if (type == CommandType.Session)
         {
             // Session commands
-            if (response.Length > command.Length)
-            {
-                string extra = response.Substring(command.Length);
-                LogMessage($"[{timestamp}] << Confirmed: {extra}", ConsoleColor.Yellow);
-            }
-            else
-            {
-                LogMessage($"[{timestamp}] << Acknowledged", ConsoleColor.Yellow);
-            }
+            string msg = $"{command} --> Acknowledged";
+            Console.ForegroundColor = ConsoleColor.Cyan;
+            Console.Write(command);
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine(" --> Acknowledged");
+            Console.ResetColor();
+            WriteLog(msg);
         }
         else if (type == CommandType.LCommand)
         {
@@ -699,25 +724,33 @@ class SerialCapture
             {
                 data = data.Substring(0, data.Length - 1);
             }
-            LogMessage($"[{timestamp}] << Response: {data}", ConsoleColor.Yellow);
+            
+            string msg = $"{command} --> {data}";
+            Console.ForegroundColor = ConsoleColor.Cyan;
+            Console.Write(command);
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine($" --> {data}");
+            Console.ResetColor();
+            WriteLog(msg);
         }
         else
         {
             // Other commands
+            string extra = "";
             if (response.Length > command.Length)
             {
-                string extra = response.Substring(command.Length);
-                LogMessage($"[{timestamp}] << Response: {extra}", ConsoleColor.Yellow);
+                extra = response.Substring(command.Length);
             }
-            else
-            {
-                LogMessage($"[{timestamp}] << Acknowledged", ConsoleColor.Yellow);
-            }
+            
+            string responseText = string.IsNullOrEmpty(extra) ? "Acknowledged" : extra;
+            string msg = $"{command} --> {responseText}";
+            Console.ForegroundColor = ConsoleColor.Cyan;
+            Console.Write(command);
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine($" --> {responseText}");
+            Console.ResetColor();
+            WriteLog(msg);
         }
-        
-        // Add blank line for readability
-        Console.WriteLine();
-        WriteLog("");
     }
 
     private static string GetPrintableAscii(string data)
@@ -733,6 +766,54 @@ class SerialCapture
     private static string BytesToHex(byte[] bytes)
     {
         return BitConverter.ToString(bytes).Replace("-", " ");
+    }
+
+    private static string DecodeHexString(string hexString)
+    {
+        // Decode hex-encoded string (e.g., "41424344" -> "ABCD")
+        // Each pair of hex characters represents one byte
+        if (hexString.Length % 2 != 0)
+        {
+            return "[Invalid hex string - odd length]";
+        }
+
+        StringBuilder result = new StringBuilder();
+        for (int i = 0; i < hexString.Length; i += 2)
+        {
+            try
+            {
+                string hexByte = hexString.Substring(i, 2);
+                byte byteValue = Convert.ToByte(hexByte, 16);
+                // Show printable characters, or '.' for non-printable
+                char c = (char)byteValue;
+                result.Append(c >= 32 && c <= 126 ? c : '.');
+            }
+            catch
+            {
+                result.Append('?');
+            }
+        }
+        return result.ToString();
+    }
+
+    private static string FormatHexWithSpaces(string hexString)
+    {
+        // Format hex string with spaces between bytes (e.g., "01020304" -> "01 02 03 04")
+        if (hexString.Length % 2 != 0)
+        {
+            return hexString; // Return as-is if odd length
+        }
+
+        StringBuilder result = new StringBuilder();
+        for (int i = 0; i < hexString.Length; i += 2)
+        {
+            if (i > 0)
+            {
+                result.Append(' ');
+            }
+            result.Append(hexString.Substring(i, 2));
+        }
+        return result.ToString();
     }
 
     private static bool IsHexString(string str)
@@ -856,7 +937,6 @@ class SerialCapture
             if (logWriter != null)
             {
                 WriteLog("");
-                WriteLog("=".PadRight(80, '='));
                 WriteLog($"Session Ended - {DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}");
                 logWriter.Close();
                 logWriter.Dispose();
