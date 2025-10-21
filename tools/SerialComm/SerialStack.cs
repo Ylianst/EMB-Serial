@@ -887,7 +887,7 @@ namespace Bernina.SerialStack
                 return Task.FromResult(response.Length >= expectedLength && response.EndsWith("O"));
             }
 
-            // For Large Read commands (N + 6 hex) - expect command echo + 256 bytes + O
+            // For Large Read commands (N + 6 hex) - expect command echo + 256 raw bytes + O
             if (command.StartsWith("N") && command.Length == 7)
             {
                 int expectedLength = command.Length + 256 + 1;
@@ -968,7 +968,7 @@ namespace Bernina.SerialStack
             }
             else if (command.StartsWith("N") && command.Length == 7)
             {
-                // Large Read command - extract binary data
+                // Large Read command - extract raw binary data (256 bytes sent as raw bytes, not hex)
                 if (response.Length > command.Length)
                 {
                     string data = response.Substring(command.Length);
@@ -977,11 +977,18 @@ namespace Bernina.SerialStack
                         data = data.Substring(0, data.Length - 1);
                     }
                     
+                    // Convert the string (which contains raw bytes) to byte array
+                    byte[] binaryData = new byte[data.Length];
+                    for (int i = 0; i < data.Length; i++)
+                    {
+                        binaryData[i] = (byte)data[i];
+                    }
+                    
                     return new CommandResult
                     {
                         Success = true,
-                        Response = data,
-                        BinaryData = Encoding.ASCII.GetBytes(data)
+                        Response = BitConverter.ToString(binaryData).Replace("-", ""),
+                        BinaryData = binaryData
                     };
                 }
             }
