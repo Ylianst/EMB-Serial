@@ -149,7 +149,6 @@ namespace SerialComm
                     // Update menu items
                     connectToolStripMenuItem.Enabled = false;
                     disconnectToolStripMenuItem.Enabled = true;
-                    switchTo57600BaudToolStripMenuItem.Enabled = true;
                     readToolStripMenuItem.Enabled = true;
                     largeReadToolStripMenuItem.Enabled = true;
                     writeToolStripMenuItem.Enabled = true;
@@ -158,6 +157,7 @@ namespace SerialComm
 
                     UpdateStatus("Connected");
                     UpdateConnectionStatus($"Connected: {portName} @ {_serialStack.BaudRate} baud", true);
+                    UpdateBaudRateMenuItems();
                     AppendOutput($"Connected successfully at {_serialStack.BaudRate} baud");
                     AppendOutput("Ready to send commands");
                     AppendOutput("");
@@ -222,12 +222,13 @@ namespace SerialComm
             // Update menu items
             connectToolStripMenuItem.Enabled = true;
             disconnectToolStripMenuItem.Enabled = false;
-            switchTo57600BaudToolStripMenuItem.Enabled = false;
             readToolStripMenuItem.Enabled = false;
             largeReadToolStripMenuItem.Enabled = false;
             writeToolStripMenuItem.Enabled = false;
             loadToolStripMenuItem.Enabled = false;
             memoryViewerToolStripMenuItem.Enabled = false;
+            
+            UpdateBaudRateMenuItems();
 
             UpdateStatus("Disconnected");
             UpdateConnectionStatus("Disconnected", false);
@@ -558,6 +559,45 @@ namespace SerialComm
             await SwitchTo57600BaudAsync();
         }
 
+        private async Task SwitchTo19200BaudAsync()
+        {
+            if (_serialStack == null || !_isConnected)
+            {
+                MessageBox.Show("Not connected to machine.", "Error",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            if (_serialStack.BaudRate == 19200)
+            {
+                MessageBox.Show("Already connected at 19200 baud.", "Information",
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            UpdateStatus("Switching to 19200 baud...");
+            AppendOutput($"Switching from {_serialStack.BaudRate} to 19200 baud...");
+
+            bool success = await _serialStack.ChangeTo19200BaudAsync();
+
+            if (success)
+            {
+                AppendOutput($"Successfully switched to 19200 baud");
+                UpdateConnectionStatus($"Connected: {comboBoxComPort.SelectedItem} @ {_serialStack.BaudRate} baud", true);
+                UpdateStatus("Baud rate changed");
+                UpdateBaudRateMenuItems();
+            }
+            else
+            {
+                AppendOutput("Failed to switch baud rate");
+                UpdateStatus("Baud rate change failed");
+                MessageBox.Show("Failed to switch to 19200 baud.", "Error",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+
+            AppendOutput("");
+        }
+
         private async Task SwitchTo57600BaudAsync()
         {
             if (_serialStack == null || !_isConnected)
@@ -584,6 +624,7 @@ namespace SerialComm
                 AppendOutput($"Successfully switched to 57600 baud");
                 UpdateConnectionStatus($"Connected: {comboBoxComPort.SelectedItem} @ {_serialStack.BaudRate} baud", true);
                 UpdateStatus("Baud rate changed");
+                UpdateBaudRateMenuItems();
             }
             else
             {
@@ -625,6 +666,11 @@ namespace SerialComm
         private void loadToolStripMenuItem_Click(object sender, EventArgs e)
         {
             btnLoad_Click(sender, e);
+        }
+
+        private void switchTo19200BaudToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            _ = SwitchTo19200BaudAsync();
         }
 
         private void switchTo57600BaudToolStripMenuItem_Click(object sender, EventArgs e)
@@ -769,6 +815,33 @@ namespace SerialComm
             }
 
             txtOutput.AppendText($"[{DateTime.Now:HH:mm:ss}] {message}\r\n");
+        }
+
+        private void UpdateBaudRateMenuItems()
+        {
+            if (InvokeRequired)
+            {
+                Invoke(new Action(() => UpdateBaudRateMenuItems()));
+                return;
+            }
+
+            if (_serialStack == null || !_isConnected)
+            {
+                // Not connected - disable both menu items
+                switchTo19200BaudToolStripMenuItem.Enabled = false;
+                switchTo57600BaudToolStripMenuItem.Enabled = false;
+            }
+            else
+            {
+                // Connected - enable/disable based on current baud rate
+                int currentBaudRate = _serialStack.BaudRate;
+                
+                // Enable "Switch to 19200" only if NOT already at 19200
+                switchTo19200BaudToolStripMenuItem.Enabled = (currentBaudRate != 19200);
+                
+                // Enable "Switch to 57600" only if NOT already at 57600
+                switchTo57600BaudToolStripMenuItem.Enabled = (currentBaudRate != 57600);
+            }
         }
 
         private void AppendSerialTraffic(string direction, byte[] data)

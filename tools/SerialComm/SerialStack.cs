@@ -410,10 +410,27 @@ namespace Bernina.SerialStack
         }
 
         /// <summary>
+        /// Changes the baud rate to 19200. If already at 19200, does nothing.
+        /// If at a different baud rate, sends TrMEJ04 command, switches to 19200, and re-establishes connection.
+        /// </summary>
+        public async Task<bool> ChangeTo19200BaudAsync()
+        {
+            return await ChangeBaudRateAsync(19200, "TrMEJ04");
+        }
+
+        /// <summary>
         /// Changes the baud rate to 57600. If already at 57600, does nothing.
         /// If at a different baud rate, sends TrMEJ05 command, switches to 57600, and re-establishes connection.
         /// </summary>
         public async Task<bool> ChangeTo57600BaudAsync()
+        {
+            return await ChangeBaudRateAsync(57600, "TrMEJ05");
+        }
+
+        /// <summary>
+        /// Generic method to change baud rate
+        /// </summary>
+        private async Task<bool> ChangeBaudRateAsync(int targetBaudRate, string command)
         {
             if (State != ConnectionState.Connected)
             {
@@ -421,10 +438,10 @@ namespace Bernina.SerialStack
                 return false;
             }
 
-            // Already at 57600, do nothing
-            if (_currentBaudRate == 57600)
+            // Already at target baud rate, do nothing
+            if (_currentBaudRate == targetBaudRate)
             {
-                SetConnectionState(ConnectionState.Connected, "Already at 57600 baud");
+                SetConnectionState(ConnectionState.Connected, $"Already at {targetBaudRate} baud");
                 return true;
             }
 
@@ -434,18 +451,18 @@ namespace Bernina.SerialStack
                 { 
                     OldState = State, 
                     NewState = State, 
-                    Message = $"Switching from {_currentBaudRate} to 57600 baud..." 
+                    Message = $"Switching from {_currentBaudRate} to {targetBaudRate} baud..." 
                 });
                 
-                // Send TrMEJ05 command directly (not through queue) to tell machine to switch
+                // Send command directly (not through queue) to tell machine to switch
                 ConnectionStateChanged?.Invoke(this, new ConnectionStateChangedEventArgs 
                 { 
                     OldState = State, 
                     NewState = State, 
-                    Message = "Sending TrMEJ05 command to machine..." 
+                    Message = $"Sending {command} command to machine..." 
                 });
                 
-                // Send TrMEJ05 character by character and wait for echo
+                // Send command character by character and wait for echo
                 if (_serialPort == null || !_serialPort.IsOpen)
                 {
                     SetConnectionState(ConnectionState.Error, "Serial port not open");
@@ -454,25 +471,24 @@ namespace Bernina.SerialStack
 
                 _responseBuffer.Clear();
                 
-                // Send each character and wait for echo - as soon as last '5' is echoed, we switch baud rate
-                string command = "TrMEJ05";
+                // Send each character and wait for echo - as soon as last char is echoed, we switch baud rate
                 for (int i = 0; i < command.Length; i++)
                 {
                     char c = command[i];
                     if (!await SendAndWaitForEchoAsync(c, 500))
                     {
-                        SetConnectionState(ConnectionState.Error, $"TrMEJ05 command failed - no echo for '{c}'");
+                        SetConnectionState(ConnectionState.Error, $"{command} command failed - no echo for '{c}'");
                         return false;
                     }
                     
-                    // As soon as the last '5' is echoed back, switch to 57600 immediately
+                    // As soon as the last character is echoed back, switch to new baud rate immediately
                     if (i == command.Length - 1)
                     {
                         ConnectionStateChanged?.Invoke(this, new ConnectionStateChangedEventArgs 
                         { 
                             OldState = State, 
                             NewState = State, 
-                            Message = "Last character '5' echoed, switching to 57600 baud immediately..." 
+                            Message = $"Last character '{c}' echoed, switching to {targetBaudRate} baud immediately..." 
                         });
                         break;
                     }
@@ -490,8 +506,8 @@ namespace Bernina.SerialStack
                 }
                 _serialPort?.Dispose();
 
-                // Create new serial port at 57600 baud
-                _serialPort = new SerialPort(_portName, 57600)
+                // Create new serial port at target baud rate
+                _serialPort = new SerialPort(_portName, targetBaudRate)
                 {
                     DataBits = 8,
                     Parity = Parity.None,
@@ -506,22 +522,22 @@ namespace Bernina.SerialStack
                 _serialPort.DiscardInBuffer();
                 _serialPort.DiscardOutBuffer();
 
-                _currentBaudRate = 57600;
+                _currentBaudRate = targetBaudRate;
 
                 ConnectionStateChanged?.Invoke(this, new ConnectionStateChangedEventArgs 
                 { 
                     OldState = State, 
                     NewState = State, 
-                    Message = "Port opened at 57600 baud, listening for BOS..." 
+                    Message = $"Port opened at {targetBaudRate} baud, listening for BOS..." 
                 });
 
-                // Wait for machine to send "BOS" at 57600 baud (no delay, start listening immediately)
+                // Wait for machine to send "BOS" at new baud rate (no delay, start listening immediately)
                 _responseBuffer.Clear();
                 bool bosReceived = await WaitForStringAsync("BOS", 2000);
                 
                 if (!bosReceived)
                 {
-                    SetConnectionState(ConnectionState.Error, "Did not receive BOS from machine at 57600 baud");
+                    SetConnectionState(ConnectionState.Error, $"Did not receive BOS from machine at {targetBaudRate} baud");
                     return false;
                 }
 
@@ -593,7 +609,7 @@ namespace Bernina.SerialStack
                 _processingCts = new CancellationTokenSource();
                 _processingTask = Task.Run(() => ProcessCommandQueueAsync(_processingCts.Token));
 
-                SetConnectionState(ConnectionState.Connected, "Successfully switched to 57600 baud");
+                SetConnectionState(ConnectionState.Connected, $"Successfully switched to {targetBaudRate} baud");
                 return true;
             }
             catch (Exception ex)

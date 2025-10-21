@@ -39,6 +39,7 @@
             connectToolStripMenuItem = new ToolStripMenuItem();
             disconnectToolStripMenuItem = new ToolStripMenuItem();
             toolStripSeparator1 = new ToolStripSeparator();
+            switchTo19200BaudToolStripMenuItem = new ToolStripMenuItem();
             switchTo57600BaudToolStripMenuItem = new ToolStripMenuItem();
             commandsToolStripMenuItem = new ToolStripMenuItem();
             readToolStripMenuItem = new ToolStripMenuItem();
@@ -130,7 +131,7 @@
             // 
             // connectionToolStripMenuItem
             // 
-            connectionToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { connectToolStripMenuItem, disconnectToolStripMenuItem, toolStripSeparator1, switchTo57600BaudToolStripMenuItem });
+            connectionToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { connectToolStripMenuItem, disconnectToolStripMenuItem, toolStripSeparator1, switchTo19200BaudToolStripMenuItem, switchTo57600BaudToolStripMenuItem });
             connectionToolStripMenuItem.Name = "connectionToolStripMenuItem";
             connectionToolStripMenuItem.Size = new Size(98, 24);
             connectionToolStripMenuItem.Text = "&Connection";
@@ -154,6 +155,14 @@
             // 
             toolStripSeparator1.Name = "toolStripSeparator1";
             toolStripSeparator1.Size = new Size(232, 6);
+            // 
+            // switchTo19200BaudToolStripMenuItem
+            // 
+            switchTo19200BaudToolStripMenuItem.Enabled = false;
+            switchTo19200BaudToolStripMenuItem.Name = "switchTo19200BaudToolStripMenuItem";
+            switchTo19200BaudToolStripMenuItem.Size = new Size(235, 26);
+            switchTo19200BaudToolStripMenuItem.Text = "Switch to &19200 Baud";
+            switchTo19200BaudToolStripMenuItem.Click += switchTo19200BaudToolStripMenuItem_Click;
             // 
             // switchTo57600BaudToolStripMenuItem
             // 
@@ -542,6 +551,7 @@
         private ToolStripMenuItem aboutToolStripMenuItem;
         private ToolStripStatusLabel toolStripStatusLabelConnection;
         private ToolStripSeparator toolStripSeparator1;
+        private ToolStripMenuItem switchTo19200BaudToolStripMenuItem;
         private ToolStripMenuItem switchTo57600BaudToolStripMenuItem;
         private ToolStripMenuItem clearOutputToolStripMenuItem;
         private ToolStripSeparator toolStripSeparator2;

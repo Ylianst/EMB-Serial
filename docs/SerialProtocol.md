@@ -50,6 +50,13 @@ RFFFD24   - Echoed back + Data Block
 
 After the machine sends "BOS" at 57600 bauds, it will revert to sending "BOS" at 19200 bauds periodically (every second). So, you may need to be quick to change baudrates and send "EBYQ" to the machine to keep it at the new speed. If the machine goes back to 19200 baud and sends "BOS" periodically, the machine is no longer is a resoverable state, even the original Windows XP software will not be able to talk to it anymore and so, you have to turn off/on the machine to have it reset to 19200 baud.
 
+It looks like this speed commands are:
+
+"TrMEJ04" = 19200 bauds.
+"TrMEJ05" = 57600 bauds.
+
+So you can switch to and from each baud rates.
+
 ## The Protocol Reset Command
 
 The "RF?" command causes the machine to reset it's protocol state. If you send a command and get "Q", "?" or "!" as an echo back, something is not quite right and you may be stuck until the protocol reset command is sent, only then can you start sending more commands. This command can also be used to initially find the machine on the serial bus.
