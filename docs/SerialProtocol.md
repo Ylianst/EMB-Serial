@@ -107,6 +107,22 @@ It's also possible to write using the W command. Just like the read command, it'
 
 The first command will write 0x01 to address 0x0201E1, the second command will write 0x0061 to address 0xFFFED0. There is no confirmation given that the write operation was a success, so often times the software with perform a read (R) operation after a set of writes to make sure the operation was a success.
 
+## The Sum Command (L)
+
+This command will return the sum of all memory bytes stating at a given address for a given length. The L command is followed by 12 characters in HEX format, the 6 first at the address and the next 6 are the length. The machine will reply with 8 HEX characters followed by "O" when competed. For example:
+
+```
+"L0240D5000360" will reply "00004CC9O"
+```
+
+This command tells the machine to start at position 0x0240D5 and sum the next 0x000360 bytes. In this case, the result is 0x4CC9. You can easily verify this by issuing a read command at for example 0x200100, you get this:
+
+```
+R200100 --> 4E4D4D5630332E303100456E676C6973682020202020004265726E696E612045
+```
+
+Then issue a Sum command for 0x200100, Length 1 like this: L200100000001. The response will be 0xAE since you sum only one byte. You can then issue the same Sum command with a lenght of 2, 3, 4... and confirm it's correct. This command is used as a checksum when downloading data.
+
 ## Session Start Command
 
 At the start of a session, the software will send a session start command. On the serial port, it's "TrMEYQ". The machine will echo back each character and confim with a "O" reply. There is an example:
@@ -120,14 +136,3 @@ It's not known what the machine does with this. It's possible to send read comma
 ## Session End Command
 
 At the end of a session, the software will tell the machine it's done using the terminate command. On the serial port it's sent as "TrME". The machine will echo back the 4 charecters and nothing happens after this. It's not known what the machine does with this.
-
-## The Unknown L (Load?) Command
-
-There is a "L" command that is L followed by 12 serial characters in HEX format. The machine will reply with HEX values followed by "O" when competed. For example:
-
-```
-"L0240D5000360" will reply "00004CC9O"
-"L0240D5000240" will reply "00001C79O"
-```
-
-In the first example, it could indicate LOAD 0x360 byteso data at position 0x0240D5. The first 6 bytes of the HEX is certainly a memory pointer and the second part looks like a size since the number is in the right range.
