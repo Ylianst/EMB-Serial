@@ -31,7 +31,7 @@ class SerialCapture
         Write,          // W + 6 hex chars + data + ? -> echo only
         Session,        // TrME, TrMEYQ, TrMEJ05 -> echo or special handling
         Reset,          // RF? -> echo
-        LCommand,       // L + 12 hex chars -> variable response ending in O
+        Sum,            // L + 12 hex chars -> 8 hex chars + O (checksum)
         Other           // EBYQ, etc -> echo or special response
     }
     
@@ -551,7 +551,7 @@ class SerialCapture
         if (cmd.StartsWith("W"))
             return CommandType.Write;
         if (cmd.StartsWith("L"))
-            return CommandType.LCommand;
+            return CommandType.Sum;
         if (cmd == "RF?" || cmd.StartsWith("TrME"))
             return CommandType.Session;
         return CommandType.Other;
@@ -575,8 +575,8 @@ class SerialCapture
                 if (cmd == "EBYQ")
                     return cmd.Length + 1; // Echo + O
                 return cmd.Length;
-            case CommandType.LCommand:
-                return -1; // Variable length, ends with O
+            case CommandType.Sum:
+                return cmd.Length + 8 + 1; // command echo + 8 hex chars + O
             default:
                 return cmd.Length;
         }
@@ -591,10 +591,10 @@ class SerialCapture
         if (response == "Q" || response == "?" || response == "!")
             return true;
             
-        // For variable length responses (L command), check for 'O' terminator
-        if (type == CommandType.LCommand)
+        // For Sum command responses, check for fixed length
+        if (type == CommandType.Sum)
         {
-            return response.EndsWith("O") && response.Length > 5;
+            return response.EndsWith("O") && response.Length >= 13; // 13 chars command + 8 hex + O = 22
         }
         
         // For fixed length responses
@@ -708,28 +708,36 @@ class SerialCapture
         else if (type == CommandType.Session)
         {
             // Session commands
-            string msg = $"{command} --> Acknowledged";
-            Console.ForegroundColor = ConsoleColor.Cyan;
-            Console.Write(command);
-            Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.WriteLine(" --> Acknowledged");
-            Console.ResetColor();
-            WriteLog(msg);
+            // Skip output for RF? command as it provides no high-level information
+            if (command != "RF?")
+            {
+                string msg = $"{command} --> Acknowledged";
+                Console.ForegroundColor = ConsoleColor.Cyan;
+                Console.Write(command);
+                Console.ForegroundColor = ConsoleColor.Yellow;
+                Console.WriteLine(" --> Acknowledged");
+                Console.ResetColor();
+                WriteLog(msg);
+            }
         }
-        else if (type == CommandType.LCommand)
+        else if (type == CommandType.Sum)
         {
-            // L command response
+            // Sum command response (checksum)
             string data = response.Substring(command.Length);
             if (data.EndsWith("O"))
             {
                 data = data.Substring(0, data.Length - 1);
             }
             
-            string msg = $"{command} --> {data}";
+            // Parse command to show address and length
+            string address = command.Substring(1, 6);
+            string length = command.Substring(7, 6);
+            
+            string msg = $"{command} --> Sum starting at {address} with length {length} is {data}";
             Console.ForegroundColor = ConsoleColor.Cyan;
             Console.Write(command);
             Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.WriteLine($" --> {data}");
+            Console.WriteLine($" --> Sum starting at {address} with length {length} is {data}");
             Console.ResetColor();
             WriteLog(msg);
         }
