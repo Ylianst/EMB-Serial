@@ -21,6 +21,8 @@ namespace SerialComm
             exportToolStripMenuItem = new ToolStripMenuItem();
             toolStripSeparator1 = new ToolStripSeparator();
             exitToolStripMenuItem = new ToolStripMenuItem();
+            viewToolStripMenuItem = new ToolStripMenuItem();
+            autoSumToolStripMenuItem = new ToolStripMenuItem();
             btnLoad = new Button();
             txtLength = new TextBox();
             lblLength = new Label();
@@ -39,7 +41,7 @@ namespace SerialComm
             // menuStrip
             // 
             menuStrip.ImageScalingSize = new Size(20, 20);
-            menuStrip.Items.AddRange(new ToolStripItem[] { fileToolStripMenuItem });
+            menuStrip.Items.AddRange(new ToolStripItem[] { fileToolStripMenuItem, viewToolStripMenuItem });
             menuStrip.Location = new Point(0, 0);
             menuStrip.Name = "menuStrip";
             menuStrip.Size = new Size(632, 28);
@@ -78,6 +80,21 @@ namespace SerialComm
             exitToolStripMenuItem.Size = new Size(144, 26);
             exitToolStripMenuItem.Text = "E&xit";
             exitToolStripMenuItem.Click += exitToolStripMenuItem_Click;
+            // 
+            // viewToolStripMenuItem
+            // 
+            viewToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { autoSumToolStripMenuItem });
+            viewToolStripMenuItem.Name = "viewToolStripMenuItem";
+            viewToolStripMenuItem.Size = new Size(55, 24);
+            viewToolStripMenuItem.Text = "&View";
+            // 
+            // autoSumToolStripMenuItem
+            // 
+            autoSumToolStripMenuItem.CheckOnClick = true;
+            autoSumToolStripMenuItem.Name = "autoSumToolStripMenuItem";
+            autoSumToolStripMenuItem.Size = new Size(224, 26);
+            autoSumToolStripMenuItem.Text = "&Auto-Sum";
+            autoSumToolStripMenuItem.Click += autoSumToolStripMenuItem_Click;
             // 
             // btnLoad
             // 
@@ -206,6 +223,8 @@ namespace SerialComm
         private ToolStripMenuItem exportToolStripMenuItem;
         private ToolStripSeparator toolStripSeparator1;
         private ToolStripMenuItem exitToolStripMenuItem;
+        private ToolStripMenuItem viewToolStripMenuItem;
+        private ToolStripMenuItem autoSumToolStripMenuItem;
         private TextBox txtAddress;
         private Label lblAddress;
         private Button btnLoad;

@@ -10,8 +10,11 @@ namespace SerialComm
         private SerialStack? _serialStack;
         private bool _isConnected = false;
         private bool _showSerialTraffic = false;
+        private string? _selectedComPort = null;
+        private bool _autoSwitchTo57600 = false;
         private const string RegistryKeyPath = @"Software\BerninaSerialComm";
         private const string ComPortValueName = "LastComPort";
+        private const string AutoSwitch57600ValueName = "AutoSwitchTo57600";
 
         public MainForm()
         {
@@ -20,36 +23,90 @@ namespace SerialComm
 
         private void MainForm_Load(object sender, EventArgs e)
         {
-            // Populate COM port list
-            RefreshComPorts();
-
             // Set default read address
             txtReadAddress.Text = "200100";
 
             // Load last used COM port from registry
             LoadLastComPort();
+            
+            // Load auto-switch setting from registry
+            LoadAutoSwitchSetting();
+
+            // Populate COM port menu
+            RefreshComPortsMenu();
 
             // Initialize status
             UpdateConnectionStatus("Disconnected", false);
+            
+            // Disable command buttons until connected
+            btnRead.Enabled = false;
+            btnLargeRead.Enabled = false;
+            btnWrite.Enabled = false;
         }
 
-        private void RefreshComPorts()
+        private void RefreshComPortsMenu()
         {
-            comboBoxComPort.Items.Clear();
-            string[] ports = SerialPort.GetPortNames();
+            // Clear existing COM port menu items (keep other menu items)
+            var itemsToRemove = new List<ToolStripItem>();
+            foreach (ToolStripItem item in selectCOMPortToolStripMenuItem.DropDownItems)
+            {
+                if (item.Tag?.ToString() == "comport")
+                {
+                    itemsToRemove.Add(item);
+                }
+            }
+            foreach (var item in itemsToRemove)
+            {
+                selectCOMPortToolStripMenuItem.DropDownItems.Remove(item);
+            }
 
+            // Add available COM ports
+            string[] ports = SerialPort.GetPortNames();
+            
             if (ports.Length > 0)
             {
                 foreach (string port in ports)
                 {
-                    comboBoxComPort.Items.Add(port);
+                    ToolStripMenuItem portItem = new ToolStripMenuItem(port);
+                    portItem.Tag = "comport";
+                    portItem.Click += ComPortMenuItem_Click;
+                    
+                    // Check the currently selected port
+                    if (port == _selectedComPort)
+                    {
+                        portItem.Checked = true;
+                    }
+                    
+                    selectCOMPortToolStripMenuItem.DropDownItems.Add(portItem);
                 }
-                comboBoxComPort.SelectedIndex = 0;
             }
             else
             {
-                comboBoxComPort.Items.Add("No ports available");
-                comboBoxComPort.SelectedIndex = 0;
+                ToolStripMenuItem noPortsItem = new ToolStripMenuItem("No ports available");
+                noPortsItem.Tag = "comport";
+                noPortsItem.Enabled = false;
+                selectCOMPortToolStripMenuItem.DropDownItems.Add(noPortsItem);
+            }
+        }
+
+        private void ComPortMenuItem_Click(object sender, EventArgs e)
+        {
+            if (sender is ToolStripMenuItem menuItem)
+            {
+                // Uncheck all other COM port menu items
+                foreach (ToolStripItem item in selectCOMPortToolStripMenuItem.DropDownItems)
+                {
+                    if (item is ToolStripMenuItem mi && item.Tag?.ToString() == "comport")
+                    {
+                        mi.Checked = false;
+                    }
+                }
+                
+                // Check the selected item
+                menuItem.Checked = true;
+                _selectedComPort = menuItem.Text;
+                
+                UpdateStatus($"Selected COM port: {_selectedComPort}");
             }
         }
 
@@ -64,12 +121,7 @@ namespace SerialComm
                         string? lastPort = key.GetValue(ComPortValueName) as string;
                         if (!string.IsNullOrEmpty(lastPort))
                         {
-                            // Try to select the last used port if it exists in the list
-                            int index = comboBoxComPort.Items.IndexOf(lastPort);
-                            if (index >= 0)
-                            {
-                                comboBoxComPort.SelectedIndex = index;
-                            }
+                            _selectedComPort = lastPort;
                         }
                     }
                 }
@@ -77,6 +129,44 @@ namespace SerialComm
             catch
             {
                 // If registry read fails, just use default selection
+            }
+        }
+
+        private void LoadAutoSwitchSetting()
+        {
+            try
+            {
+                using (RegistryKey? key = Registry.CurrentUser.OpenSubKey(RegistryKeyPath))
+                {
+                    if (key != null)
+                    {
+                        object? value = key.GetValue(AutoSwitch57600ValueName);
+                        if (value != null)
+                        {
+                            _autoSwitchTo57600 = Convert.ToBoolean(value);
+                            autoSwitchTo57600BaudToolStripMenuItem.Checked = _autoSwitchTo57600;
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                // If registry read fails, use default (false)
+            }
+        }
+
+        private void SaveAutoSwitchSetting(bool enabled)
+        {
+            try
+            {
+                using (RegistryKey key = Registry.CurrentUser.CreateSubKey(RegistryKeyPath))
+                {
+                    key.SetValue(AutoSwitch57600ValueName, enabled);
+                }
+            }
+            catch
+            {
+                // If registry write fails, continue without saving
             }
         }
 
@@ -97,25 +187,31 @@ namespace SerialComm
 
         private async void btnConnect_Click(object sender, EventArgs e)
         {
-            await ConnectAsync();
+            if (_isConnected)
+            {
+                Disconnect();
+            }
+            else
+            {
+                await ConnectAsync();
+            }
         }
 
         private async Task ConnectAsync()
         {
-            if (comboBoxComPort.SelectedItem == null ||
-                comboBoxComPort.SelectedItem.ToString() == "No ports available")
+            if (string.IsNullOrEmpty(_selectedComPort))
             {
-                MessageBox.Show("Please select a valid COM port.", "Connection Error",
+                MessageBox.Show("Please select a COM port from the Connection menu first.", "Connection Error",
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
-            string portName = comboBoxComPort.SelectedItem.ToString()!;
+            string portName = _selectedComPort;
 
             // Disable connection controls
             btnConnect.Enabled = false;
-            comboBoxComPort.Enabled = false;
             connectToolStripMenuItem.Enabled = false;
+            selectCOMPortToolStripMenuItem.Enabled = false;
 
             UpdateStatus("Connecting to " + portName + "...");
             UpdateConnectionStatus("Connecting...", false);
@@ -142,34 +238,51 @@ namespace SerialComm
                     SaveLastComPort(portName);
 
                     // Update UI
-                    btnConnect.Enabled = false;
-                    btnDisconnect.Enabled = true;
-                    comboBoxComPort.Enabled = false;
+                    btnConnect.Text = "Disconnect";
+                    btnConnect.Enabled = true;
 
                     // Update menu items
                     connectToolStripMenuItem.Enabled = false;
                     disconnectToolStripMenuItem.Enabled = true;
+                    selectCOMPortToolStripMenuItem.Enabled = false;
                     readToolStripMenuItem.Enabled = true;
                     largeReadToolStripMenuItem.Enabled = true;
                     writeToolStripMenuItem.Enabled = true;
-                    loadToolStripMenuItem.Enabled = true;
+                    sumToolStripMenuItem.Enabled = true;
                     memoryViewerToolStripMenuItem.Enabled = true;
+                    
+                    // Enable command buttons
+                    btnRead.Enabled = true;
+                    btnLargeRead.Enabled = true;
+                    btnWrite.Enabled = true;
 
                     UpdateStatus("Connected");
                     UpdateConnectionStatus($"Connected: {portName} @ {_serialStack.BaudRate} baud", true);
                     UpdateBaudRateMenuItems();
                     AppendOutput($"Connected successfully at {_serialStack.BaudRate} baud");
-                    AppendOutput("Ready to send commands");
-                    AppendOutput("");
+                    
+                    // Auto-switch to 57600 if enabled and currently at 19200
+                    if (_autoSwitchTo57600 && _serialStack.BaudRate == 19200)
+                    {
+                        AppendOutput("Auto-switching to 57600 baud...");
+                        await Task.Delay(100); // Brief pause
+                        await SwitchTo57600BaudAsync();
+                    }
+                    else
+                    {
+                        AppendOutput("Ready to send commands");
+                        AppendOutput("");
+                    }
                 }
                 else
                 {
                     _serialStack?.Dispose();
                     _serialStack = null;
 
+                    btnConnect.Text = "Connect";
                     btnConnect.Enabled = true;
-                    comboBoxComPort.Enabled = true;
                     connectToolStripMenuItem.Enabled = true;
+                    selectCOMPortToolStripMenuItem.Enabled = true;
 
                     UpdateStatus("Connection failed");
                     UpdateConnectionStatus("Disconnected", false);
@@ -184,9 +297,10 @@ namespace SerialComm
                 _serialStack?.Dispose();
                 _serialStack = null;
 
+                btnConnect.Text = "Connect";
                 btnConnect.Enabled = true;
-                comboBoxComPort.Enabled = true;
                 connectToolStripMenuItem.Enabled = true;
+                selectCOMPortToolStripMenuItem.Enabled = true;
 
                 UpdateStatus("Connection error");
                 UpdateConnectionStatus("Disconnected", false);
@@ -215,18 +329,23 @@ namespace SerialComm
             _isConnected = false;
 
             // Update UI
+            btnConnect.Text = "Connect";
             btnConnect.Enabled = true;
-            btnDisconnect.Enabled = false;
-            comboBoxComPort.Enabled = true;
 
             // Update menu items
             connectToolStripMenuItem.Enabled = true;
             disconnectToolStripMenuItem.Enabled = false;
+            selectCOMPortToolStripMenuItem.Enabled = true;
             readToolStripMenuItem.Enabled = false;
             largeReadToolStripMenuItem.Enabled = false;
             writeToolStripMenuItem.Enabled = false;
-            loadToolStripMenuItem.Enabled = false;
+            sumToolStripMenuItem.Enabled = false;
             memoryViewerToolStripMenuItem.Enabled = false;
+            
+            // Disable command buttons
+            btnRead.Enabled = false;
+            btnLargeRead.Enabled = false;
+            btnWrite.Enabled = false;
             
             UpdateBaudRateMenuItems();
 
@@ -489,12 +608,7 @@ namespace SerialComm
             }
         }
 
-        private async void btnLoad_Click(object sender, EventArgs e)
-        {
-            await PerformLoadAsync();
-        }
-
-        private async Task PerformLoadAsync()
+        private async Task PerformSumAsync()
         {
             if (_serialStack == null || !_isConnected)
             {
@@ -503,54 +617,42 @@ namespace SerialComm
                 return;
             }
 
-            string addressStr = txtLoadAddress.Text.Trim();
-            string lengthStr = txtLoadLength.Text.Trim();
-
-            if (string.IsNullOrWhiteSpace(addressStr) || addressStr.Length != 6)
+            // Show dialog to get address and length
+            using (SumDialog dialog = new SumDialog())
             {
-                MessageBox.Show("Load command requires a 6-character hex address (e.g., 0240D5).", "Input Error",
-                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
-
-            if (string.IsNullOrWhiteSpace(lengthStr) || lengthStr.Length != 6)
-            {
-                MessageBox.Show("Load command requires a 6-character hex length (e.g., 000360).", "Input Error",
-                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
-
-            try
-            {
-                string parameters = addressStr + lengthStr;
-
-                UpdateStatus($"Sending Load command...");
-                AppendOutput($"Load Command: Address 0x{addressStr}, Length 0x{lengthStr}");
-
-                var result = await _serialStack.LCommandAsync(parameters);
-
-                if (result.Success)
+                if (dialog.ShowDialog() == DialogResult.OK)
                 {
-                    AppendOutput($"Load Command successful:");
-                    AppendOutput($"  Response: {result.Response}");
-                    UpdateStatus("Load Command complete");
-                }
-                else
-                {
-                    AppendOutput($"Load Command failed: {result.ErrorMessage}");
-                    UpdateStatus("Load Command failed");
-                    MessageBox.Show($"Load Command failed: {result.ErrorMessage}", "Command Error",
-                        MessageBoxButtons.OK, MessageBoxIcon.Error);
-                }
+                    int address = dialog.Address;
+                    int length = dialog.Length;
 
-                AppendOutput("");
-            }
-            catch (Exception ex)
-            {
-                AppendOutput($"Load Command error: {ex.Message}");
-                UpdateStatus("Error");
-                MessageBox.Show($"Error: {ex.Message}", "Command Error",
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    UpdateStatus($"Sending Sum command...");
+                    AppendOutput($"Sum Command: Address 0x{address:X6}, Length 0x{length:X6}");
+
+                    var result = await _serialStack.SumCommandAsync(address, length);
+
+                    if (result.Success)
+                    {
+                        AppendOutput($"Sum Command successful:");
+                        AppendOutput($"  Checksum: 0x{result.Response}");
+
+                        // Try to parse the response as a hex number for display
+                        if (long.TryParse(result.Response, System.Globalization.NumberStyles.HexNumber, null, out long checksumValue))
+                        {
+                            AppendOutput($"  Decimal: {checksumValue}");
+                        }
+
+                        UpdateStatus("Sum Command complete");
+                    }
+                    else
+                    {
+                        AppendOutput($"Sum Command failed: {result.ErrorMessage}");
+                        UpdateStatus("Sum Command failed");
+                        MessageBox.Show($"Sum Command failed: {result.ErrorMessage}", "Command Error",
+                            MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+
+                    AppendOutput("");
+                }
             }
         }
 
@@ -583,7 +685,7 @@ namespace SerialComm
             if (success)
             {
                 AppendOutput($"Successfully switched to 19200 baud");
-                UpdateConnectionStatus($"Connected: {comboBoxComPort.SelectedItem} @ {_serialStack.BaudRate} baud", true);
+            UpdateConnectionStatus($"Connected: {_selectedComPort} @ {_serialStack.BaudRate} baud", true);
                 UpdateStatus("Baud rate changed");
                 UpdateBaudRateMenuItems();
             }
@@ -622,7 +724,7 @@ namespace SerialComm
             if (success)
             {
                 AppendOutput($"Successfully switched to 57600 baud");
-                UpdateConnectionStatus($"Connected: {comboBoxComPort.SelectedItem} @ {_serialStack.BaudRate} baud", true);
+                UpdateConnectionStatus($"Connected: {_selectedComPort} @ {_serialStack.BaudRate} baud", true);
                 UpdateStatus("Baud rate changed");
                 UpdateBaudRateMenuItems();
             }
@@ -663,9 +765,9 @@ namespace SerialComm
             btnWrite_Click(sender, e);
         }
 
-        private void loadToolStripMenuItem_Click(object sender, EventArgs e)
+        private void sumToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            btnLoad_Click(sender, e);
+            _ = PerformSumAsync();
         }
 
         private void switchTo19200BaudToolStripMenuItem_Click(object sender, EventArgs e)
@@ -676,6 +778,21 @@ namespace SerialComm
         private void switchTo57600BaudToolStripMenuItem_Click(object sender, EventArgs e)
         {
             btnSwitchBaud_Click(sender, e);
+        }
+
+        private void autoSwitchTo57600BaudToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            _autoSwitchTo57600 = autoSwitchTo57600BaudToolStripMenuItem.Checked;
+            SaveAutoSwitchSetting(_autoSwitchTo57600);
+            
+            if (_autoSwitchTo57600)
+            {
+                AppendOutput("Auto-switch to 57600 baud enabled");
+            }
+            else
+            {
+                AppendOutput("Auto-switch to 57600 baud disabled");
+            }
         }
 
         private void exitToolStripMenuItem_Click(object sender, EventArgs e)
@@ -706,7 +823,7 @@ namespace SerialComm
                 "• Automatic baud rate detection\n" +
                 "• Read and Large Read commands\n" +
                 "• Write operations\n" +
-                "• Load command support\n" +
+                "• Sum command support (memory checksum)\n" +
                 "• Baud rate switching to 57600\n" +
                 "• Memory Viewer for monitoring multiple memory regions\n\n" +
                 "Built with SerialStack.cs",
@@ -718,7 +835,6 @@ namespace SerialComm
         private void clearOutputToolStripMenuItem_Click(object sender, EventArgs e)
         {
             txtOutput.Clear();
-            AppendOutput("Output cleared");
         }
 
         private void showSerialTrafficToolStripMenuItem_Click(object sender, EventArgs e)
@@ -798,7 +914,7 @@ namespace SerialComm
 
             if (connected)
             {
-                toolStripStatusLabelConnection.ForeColor = Color.Green;
+                toolStripStatusLabelConnection.ForeColor = Color.Black;
             }
             else
             {

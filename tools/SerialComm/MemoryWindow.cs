@@ -10,6 +10,7 @@ namespace SerialComm
         private int _currentLength;
         private byte[]? _memoryData;
         private System.Threading.Timer? _refreshTimer;
+        private bool _autoSumEnabled = false;
 
         public MemoryWindow(SerialStack serialStack)
         {
@@ -96,6 +97,12 @@ namespace SerialComm
                     _memoryData = result.BinaryData;
                     DisplayMemory();
                     lblStatus.Text = $"Loaded {length} bytes from 0x{address:X6}";
+                    
+                    // Perform auto-sum if enabled
+                    if (_autoSumEnabled)
+                    {
+                        await PerformSumComparisonAsync();
+                    }
                 }
                 else
                 {
@@ -138,6 +145,10 @@ namespace SerialComm
                 return;
             }
 
+            // Store the current selection to prevent auto-selection
+            int selectionStart = txtHexView.SelectionStart;
+            int selectionLength = txtHexView.SelectionLength;
+
             StringBuilder sb = new StringBuilder();
             
             // Header
@@ -177,9 +188,89 @@ namespace SerialComm
             }
 
             txtHexView.Text = sb.ToString();
+            
+            // Clear any selection and reset cursor position
+            txtHexView.SelectionStart = 0;
+            txtHexView.SelectionLength = 0;
+        }
+
+        private async Task PerformSumComparisonAsync()
+        {
+            if (_serialStack == null || !_serialStack.IsConnected || _memoryData == null)
+            {
+                return;
+            }
+
+            try
+            {
+                // Calculate local sum
+                long localSum = 0;
+                foreach (byte b in _memoryData)
+                {
+                    localSum += b;
+                }
+
+                // Get remote sum
+                var sumResult = await _serialStack.SumCommandAsync(_currentAddress, _currentLength);
+                
+                if (sumResult.Success && !string.IsNullOrEmpty(sumResult.Response))
+                {
+                    // Parse remote sum (hex string)
+                    if (long.TryParse(sumResult.Response, System.Globalization.NumberStyles.HexNumber, null, out long remoteSum))
+                    {
+                        // Compare sums
+                        bool match = (localSum == remoteSum);
+                        string matchIndicator = match ? "✓" : "✗";
+                        string statusColor = match ? "MATCH" : "MISMATCH";
+                        
+                        lblStatus.Text = $"Loaded {_currentLength} bytes | Local Sum: 0x{localSum:X} | Remote Sum: 0x{remoteSum:X} | {matchIndicator} {statusColor}";
+                        
+                        if (!match)
+                        {
+                            lblStatus.ForeColor = Color.Red;
+                        }
+                        else
+                        {
+                            lblStatus.ForeColor = SystemColors.ControlText;
+                        }
+                    }
+                    else
+                    {
+                        lblStatus.Text = $"Loaded {_currentLength} bytes | Local Sum: 0x{localSum:X} | Remote sum parse error";
+                    }
+                }
+                else
+                {
+                    lblStatus.Text = $"Loaded {_currentLength} bytes | Local Sum: 0x{localSum:X} | Remote sum failed: {sumResult.ErrorMessage}";
+                }
+            }
+            catch (Exception ex)
+            {
+                lblStatus.Text = $"Loaded {_currentLength} bytes | Sum comparison error: {ex.Message}";
+            }
         }
 
         // Menu item handlers
+        private void autoSumToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            _autoSumEnabled = autoSumToolStripMenuItem.Checked;
+            
+            if (_autoSumEnabled && _memoryData != null)
+            {
+                // Perform sum comparison immediately if we have data
+                _ = PerformSumComparisonAsync();
+            }
+            else if (!_autoSumEnabled)
+            {
+                // Reset status bar color when disabled
+                lblStatus.ForeColor = SystemColors.ControlText;
+                if (_memoryData != null)
+                {
+                    lblStatus.Text = $"Loaded {_currentLength} bytes from 0x{_currentAddress:X6}";
+                }
+            }
+        }
+
         private void refreshToolStripMenuItem_Click(object sender, EventArgs e)
         {
             if (_memoryData != null)

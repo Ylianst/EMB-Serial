@@ -374,21 +374,23 @@ namespace Bernina.SerialStack
         }
 
         /// <summary>
-        /// Sends an L command (L + 12 hex chars)
+        /// Sends a Sum command (L + 12 hex chars: 6 for address + 6 for length)
+        /// Returns the sum of all bytes starting at the specified address for the given length
         /// </summary>
-        /// <param name="parameters">The 12 hex characters to send (6 bytes)</param>
-        public async Task<CommandResult> LCommandAsync(string parameters)
+        /// <param name="address">The starting address to sum from</param>
+        /// <param name="length">The number of bytes to sum</param>
+        public async Task<CommandResult> SumCommandAsync(int address, int length)
         {
-            if (string.IsNullOrWhiteSpace(parameters) || parameters.Length != 12)
+            if (length <= 0)
             {
                 return new CommandResult
                 {
                     Success = false,
-                    ErrorMessage = "L command requires exactly 12 hex characters"
+                    ErrorMessage = "Length must be greater than 0"
                 };
             }
 
-            string command = $"L{parameters}";
+            string command = $"L{address:X6}{length:X6}";
             return await EnqueueCommandAsync(command);
         }
 
