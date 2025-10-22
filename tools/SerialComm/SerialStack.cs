@@ -87,14 +87,18 @@ namespace Bernina.SerialStack
         
         // Response parsing
         private StringBuilder _responseBuffer = new();
-        private DateTime _lastCharTime = DateTime.Now;
-        private System.Threading.Timer? _responseTimeoutTimer;
         private readonly int _responseTimeoutMs = 2000;
-        private readonly int _charTimeoutMs = 500;
         
         // Background processing
         private CancellationTokenSource? _processingCts;
         private Task? _processingTask;
+        private Task? _readTask;
+        
+        // Single buffer for blocking reads
+        private readonly byte[] _readBuffer = new byte[4096];
+        
+        // Thread lock for log file writing (SerialTraffic event)
+        private readonly object _logLock = new();
         
         // Baud rates to try during connection
         private readonly int[] _baudRatesToTry = { 19200, 57600, 115200, 4800 };
@@ -204,9 +208,10 @@ namespace Bernina.SerialStack
 
             try
             {
-                // Stop command processing
+                // Stop processing tasks
                 _processingCts?.Cancel();
                 _processingTask?.Wait(1000);
+                _readTask?.Wait(1000);
 
                 // Close serial port
                 if (_serialPort?.IsOpen == true)
@@ -496,33 +501,36 @@ namespace Bernina.SerialStack
                     }
                 }
 
-                // Stop command processing temporarily
+                // Stop processing tasks temporarily
                 _processingCts?.Cancel();
                 await Task.WhenAny(_processingTask ?? Task.CompletedTask, Task.Delay(1000));
+                await Task.WhenAny(_readTask ?? Task.CompletedTask, Task.Delay(1000));
 
                 // Close and reopen port at new baud rate immediately (no delay)
                 if (_serialPort?.IsOpen == true)
                 {
-                    _serialPort.DataReceived -= OnDataReceived;
                     _serialPort.Close();
                 }
                 _serialPort?.Dispose();
 
-                // Create new serial port at target baud rate
+                // Create new serial port at target baud rate with infinite read timeout
                 _serialPort = new SerialPort(_portName, targetBaudRate)
                 {
                     DataBits = 8,
                     Parity = Parity.None,
                     StopBits = StopBits.One,
                     Handshake = Handshake.None,
-                    ReadTimeout = 500,
+                    ReadTimeout = Timeout.Infinite,
                     WriteTimeout = 500
                 };
 
-                _serialPort.DataReceived += OnDataReceived;
                 _serialPort.Open();
                 _serialPort.DiscardInBuffer();
                 _serialPort.DiscardOutBuffer();
+
+                // Start blocking read thread
+                _processingCts = new CancellationTokenSource();
+                _readTask = Task.Run(() => BlockingReadLoopAsync(_processingCts.Token));
 
                 _currentBaudRate = targetBaudRate;
 
@@ -608,7 +616,6 @@ namespace Bernina.SerialStack
                 _responseBuffer.Clear();
 
                 // Restart command processing
-                _processingCts = new CancellationTokenSource();
                 _processingTask = Task.Run(() => ProcessCommandQueueAsync(_processingCts.Token));
 
                 SetConnectionState(ConnectionState.Connected, $"Successfully switched to {targetBaudRate} baud");
@@ -632,19 +639,22 @@ namespace Bernina.SerialStack
                 }
                 _serialPort?.Dispose();
 
-                // Create and configure serial port
+                // Create and configure serial port with infinite read timeout
                 _serialPort = new SerialPort(_portName, baudRate)
                 {
                     DataBits = 8,
                     Parity = Parity.None,
                     StopBits = StopBits.One,
                     Handshake = Handshake.None,
-                    ReadTimeout = 500,
+                    ReadTimeout = Timeout.Infinite,
                     WriteTimeout = 500
                 };
 
-                _serialPort.DataReceived += OnDataReceived;
                 _serialPort.Open();
+                
+                // Start blocking read thread
+                _processingCts = new CancellationTokenSource();
+                _readTask = Task.Run(() => BlockingReadLoopAsync(_processingCts.Token));
 
                 // Clear any existing data
                 _serialPort.DiscardInBuffer();
@@ -663,6 +673,107 @@ namespace Bernina.SerialStack
             catch
             {
                 return false;
+            }
+        }
+
+        /// <summary>
+        /// Blocking read loop that continuously reads from the serial port
+        /// </summary>
+        private async Task BlockingReadLoopAsync(CancellationToken cancellationToken)
+        {
+            while (!cancellationToken.IsCancellationRequested && _serialPort != null && _serialPort.IsOpen)
+            {
+                try
+                {
+                    // Block on read - this will wait indefinitely due to Timeout.Infinite
+                    // Don't pass cancellationToken to Task.Run to avoid OperationCanceledException
+                    int bytesRead = await Task.Run(() => 
+                    {
+                        try
+                        {
+                            return _serialPort?.Read(_readBuffer, 0, _readBuffer.Length) ?? 0;
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            // Port was closed, return 0
+                            return 0;
+                        }
+                        catch (InvalidOperationException)
+                        {
+                            // Port was closed, return 0
+                            return 0;
+                        }
+                        catch (TimeoutException)
+                        {
+                            // Should not happen with Timeout.Infinite, but handle it
+                            return 0;
+                        }
+                    });
+                    
+                    if (bytesRead > 0)
+                    {
+                        // Raise event for received data
+                        byte[] actualData = new byte[bytesRead];
+                        Array.Copy(_readBuffer, actualData, bytesRead);
+                        
+                        SerialTraffic?.Invoke(this, new SerialTrafficEventArgs { IsSent = false, Data = actualData });
+
+                        // Process received data
+                        for (int i = 0; i < bytesRead; i++)
+                        {
+                            char c = (char)_readBuffer[i];
+                            _responseBuffer.Append(c);
+                            
+                            // Check if we have a complete response after each character
+                            if (_currentCommand != null)
+                            {
+                                string currentResponse = _responseBuffer.ToString();
+                                if (IsResponseComplete(_currentCommand.Command, currentResponse))
+                                {
+                                    // Complete the command immediately
+                                    CompleteCurrentCommand(currentResponse);
+                                    _responseBuffer.Clear();
+                                    break; // Exit the loop since command is complete
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Check cancellation after processing data
+                    if (cancellationToken.IsCancellationRequested)
+                    {
+                        break;
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    // Clean exit on cancellation
+                    break;
+                }
+                catch (InvalidOperationException)
+                {
+                    // Port was closed, exit gracefully
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    // Handle other read errors
+                    if (_currentCommand != null)
+                    {
+                        _currentCommand.CompletionSource.TrySetResult(new CommandResult
+                        {
+                            Success = false,
+                            ErrorMessage = $"Read error: {ex.Message}"
+                        });
+                        _currentCommand = null;
+                    }
+                    
+                    // If port is closed or not open, exit the loop
+                    if (_serialPort == null || !_serialPort.IsOpen)
+                    {
+                        break;
+                    }
+                }
             }
         }
 
@@ -761,155 +872,47 @@ namespace Bernina.SerialStack
             }
         }
 
-        private void OnDataReceived(object sender, SerialDataReceivedEventArgs e)
-        {
-            if (_serialPort == null || !_serialPort.IsOpen)
-            {
-                return;
-            }
-
-            try
-            {
-                int bytesToRead = _serialPort.BytesToRead;
-                if (bytesToRead == 0)
-                {
-                    return;
-                }
-
-                byte[] buffer = new byte[bytesToRead];
-                int bytesRead = _serialPort.Read(buffer, 0, bytesToRead);
-
-                // Raise event for received data
-                if (bytesRead > 0)
-                {
-                    byte[] actualData = new byte[bytesRead];
-                    Array.Copy(buffer, actualData, bytesRead);
-                    SerialTraffic?.Invoke(this, new SerialTrafficEventArgs { IsSent = false, Data = actualData });
-                }
-
-                for (int i = 0; i < bytesRead; i++)
-                {
-                    char c = (char)buffer[i];
-                    _responseBuffer.Append(c);
-                    _lastCharTime = DateTime.Now;
-                    
-                    // Check for immediate error responses
-                    if (_currentCommand != null && (c == 'Q' || c == '?' || c == '!'))
-                    {
-                        // Possible error - but we need to wait a bit to see if it's part of a valid response
-                        ResetResponseTimeout();
-                    }
-                    else
-                    {
-                        ResetResponseTimeout();
-                    }
-                    
-                    // Check if we have a complete response after each character
-                    if (_currentCommand != null)
-                    {
-                        string currentResponse = _responseBuffer.ToString();
-                        if (IsResponseCompleteAsync(_currentCommand.Command, currentResponse).Result)
-                        {
-                            // Cancel the timeout timer since we're complete
-                            _responseTimeoutTimer?.Dispose();
-                            _responseTimeoutTimer = null;
-                            
-                            // Complete the command immediately
-                            CompleteCurrentCommand(currentResponse);
-                            _responseBuffer.Clear();
-                            break; // Exit the loop since command is complete
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                // Handle read errors
-                if (_currentCommand != null)
-                {
-                    _currentCommand.CompletionSource.TrySetResult(new CommandResult
-                    {
-                        Success = false,
-                        ErrorMessage = $"Read error: {ex.Message}"
-                    });
-                    _currentCommand = null;
-                }
-            }
-        }
-
-        private void ResetResponseTimeout()
-        {
-            _responseTimeoutTimer?.Dispose();
-            
-            // Use longer character timeout for Read and Large Read commands
-            int charTimeout = _charTimeoutMs;
-            if (_currentCommand != null && 
-                (_currentCommand.Command.StartsWith("R") || _currentCommand.Command.StartsWith("N")))
-            {
-                charTimeout = 2000; // 2 seconds between characters for read commands
-            }
-            
-            _responseTimeoutTimer = new System.Threading.Timer(_ => OnResponseTimeout(), null, charTimeout, Timeout.Infinite);
-        }
-
-        private async void OnResponseTimeout()
-        {
-            if (_currentCommand == null)
-            {
-                return;
-            }
-
-            string response = _responseBuffer.ToString();
-            _responseBuffer.Clear();
-
-            // Check if this is a complete response
-            if (await IsResponseCompleteAsync(_currentCommand.Command, response))
-            {
-                CompleteCurrentCommand(response);
-            }
-        }
-
-        private Task<bool> IsResponseCompleteAsync(string command, string response)
+        private bool IsResponseComplete(string command, string response)
         {
             if (string.IsNullOrEmpty(response))
             {
-                return Task.FromResult(false);
+                return false;
             }
 
             // Check for error responses
             if (response == "Q" || response == "?" || response == "!")
             {
-                return Task.FromResult(true);
+                return true;
             }
 
             // For Read commands (R + 6 hex) - expect command echo + 64 hex chars + O
             if (command.StartsWith("R") && command.Length == 7)
             {
                 int expectedLength = command.Length + 64 + 1;
-                return Task.FromResult(response.Length >= expectedLength && response.EndsWith("O"));
+                return response.Length >= expectedLength && response.EndsWith("O");
             }
 
             // For Large Read commands (N + 6 hex) - expect command echo + 256 raw bytes + O
             if (command.StartsWith("N") && command.Length == 7)
             {
                 int expectedLength = command.Length + 256 + 1;
-                return Task.FromResult(response.Length >= expectedLength && response.EndsWith("O"));
+                return response.Length >= expectedLength && response.EndsWith("O");
             }
 
             // For Write commands - just echo
             if (command.StartsWith("W") && command.Contains("?"))
             {
-                return Task.FromResult(response.Length >= command.Length);
+                return response.Length >= command.Length;
             }
 
             // For L commands - variable length ending in O
             if (command.StartsWith("L"))
             {
-                return Task.FromResult(response.Length > command.Length && response.EndsWith("O"));
+                return response.Length > command.Length && response.EndsWith("O");
             }
 
             // For other commands - just echo
-            return Task.FromResult(response.Length >= command.Length);
+            return response.Length >= command.Length;
         }
 
         private void CompleteCurrentCommand(string response)
@@ -1124,7 +1127,7 @@ namespace Bernina.SerialStack
                     commandTimeout = 5000; // 5 seconds for read commands
                 }
 
-                // Send command character by character, waiting for echo
+                // Send command character by character
                 foreach (char c in queuedCommand.Command)
                 {
                     if (cancellationToken.IsCancellationRequested)
@@ -1144,9 +1147,6 @@ namespace Bernina.SerialStack
                     // Wait a bit for echo
                     await Task.Delay(20, cancellationToken);
                 }
-
-                // Start response timeout
-                ResetResponseTimeout();
 
                 // Wait for completion or timeout (using command-specific timeout)
                 var timeoutTask = Task.Delay(commandTimeout, cancellationToken);
@@ -1171,11 +1171,6 @@ namespace Bernina.SerialStack
                     Success = false,
                     ErrorMessage = $"Command execution error: {ex.Message}"
                 });
-            }
-            finally
-            {
-                _responseTimeoutTimer?.Dispose();
-                _responseTimeoutTimer = null;
             }
         }
 
@@ -1224,7 +1219,6 @@ namespace Bernina.SerialStack
             Close();
             _processingCts?.Dispose();
             _commandSemaphore?.Dispose();
-            _responseTimeoutTimer?.Dispose();
         }
     }
 }
