@@ -23,6 +23,11 @@ class SerialCapture
     private static DateTime lastSoftwareCharTime = DateTime.Now;
     private static System.Threading.Timer? commandTimeoutTimer = null;
     
+    // Upload command state (PS command has multi-stage response)
+    private static bool waitingForUploadData = false;
+    private static StringBuilder uploadDataBuffer = new StringBuilder();
+    private static int uploadBytesReceived = 0;
+    
     enum CommandType
     {
         Unknown,
@@ -32,6 +37,7 @@ class SerialCapture
         Session,        // TrME, TrMEYQ, TrMEJ05 -> echo or special handling
         Reset,          // RF? -> echo
         Sum,            // L + 12 hex chars -> 8 hex chars + O (checksum)
+        Upload,         // PS + 4 hex chars -> OE + 256 bytes from software + O
         Other           // EBYQ, etc -> echo or special response
     }
     
@@ -347,6 +353,29 @@ class SerialCapture
         
         if (sourceName == "Software")
         {
+            // If we're waiting for upload data, collect it
+            if (waitingForUploadData)
+            {
+                uploadDataBuffer.Append(c);
+                uploadBytesReceived++;
+                
+                // Show progress every 32 bytes
+                if (uploadBytesReceived % 32 == 0 || uploadBytesReceived == 256)
+                {
+                    Console.ForegroundColor = ConsoleColor.DarkGray;
+                    Console.WriteLine($"  [Upload Progress: {uploadBytesReceived}/256 bytes received]");
+                    Console.ResetColor();
+                }
+                
+                // Check if we've received all 256 bytes
+                if (uploadBytesReceived >= 256)
+                {
+                    // Don't display yet - wait for Machine's "O" confirmation
+                    waitingForUploadData = false;
+                }
+                return;
+            }
+            
             // Accumulate software command
             softwareCommandBuffer.Append(c);
             lastSoftwareCharTime = DateTime.Now;
@@ -391,7 +420,7 @@ class SerialCapture
             bool isErrorChar = (c == 'Q' || c == '?' || c == '!');
             bool isWriteCommandEcho = waitingForResponse && currentCommandType == CommandType.Write && c == '?';
             
-            if (isErrorChar && !isWriteCommandEcho && !waitingForResponse)
+            if (isErrorChar && !isWriteCommandEcho && !waitingForResponse && !waitingForUploadData)
             {
                 // Error from machine - reset everything
                 string timestamp2 = DateTime.Now.ToString("HH:mm:ss.fff");
@@ -418,10 +447,33 @@ class SerialCapture
                 expectedResponseBytes = 0;
                 currentCommandType = CommandType.Unknown;
                 
+                // Reset upload state
+                waitingForUploadData = false;
+                uploadDataBuffer.Clear();
+                uploadBytesReceived = 0;
+                
                 // Cancel any pending timeout
                 commandTimeoutTimer?.Dispose();
                 commandTimeoutTimer = null;
                 
+                return;
+            }
+            
+            // Check if we're waiting for the final "O" after upload data
+            if (waitingForUploadData == false && uploadBytesReceived == 256 && c == 'O')
+            {
+                // Upload complete - display the command with uploaded data
+                string uploadData = uploadDataBuffer.ToString();
+                DisplayUploadCommand(currentCommand!, uploadData);
+                
+                // Reset all state
+                machineResponseBuffer.Clear();
+                uploadDataBuffer.Clear();
+                uploadBytesReceived = 0;
+                currentCommand = null;
+                waitingForResponse = false;
+                expectedResponseBytes = 0;
+                currentCommandType = CommandType.Unknown;
                 return;
             }
             
@@ -433,6 +485,24 @@ class SerialCapture
                 if (IsResponseComplete(machineResponseBuffer.ToString(), currentCommandType, expectedResponseBytes))
                 {
                     string response = machineResponseBuffer.ToString();
+                    
+                    // Special handling for Upload command - check for "OE" response
+                    if (currentCommandType == CommandType.Upload && response.EndsWith("OE"))
+                    {
+                        Console.ForegroundColor = ConsoleColor.Cyan;
+                        Console.WriteLine($"{currentCommand} --> Machine ready (OE), waiting for 256 bytes from Software...");
+                        Console.ResetColor();
+                        WriteLog($"{currentCommand} --> Machine ready (OE), waiting for upload data");
+                        
+                        // Switch to waiting for upload data mode
+                        waitingForUploadData = true;
+                        uploadDataBuffer.Clear();
+                        uploadBytesReceived = 0;
+                        machineResponseBuffer.Clear();
+                        waitingForResponse = false;
+                        return;
+                    }
+                    
                     DisplayCommand(currentCommand!, response, currentCommandType);
                     
                     // Handle baud rate change after TrMEJ05
@@ -503,6 +573,12 @@ class SerialCapture
             return IsHexString(cmd.Substring(1, 6));
         }
         
+        // Upload command: PS + 4 hex digits
+        if (cmd.StartsWith("PS") && cmd.Length == 6)
+        {
+            return IsHexString(cmd.Substring(2, 4));
+        }
+        
         // Write command: W + 6 hex + data + ?
         if (cmd.StartsWith("W") && cmd.Contains("?"))
         {
@@ -548,6 +624,8 @@ class SerialCapture
             return CommandType.Read;
         if (cmd.StartsWith("N") && cmd.Length == 7)
             return CommandType.LargeRead;
+        if (cmd.StartsWith("PS") && cmd.Length == 6)
+            return CommandType.Upload;
         if (cmd.StartsWith("W"))
             return CommandType.Write;
         if (cmd.StartsWith("L"))
@@ -565,6 +643,8 @@ class SerialCapture
                 return cmd.Length + 64 + 1; // command echo + 64 hex chars + O
             case CommandType.LargeRead:
                 return cmd.Length + 256 + 1; // command echo + 256 data bytes + O
+            case CommandType.Upload:
+                return cmd.Length + 2; // command echo + OE
             case CommandType.Write:
                 return cmd.Length; // Echo only
             case CommandType.Session:
@@ -761,6 +841,29 @@ class SerialCapture
         }
     }
 
+    private static void DisplayUploadCommand(string command, string uploadData)
+    {
+        // Parse command to show address
+        string address = command.Substring(2, 4);
+        
+        // Show both ASCII and HEX like LargeRead
+        string ascii = GetPrintableAscii(uploadData);
+        string hex = BytesToHex(Encoding.ASCII.GetBytes(uploadData));
+        
+        Console.ForegroundColor = ConsoleColor.Cyan;
+        Console.WriteLine($"{command} --> Upload 256 bytes to address {address}:");
+        Console.ResetColor();
+        Console.ForegroundColor = ConsoleColor.Yellow;
+        Console.WriteLine($"   ASCII: {ascii}");
+        Console.ForegroundColor = ConsoleColor.DarkGray;
+        Console.WriteLine($"   HEX: {hex}");
+        Console.ResetColor();
+        
+        WriteLog($"{command} --> Upload 256 bytes to address {address}:");
+        WriteLog($"   ASCII: {ascii}");
+        WriteLog($"   HEX: {hex}");
+    }
+    
     private static string GetPrintableAscii(string data)
     {
         StringBuilder sb = new StringBuilder();

@@ -61,7 +61,7 @@ So you can switch to and from each baud rates.
 
 The "RF?" command causes the machine to reset it's protocol state. If you send a command and get "Q", "?" or "!" as an echo back, something is not quite right and you may be stuck until the protocol reset command is sent, only then can you start sending more commands. This command can also be used to initially find the machine on the serial bus.
 
-## The Read Command
+## The Read Command (R)
 
 A "Read" command will cause the machine with return 32 bytes of data starting at the address specified by the command. This is fixed, all "Read" commands return this ammount of data back. The read command starts with a capital R followed by 6 characters that are the address to the read. Here are two value examples:
 
@@ -80,7 +80,7 @@ A "Read" command will cause the machine with return 32 bytes of data starting at
 "8300330000000000000000000000000200000100000000000000000000000000O"
 ```
 
-## The Large Read Command
+## The Large Read Command (N)
 
 In addition to the read command, there is a "Large Read" command that worked the same way as "Read", but return 256 bytes of binary encoded data instead of 32 bytes of HEX encoded data. The command in "N" on the serial protocol followed by 6 HEX characters for the address. Here are two examples:
 
@@ -88,7 +88,7 @@ In addition to the read command, there is a "Large Read" command that worked the
 "N0240F5" will return:
 "LisaV45Rev8.....................BlackBoardv45Rev61..............SwissBlock v45 rev6a............Zurichv45rev6a..................ALICE v6m Rev5 Firmware v3......BAMBOO v6m Rev8 Firmware v3.....Lg5060..........................Cs021...........................O"
 
-"N0241F5"  will return:
+"N0241F5" will return:
 "Fl081...........................Nv772...........................Nv722...........................Nv799...........................Bd130...........................Bd115v2.........................Cr070...........................Cr060...........................O"
 ```
 
@@ -96,7 +96,7 @@ Like the "Read" command, the "Large Read" command also completes the block with 
 
 When downloading a lot of data, the software will use the Large Read (N) command a lot, but if the last block that needs to be downloaded is 32 bytes of less, it will switch to used the Read (R) command to complete the download.
 
-## The Write Command
+## The Write Command (W)
 
 It's also possible to write using the W command. Just like the read command, it's a W followed by 6 HEX characters for the address followed by the data to write in HEX and "?" to complete the command. Here are two examples of write commands:
 
@@ -106,6 +106,17 @@ It's also possible to write using the W command. Just like the read command, it'
 ```
 
 The first command will write 0x01 to address 0x0201E1, the second command will write 0x0061 to address 0xFFFED0. There is no confirmation given that the write operation was a success, so often times the software with perform a read (R) operation after a set of writes to make sure the operation was a success.
+
+## The Upload Command (PS)
+
+In order to upload a lot of data from the software to the machine, the PS command is used. The command is "PS" followed by 4 HEX characters, there are the 4 starting HEX characters of the destination address, with 00 being added to complete the address. So, "PS028F" will upload 256 bytes of binary data at address 0x028F00. The sequence on the serial port is like this:
+
+- Software sends command "PS028F".
+- Machine replays with "OE".
+- Software sends 256 bytes of data.
+- Machines replays with "O".
+
+If a problem occurs, the machine sends "Q" back, software sends a series of "RF?" until it works and then tries again. Note that this command can compliment the Write (W) command that can be used to write at exact location. We will see the software use the Write command a few times until it gets to the next 256 byte memory boundery and then will use the Upload (PS) command.
 
 ## The Sum Command (L)
 
