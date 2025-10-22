@@ -218,7 +218,7 @@ class SerialCapture
                 {
                     // Blocking read - will wait indefinitely for data
                     int bytesRead = sourcePort.Read(softwareBuffer, 0, softwareBuffer.Length);
-                    
+
                     if (bytesRead > 0)
                     {
                         ProcessAndForwardData(softwareBuffer, bytesRead, sourcePort, destinationPort, "Software", "Machine");
@@ -342,7 +342,19 @@ class SerialCapture
                     if (dataToForward.Length > 0)
                     {
                         destinationPort.Write(dataToForward, 0, dataToForward.Length);
-                        ProcessBytes(dataToForward, sourceName);
+                        
+                        // For upload data collection, process original bytes (not filtered)
+                        // Otherwise process the filtered data
+                        if (waitingForUploadData && sourceName == "Software")
+                        {
+                            byte[] originalData = new byte[bytesRead];
+                            Array.Copy(buffer, 0, originalData, 0, bytesRead);
+                            ProcessBytes(originalData, sourceName);
+                        }
+                        else
+                        {
+                            ProcessBytes(dataToForward, sourceName);
+                        }
                     }
                 }
             }
@@ -407,7 +419,8 @@ class SerialCapture
     {
         int lengthToForward = totalBytes - startIndex;
         
-        if (filterNullCharacters && sourceName == "Software")
+        // Don't filter NULL bytes when waiting for upload data - we need ALL 256 bytes
+        if (filterNullCharacters && sourceName == "Software" && !waitingForUploadData)
         {
             List<byte> filtered = new List<byte>();
             for (int i = startIndex; i < totalBytes; i++)
@@ -447,7 +460,7 @@ class SerialCapture
                 string timestamp = DateTime.Now.ToString("HH:mm:ss.fff");
                 string charDisplay = (dataByte >= 32 && dataByte <= 126) ? c.ToString() : $"[0x{dataByte:X2}]";
                 Console.ForegroundColor = sourceName == "Software" ? ConsoleColor.DarkCyan : ConsoleColor.DarkYellow;
-                Console.Write($"[{timestamp}] {sourceName[0]}: {charDisplay} ");
+                Console.Write($"[{timestamp}] {sourceName[0]}: {charDisplay}\r\n");
                 Console.ResetColor();
                 WriteLog($"[{timestamp}] {sourceName}: {dataByte:X2} ({charDisplay})");
             }
