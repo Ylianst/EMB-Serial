@@ -451,7 +451,7 @@ class SerialCapture
     private static void ProcessByte(byte dataByte, string sourceName)
     {
         char c = (char)dataByte;
-        
+
         // Debug output - print each character with timestamp (only if debug mode is enabled)
         if (debugMode)
         {
@@ -465,7 +465,7 @@ class SerialCapture
                 WriteLog($"[{timestamp}] {sourceName}: {dataByte:X2} ({charDisplay})");
             }
         }
-        
+
         if (sourceName == "Software")
         {
             // If we're waiting for upload data, collect it
@@ -473,7 +473,7 @@ class SerialCapture
             {
                 uploadDataBuffer.Append(c);
                 uploadBytesReceived++;
-                
+
                 // Show progress every 32 bytes
                 if (uploadBytesReceived % 32 == 0 || uploadBytesReceived == 256)
                 {
@@ -484,7 +484,7 @@ class SerialCapture
                         Console.ResetColor();
                     }
                 }
-                
+
                 // Check if we've received all 256 bytes
                 if (uploadBytesReceived >= 256)
                 {
@@ -493,17 +493,17 @@ class SerialCapture
                 }
                 return;
             }
-            
+
             // Accumulate software command
             softwareCommandBuffer.Append(c);
             lastSoftwareCharTime = DateTime.Now;
-            
+
             // Cancel any existing timeout timer
             commandTimeoutTimer?.Dispose();
-            
+
             // Check if command is complete
             string cmd = softwareCommandBuffer.ToString();
-            
+
             // Detect complete commands
             if (IsCommandComplete(cmd))
             {
@@ -517,7 +517,7 @@ class SerialCapture
                         {
                             string currentCmd = softwareCommandBuffer.ToString();
                             // Check if still just "TrME" or "TrMEY" and enough time has passed
-                            if ((currentCmd == "TrME" || currentCmd == "TrMEY") && 
+                            if ((currentCmd == "TrME" || currentCmd == "TrMEY") &&
                                 (DateTime.Now - lastSoftwareCharTime).TotalMilliseconds >= 300)
                             {
                                 CompleteCommand(currentCmd);
@@ -537,13 +537,13 @@ class SerialCapture
             // BUT: Don't treat '?' as error if we're waiting for a Write command response (which ends with ?)
             bool isErrorChar = (c == 'Q' || c == '?' || c == '!');
             bool isWriteCommandEcho = waitingForResponse && currentCommandType == CommandType.Write && c == '?';
-            
+
             if (isErrorChar && !isWriteCommandEcho && !waitingForResponse && !waitingForUploadData)
             {
                 // Error from machine - reset everything
                 string timestamp2 = DateTime.Now.ToString("HH:mm:ss.fff");
                 string errorMsg = $"\n[{timestamp2}] << ERROR: Machine sent '{c}' - resetting state";
-                
+
                 // Only log and show errors if showErrors is enabled
                 if (showErrors)
                 {
@@ -557,36 +557,36 @@ class SerialCapture
                         WriteLog("");
                     }
                 }
-                
+
                 // Reset software command buffer (software will retry)
                 softwareCommandBuffer.Clear();
-                
+
                 // Reset response waiting state
                 machineResponseBuffer.Clear();
                 currentCommand = null;
                 waitingForResponse = false;
                 expectedResponseBytes = 0;
                 currentCommandType = CommandType.Unknown;
-                
+
                 // Reset upload state
                 waitingForUploadData = false;
                 uploadDataBuffer.Clear();
                 uploadBytesReceived = 0;
-                
+
                 // Cancel any pending timeout
                 commandTimeoutTimer?.Dispose();
                 commandTimeoutTimer = null;
-                
+
                 return;
             }
-            
+
             // Check if we're waiting for the final "O" after upload data
             if (waitingForUploadData == false && uploadBytesReceived == 256 && c == 'O')
             {
                 // Upload complete - display the command with uploaded data
                 string uploadData = uploadDataBuffer.ToString();
                 DisplayUploadCommand(currentCommand!, uploadData);
-                
+
                 // Reset all state
                 machineResponseBuffer.Clear();
                 uploadDataBuffer.Clear();
@@ -597,16 +597,16 @@ class SerialCapture
                 currentCommandType = CommandType.Unknown;
                 return;
             }
-            
+
             if (waitingForResponse)
             {
                 machineResponseBuffer.Append(c);
-                
+
                 // Check if we have a complete response
                 if (IsResponseComplete(machineResponseBuffer.ToString(), currentCommandType, expectedResponseBytes))
                 {
                     string response = machineResponseBuffer.ToString();
-                    
+
                     // Special handling for Upload command - check for "OE" response
                     if (currentCommandType == CommandType.Upload && response.EndsWith("OE"))
                     {
@@ -617,7 +617,7 @@ class SerialCapture
                             Console.ResetColor();
                             WriteLog($"{currentCommand} --> Machine ready (OE), waiting for upload data");
                         }
-                        
+
                         // Switch to waiting for upload data mode
                         waitingForUploadData = true;
                         uploadDataBuffer.Clear();
@@ -626,15 +626,15 @@ class SerialCapture
                         waitingForResponse = false;
                         return;
                     }
-                    
+
                     DisplayCommand(currentCommand!, response, currentCommandType);
-                    
+
                     // Handle baud rate change after TrMEJ05
                     if (currentCommand == "TrMEJ05")
                     {
                         Task.Run(() => ChangeBaudRate(57600));
                     }
-                    
+
                     // Reset state
                     machineResponseBuffer.Clear();
                     currentCommand = null;
@@ -647,7 +647,7 @@ class SerialCapture
             {
                 // Unsolicited machine data (like "BOSN", "BOS", etc.)
                 machineResponseBuffer.Append(c);
-                
+
                 // Check for known unsolicited messages
                 string buffer = machineResponseBuffer.ToString();
                 if (buffer.EndsWith("BOSN") || buffer.EndsWith("BOS"))
@@ -795,13 +795,19 @@ class SerialCapture
         if (response == "Q" || response == "?" || response == "!")
             return true;
             
-        // For Sum command responses, check for fixed length
+        // For Sum command responses, check for 'O' terminator at exact position
         if (type == CommandType.Sum)
         {
-            return response.EndsWith("O") && response.Length >= 13; // 13 chars command + 8 hex + O = 22
+            return response.Length >= expectedLength && response[expectedLength - 1] == 'O';
         }
         
-        // For fixed length responses
+        // For Read and LargeRead commands, check for 'O' terminator at exact position
+        if (type == CommandType.Read || type == CommandType.LargeRead)
+        {
+            return response.Length >= expectedLength && response[expectedLength - 1] == 'O';
+        }
+        
+        // For other fixed length responses (no terminator)
         if (expectedLength > 0)
         {
             return response.Length >= expectedLength;
