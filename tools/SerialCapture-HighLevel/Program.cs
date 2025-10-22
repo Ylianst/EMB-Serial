@@ -28,6 +28,15 @@ class SerialCapture
     private static StringBuilder uploadDataBuffer = new StringBuilder();
     private static int uploadBytesReceived = 0;
     
+    // Thread control
+    private static volatile bool isRunning = true;
+    private static Thread? softwareThread;
+    private static Thread? machineThread;
+    
+    // Buffers for each port
+    private static readonly byte[] softwareBuffer = new byte[4096];
+    private static readonly byte[] machineBuffer = new byte[4096];
+    
     enum CommandType
     {
         Unknown,
@@ -64,6 +73,7 @@ class SerialCapture
         {
             e.Cancel = true;
             Console.WriteLine("\n\nShutting down...");
+            isRunning = false;
             Cleanup();
             Environment.Exit(0);
         };
@@ -126,14 +136,14 @@ class SerialCapture
             WriteLog($"Software: {softwarePort}, Machine: {machinePort}, Initial Baud: {currentBaudRate}");
             WriteLog("");
 
-            // Initialize serial ports
+            // Initialize serial ports with infinite read timeout
             port1 = new SerialPort(softwarePort, currentBaudRate)
             {
                 DataBits = 8,
                 Parity = Parity.None,
                 StopBits = StopBits.One,
                 Handshake = Handshake.None,
-                ReadTimeout = 500,
+                ReadTimeout = Timeout.Infinite,
                 WriteTimeout = 500
             };
 
@@ -143,13 +153,9 @@ class SerialCapture
                 Parity = Parity.None,
                 StopBits = StopBits.One,
                 Handshake = Handshake.None,
-                ReadTimeout = 500,
+                ReadTimeout = Timeout.Infinite,
                 WriteTimeout = 500
             };
-
-            // Set up data received event handlers
-            port1.DataReceived += (sender, e) => OnDataReceived(port1, port2, "Software", "Machine");
-            port2.DataReceived += (sender, e) => OnDataReceived(port2, port1, "Machine", "Software");
 
             // Open ports
             Console.WriteLine($"Opening Software port ({softwarePort})...");
@@ -163,6 +169,19 @@ class SerialCapture
             FlushSerialPort(port2, machinePort);
 
             Console.WriteLine("\nBoth ports opened successfully!");
+            Console.WriteLine("Starting reader threads with blocking reads...");
+            
+            // Start reader threads
+            softwareThread = new Thread(() => SoftwareReaderThread(port1, port2));
+            softwareThread.Name = "Software Reader";
+            softwareThread.IsBackground = false;
+            softwareThread.Start();
+            
+            machineThread = new Thread(() => MachineReaderThread(port2, port1));
+            machineThread.Name = "Machine Reader";
+            machineThread.IsBackground = false;
+            machineThread.Start();
+
             Console.WriteLine("Monitoring high-level commands... (CTRL+C to exit)\n");
 
             // Keep the application running
@@ -184,7 +203,157 @@ class SerialCapture
         }
         finally
         {
+            isRunning = false;
             Cleanup();
+        }
+    }
+
+    private static void SoftwareReaderThread(SerialPort sourcePort, SerialPort destinationPort)
+    {
+        try
+        {
+            while (isRunning && sourcePort.IsOpen)
+            {
+                try
+                {
+                    // Blocking read - will wait indefinitely for data
+                    int bytesRead = sourcePort.Read(softwareBuffer, 0, softwareBuffer.Length);
+                    
+                    if (bytesRead > 0)
+                    {
+                        ProcessAndForwardData(softwareBuffer, bytesRead, sourcePort, destinationPort, "Software", "Machine");
+                    }
+                }
+                catch (TimeoutException)
+                {
+                    // Should not happen with infinite timeout, but handle it anyway
+                    continue;
+                }
+                catch (InvalidOperationException)
+                {
+                    // Port was closed
+                    break;
+                }
+                catch (IOException)
+                {
+                    // Port error
+                    break;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            lock (logLock)
+            {
+                WriteLog($"ERROR in Software reader thread: {ex.Message}");
+                Console.WriteLine($"ERROR in Software reader thread: {ex.Message}");
+            }
+        }
+    }
+
+    private static void MachineReaderThread(SerialPort sourcePort, SerialPort destinationPort)
+    {
+        try
+        {
+            while (isRunning && sourcePort.IsOpen)
+            {
+                try
+                {
+                    // Blocking read - will wait indefinitely for data
+                    int bytesRead = sourcePort.Read(machineBuffer, 0, machineBuffer.Length);
+                    
+                    if (bytesRead > 0)
+                    {
+                        ProcessAndForwardData(machineBuffer, bytesRead, sourcePort, destinationPort, "Machine", "Software");
+                    }
+                }
+                catch (TimeoutException)
+                {
+                    // Should not happen with infinite timeout, but handle it anyway
+                    continue;
+                }
+                catch (InvalidOperationException)
+                {
+                    // Port was closed
+                    break;
+                }
+                catch (IOException)
+                {
+                    // Port error
+                    break;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            lock (logLock)
+            {
+                WriteLog($"ERROR in Machine reader thread: {ex.Message}");
+                Console.WriteLine($"ERROR in Machine reader thread: {ex.Message}");
+            }
+        }
+    }
+
+    private static void ProcessAndForwardData(byte[] buffer, int bytesRead, SerialPort sourcePort, SerialPort destinationPort, string sourceName, string destName)
+    {
+        lock (dataProcessingLock)
+        {
+            try
+            {
+                // Check if we need to enable forwarding
+                if (!forwardingEnabled && sourceName == "Software")
+                {
+                    // Look for 'R' (0x52) in the buffer from Software
+                    int rIndex = -1;
+                    for (int i = 0; i < bytesRead; i++)
+                    {
+                        if (buffer[i] == 'R')
+                        {
+                            rIndex = i;
+                            forwardingEnabled = true;
+                            LogMessage("*** Forwarding ENABLED - 'R' received from Software ***", ConsoleColor.Magenta);
+                            break;
+                        }
+                    }
+                    
+                    // If 'R' was found, forward 'R' and everything after it
+                    if (rIndex >= 0)
+                    {
+                        byte[] dataToForward = PrepareDataForForwarding(buffer, rIndex, bytesRead, sourceName);
+                        if (dataToForward.Length > 0)
+                        {
+                            destinationPort.Write(dataToForward, 0, dataToForward.Length);
+                            ProcessBytes(dataToForward, sourceName);
+                        }
+                    }
+                    return;
+                }
+                
+                // Don't forward Machine data until forwarding is enabled
+                if (!forwardingEnabled && sourceName == "Machine")
+                {
+                    return;
+                }
+                
+                // Normal forwarding
+                if (forwardingEnabled)
+                {
+                    byte[] dataToForward = PrepareDataForForwarding(buffer, 0, bytesRead, sourceName);
+                    if (dataToForward.Length > 0)
+                    {
+                        destinationPort.Write(dataToForward, 0, dataToForward.Length);
+                        ProcessBytes(dataToForward, sourceName);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                lock (logLock)
+                {
+                    WriteLog($"ERROR in data transfer: {ex.Message}");
+                    Console.WriteLine($"ERROR: {ex.Message}");
+                }
+            }
         }
     }
 
@@ -234,76 +403,6 @@ class SerialCapture
         }
     }
 
-    private static void OnDataReceived(SerialPort sourcePort, SerialPort destinationPort, string sourceName, string destName)
-    {
-        lock (dataProcessingLock)
-        {
-            try
-            {
-                int bytesToRead = sourcePort.BytesToRead;
-                if (bytesToRead == 0)
-                    return;
-
-                byte[] buffer = new byte[bytesToRead];
-                int bytesRead = sourcePort.Read(buffer, 0, bytesToRead);
-
-                if (bytesRead > 0)
-                {
-                    // Check if we need to enable forwarding
-                    if (!forwardingEnabled && sourceName == "Software")
-                    {
-                        // Look for 'R' (0x52) in the buffer from Software
-                        int rIndex = -1;
-                        for (int i = 0; i < bytesRead; i++)
-                        {
-                            if (buffer[i] == 'R')
-                            {
-                                rIndex = i;
-                                forwardingEnabled = true;
-                                LogMessage("*** Forwarding ENABLED - 'R' received from Software ***", ConsoleColor.Magenta);
-                                break;
-                            }
-                        }
-                        
-                        // If 'R' was found, forward 'R' and everything after it
-                        if (rIndex >= 0)
-                        {
-                            byte[] dataToForward = PrepareDataForForwarding(buffer, rIndex, bytesRead, sourceName);
-                            if (dataToForward.Length > 0)
-                            {
-                                destinationPort.Write(dataToForward, 0, dataToForward.Length);
-                                ProcessBytes(dataToForward, sourceName);
-                            }
-                        }
-                        return;
-                    }
-                    
-                    // Don't forward Machine data until forwarding is enabled
-                    if (!forwardingEnabled && sourceName == "Machine")
-                    {
-                        return;
-                    }
-                    
-                    // Normal forwarding
-                    if (forwardingEnabled)
-                    {
-                        byte[] dataToForward = PrepareDataForForwarding(buffer, 0, bytesRead, sourceName);
-                        if (dataToForward.Length > 0)
-                        {
-                            destinationPort.Write(dataToForward, 0, dataToForward.Length);
-                            ProcessBytes(dataToForward, sourceName);
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                WriteLog($"ERROR in data transfer: {ex.Message}");
-                Console.WriteLine($"ERROR: {ex.Message}");
-            }
-        }
-    }
-
     private static byte[] PrepareDataForForwarding(byte[] buffer, int startIndex, int totalBytes, string sourceName)
     {
         int lengthToForward = totalBytes - startIndex;
@@ -343,12 +442,15 @@ class SerialCapture
         // Debug output - print each character with timestamp (only if debug mode is enabled)
         if (debugMode)
         {
-            string timestamp = DateTime.Now.ToString("HH:mm:ss.fff");
-            string charDisplay = (dataByte >= 32 && dataByte <= 126) ? c.ToString() : $"[0x{dataByte:X2}]";
-            Console.ForegroundColor = sourceName == "Software" ? ConsoleColor.DarkCyan : ConsoleColor.DarkYellow;
-            Console.Write($"[{timestamp}] {sourceName[0]}: {charDisplay} ");
-            Console.ResetColor();
-            WriteLog($"[{timestamp}] {sourceName}: {dataByte:X2} ({charDisplay})");
+            lock (logLock)
+            {
+                string timestamp = DateTime.Now.ToString("HH:mm:ss.fff");
+                string charDisplay = (dataByte >= 32 && dataByte <= 126) ? c.ToString() : $"[0x{dataByte:X2}]";
+                Console.ForegroundColor = sourceName == "Software" ? ConsoleColor.DarkCyan : ConsoleColor.DarkYellow;
+                Console.Write($"[{timestamp}] {sourceName[0]}: {charDisplay} ");
+                Console.ResetColor();
+                WriteLog($"[{timestamp}] {sourceName}: {dataByte:X2} ({charDisplay})");
+            }
         }
         
         if (sourceName == "Software")
@@ -362,9 +464,12 @@ class SerialCapture
                 // Show progress every 32 bytes
                 if (uploadBytesReceived % 32 == 0 || uploadBytesReceived == 256)
                 {
-                    Console.ForegroundColor = ConsoleColor.DarkGray;
-                    Console.WriteLine($"  [Upload Progress: {uploadBytesReceived}/256 bytes received]");
-                    Console.ResetColor();
+                    lock (logLock)
+                    {
+                        Console.ForegroundColor = ConsoleColor.DarkGray;
+                        Console.WriteLine($"  [Upload Progress: {uploadBytesReceived}/256 bytes received]");
+                        Console.ResetColor();
+                    }
                 }
                 
                 // Check if we've received all 256 bytes
@@ -429,12 +534,15 @@ class SerialCapture
                 // Only log and show errors if showErrors is enabled
                 if (showErrors)
                 {
-                    WriteLog(errorMsg);
-                    Console.ForegroundColor = ConsoleColor.Red;
-                    Console.WriteLine(errorMsg);
-                    Console.ResetColor();
-                    Console.WriteLine();
-                    WriteLog("");
+                    lock (logLock)
+                    {
+                        WriteLog(errorMsg);
+                        Console.ForegroundColor = ConsoleColor.Red;
+                        Console.WriteLine(errorMsg);
+                        Console.ResetColor();
+                        Console.WriteLine();
+                        WriteLog("");
+                    }
                 }
                 
                 // Reset software command buffer (software will retry)
@@ -489,10 +597,13 @@ class SerialCapture
                     // Special handling for Upload command - check for "OE" response
                     if (currentCommandType == CommandType.Upload && response.EndsWith("OE"))
                     {
-                        Console.ForegroundColor = ConsoleColor.Cyan;
-                        Console.WriteLine($"{currentCommand} --> Machine ready (OE), waiting for 256 bytes from Software...");
-                        Console.ResetColor();
-                        WriteLog($"{currentCommand} --> Machine ready (OE), waiting for upload data");
+                        lock (logLock)
+                        {
+                            Console.ForegroundColor = ConsoleColor.Cyan;
+                            Console.WriteLine($"{currentCommand} --> Machine ready (OE), waiting for 256 bytes from Software...");
+                            Console.ResetColor();
+                            WriteLog($"{currentCommand} --> Machine ready (OE), waiting for upload data");
+                        }
                         
                         // Switch to waiting for upload data mode
                         waitingForUploadData = true;
@@ -688,180 +799,186 @@ class SerialCapture
 
     private static void DisplayCommand(string command, string response, CommandType type)
     {
-        // Check for errors
-        if (response == "Q" || response == "?" || response == "!")
+        lock (logLock)
         {
-            // Only log and show errors if showErrors is enabled
-            if (showErrors)
+            // Check for errors
+            if (response == "Q" || response == "?" || response == "!")
             {
-                string errorMsg = $"{command} --> ERROR: Machine responded with '{response}'";
-                
-                WriteLog(errorMsg);
-                
-                Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine(errorMsg);
-                Console.ResetColor();
+                // Only log and show errors if showErrors is enabled
+                if (showErrors)
+                {
+                    string errorMsg = $"{command} --> ERROR: Machine responded with '{response}'";
+                    
+                    WriteLog(errorMsg);
+                    
+                    Console.ForegroundColor = ConsoleColor.Red;
+                    Console.WriteLine(errorMsg);
+                    Console.ResetColor();
+                }
+                return;
             }
-            return;
-        }
-        
-        // Format output based on command type
-        if (type == CommandType.Read || type == CommandType.LargeRead)
-        {
-            // Response format: [command echo][data][O]
-            // Extract only the data part
-            string data = "";
             
-            if (response.Length > command.Length)
+            // Format output based on command type
+            if (type == CommandType.Read || type == CommandType.LargeRead)
             {
-                // Remove command echo from the beginning
-                data = response.Substring(command.Length);
+                // Response format: [command echo][data][O]
+                // Extract only the data part
+                string data = "";
                 
-                // Remove 'O' terminator from the end
+                if (response.Length > command.Length)
+                {
+                    // Remove command echo from the beginning
+                    data = response.Substring(command.Length);
+                    
+                    // Remove 'O' terminator from the end
+                    if (data.EndsWith("O"))
+                    {
+                        data = data.Substring(0, data.Length - 1);
+                    }
+                }
+                
+                if (type == CommandType.LargeRead)
+                {
+                    // For N command, show both ASCII and HEX on separate indented lines
+                    string ascii = GetPrintableAscii(data);
+                    string hex = BytesToHex(Encoding.ASCII.GetBytes(data));
+                    
+                    Console.ForegroundColor = ConsoleColor.Cyan;
+                    Console.WriteLine($"{command} -->");
+                    Console.ResetColor();
+                    Console.ForegroundColor = ConsoleColor.Yellow;
+                    Console.WriteLine($"   ASCII: {ascii}");
+                    Console.ForegroundColor = ConsoleColor.DarkGray;
+                    Console.WriteLine($"   HEX: {hex}");
+                    Console.ResetColor();
+                    
+                    WriteLog($"{command} -->");
+                    WriteLog($"   ASCII: {ascii}");
+                    WriteLog($"   HEX: {hex}");
+                }
+                else
+                {
+                    // For R command, data is hex-encoded, so decode it
+                    // HEX: show the raw hex characters with spaces
+                    // ASCII: decode the hex to show actual values
+                    string hexDisplay = FormatHexWithSpaces(data); // Format hex with spaces
+                    string asciiDisplay = DecodeHexString(data); // Decode hex to ASCII
+                    
+                    Console.ForegroundColor = ConsoleColor.Cyan;
+                    Console.WriteLine($"{command} -->");
+                    Console.ResetColor();
+                    Console.ForegroundColor = ConsoleColor.Yellow;
+                    Console.WriteLine($"   ASCII: {asciiDisplay}");
+                    Console.ForegroundColor = ConsoleColor.DarkGray;
+                    Console.WriteLine($"   HEX: {hexDisplay}");
+                    Console.ResetColor();
+                    
+                    WriteLog($"{command} -->");
+                    WriteLog($"   ASCII: {asciiDisplay}");
+                    WriteLog($"   HEX: {hexDisplay}");
+                }
+            }
+            else if (type == CommandType.Write)
+            {
+                // Parse write command to extract address and data
+                // Format: W + 6 hex (address) + data + ?
+                string writeInfo = "Acknowledged";
+                if (command.Length > 7)
+                {
+                    string address = command.Substring(1, 6);
+                    string dataStr = command.Substring(7, command.Length - 8); // Remove W, address, and ?
+                    writeInfo = $"Write {dataStr} to {address}";
+                }
+                
+                string msg = $"{command} --> {writeInfo}";
+                Console.ForegroundColor = ConsoleColor.Cyan;
+                Console.Write(command);
+                Console.ForegroundColor = ConsoleColor.Yellow;
+                Console.WriteLine($" --> {writeInfo}");
+                Console.ResetColor();
+                WriteLog(msg);
+            }
+            else if (type == CommandType.Session)
+            {
+                // Session commands
+                // Skip output for RF? command as it provides no high-level information
+                if (command != "RF?")
+                {
+                    string msg = $"{command} --> Acknowledged";
+                    Console.ForegroundColor = ConsoleColor.Cyan;
+                    Console.Write(command);
+                    Console.ForegroundColor = ConsoleColor.Yellow;
+                    Console.WriteLine(" --> Acknowledged");
+                    Console.ResetColor();
+                    WriteLog(msg);
+                }
+            }
+            else if (type == CommandType.Sum)
+            {
+                // Sum command response (checksum)
+                string data = response.Substring(command.Length);
                 if (data.EndsWith("O"))
                 {
                     data = data.Substring(0, data.Length - 1);
                 }
-            }
-            
-            if (type == CommandType.LargeRead)
-            {
-                // For N command, show both ASCII and HEX on separate indented lines
-                string ascii = GetPrintableAscii(data);
-                string hex = BytesToHex(Encoding.ASCII.GetBytes(data));
                 
-                Console.ForegroundColor = ConsoleColor.Cyan;
-                Console.WriteLine($"{command} -->");
-                Console.ResetColor();
-                Console.ForegroundColor = ConsoleColor.Yellow;
-                Console.WriteLine($"   ASCII: {ascii}");
-                Console.ForegroundColor = ConsoleColor.DarkGray;
-                Console.WriteLine($"   HEX: {hex}");
-                Console.ResetColor();
-                
-                WriteLog($"{command} -->");
-                WriteLog($"   ASCII: {ascii}");
-                WriteLog($"   HEX: {hex}");
-            }
-            else
-            {
-                // For R command, data is hex-encoded, so decode it
-                // HEX: show the raw hex characters with spaces
-                // ASCII: decode the hex to show actual values
-                string hexDisplay = FormatHexWithSpaces(data); // Format hex with spaces
-                string asciiDisplay = DecodeHexString(data); // Decode hex to ASCII
-                
-                Console.ForegroundColor = ConsoleColor.Cyan;
-                Console.WriteLine($"{command} -->");
-                Console.ResetColor();
-                Console.ForegroundColor = ConsoleColor.Yellow;
-                Console.WriteLine($"   ASCII: {asciiDisplay}");
-                Console.ForegroundColor = ConsoleColor.DarkGray;
-                Console.WriteLine($"   HEX: {hexDisplay}");
-                Console.ResetColor();
-                
-                WriteLog($"{command} -->");
-                WriteLog($"   ASCII: {asciiDisplay}");
-                WriteLog($"   HEX: {hexDisplay}");
-            }
-        }
-        else if (type == CommandType.Write)
-        {
-            // Parse write command to extract address and data
-            // Format: W + 6 hex (address) + data + ?
-            string writeInfo = "Acknowledged";
-            if (command.Length > 7)
-            {
+                // Parse command to show address and length
                 string address = command.Substring(1, 6);
-                string dataStr = command.Substring(7, command.Length - 8); // Remove W, address, and ?
-                writeInfo = $"Write {dataStr} to {address}";
-            }
-            
-            string msg = $"{command} --> {writeInfo}";
-            Console.ForegroundColor = ConsoleColor.Cyan;
-            Console.Write(command);
-            Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.WriteLine($" --> {writeInfo}");
-            Console.ResetColor();
-            WriteLog(msg);
-        }
-        else if (type == CommandType.Session)
-        {
-            // Session commands
-            // Skip output for RF? command as it provides no high-level information
-            if (command != "RF?")
-            {
-                string msg = $"{command} --> Acknowledged";
+                string length = command.Substring(7, 6);
+                
+                string msg = $"{command} --> Sum starting at {address} with length {length} is {data}";
                 Console.ForegroundColor = ConsoleColor.Cyan;
                 Console.Write(command);
                 Console.ForegroundColor = ConsoleColor.Yellow;
-                Console.WriteLine(" --> Acknowledged");
+                Console.WriteLine($" --> Sum starting at {address} with length {length} is {data}");
                 Console.ResetColor();
                 WriteLog(msg);
             }
-        }
-        else if (type == CommandType.Sum)
-        {
-            // Sum command response (checksum)
-            string data = response.Substring(command.Length);
-            if (data.EndsWith("O"))
+            else
             {
-                data = data.Substring(0, data.Length - 1);
+                // Other commands
+                string extra = "";
+                if (response.Length > command.Length)
+                {
+                    extra = response.Substring(command.Length);
+                }
+                
+                string responseText = string.IsNullOrEmpty(extra) ? "Acknowledged" : extra;
+                string msg = $"{command} --> {responseText}";
+                Console.ForegroundColor = ConsoleColor.Cyan;
+                Console.Write(command);
+                Console.ForegroundColor = ConsoleColor.Yellow;
+                Console.WriteLine($" --> {responseText}");
+                Console.ResetColor();
+                WriteLog(msg);
             }
-            
-            // Parse command to show address and length
-            string address = command.Substring(1, 6);
-            string length = command.Substring(7, 6);
-            
-            string msg = $"{command} --> Sum starting at {address} with length {length} is {data}";
-            Console.ForegroundColor = ConsoleColor.Cyan;
-            Console.Write(command);
-            Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.WriteLine($" --> Sum starting at {address} with length {length} is {data}");
-            Console.ResetColor();
-            WriteLog(msg);
-        }
-        else
-        {
-            // Other commands
-            string extra = "";
-            if (response.Length > command.Length)
-            {
-                extra = response.Substring(command.Length);
-            }
-            
-            string responseText = string.IsNullOrEmpty(extra) ? "Acknowledged" : extra;
-            string msg = $"{command} --> {responseText}";
-            Console.ForegroundColor = ConsoleColor.Cyan;
-            Console.Write(command);
-            Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.WriteLine($" --> {responseText}");
-            Console.ResetColor();
-            WriteLog(msg);
         }
     }
 
     private static void DisplayUploadCommand(string command, string uploadData)
     {
-        // Parse command to show address
-        string address = command.Substring(2, 4);
-        
-        // Show both ASCII and HEX like LargeRead
-        string ascii = GetPrintableAscii(uploadData);
-        string hex = BytesToHex(Encoding.ASCII.GetBytes(uploadData));
-        
-        Console.ForegroundColor = ConsoleColor.Cyan;
-        Console.WriteLine($"{command} --> Upload 256 bytes to address {address}:");
-        Console.ResetColor();
-        Console.ForegroundColor = ConsoleColor.Yellow;
-        Console.WriteLine($"   ASCII: {ascii}");
-        Console.ForegroundColor = ConsoleColor.DarkGray;
-        Console.WriteLine($"   HEX: {hex}");
-        Console.ResetColor();
-        
-        WriteLog($"{command} --> Upload 256 bytes to address {address}:");
-        WriteLog($"   ASCII: {ascii}");
-        WriteLog($"   HEX: {hex}");
+        lock (logLock)
+        {
+            // Parse command to show address
+            string address = command.Substring(2, 4);
+            
+            // Show both ASCII and HEX like LargeRead
+            string ascii = GetPrintableAscii(uploadData);
+            string hex = BytesToHex(Encoding.ASCII.GetBytes(uploadData));
+            
+            Console.ForegroundColor = ConsoleColor.Cyan;
+            Console.WriteLine($"{command} --> Upload 256 bytes to address {address}:");
+            Console.ResetColor();
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine($"   ASCII: {ascii}");
+            Console.ForegroundColor = ConsoleColor.DarkGray;
+            Console.WriteLine($"   HEX: {hex}");
+            Console.ResetColor();
+            
+            WriteLog($"{command} --> Upload 256 bytes to address {address}:");
+            WriteLog($"   ASCII: {ascii}");
+            WriteLog($"   HEX: {hex}");
+        }
     }
     
     private static string GetPrintableAscii(string data)
@@ -960,6 +1077,9 @@ class SerialCapture
                     port2.Close();
                 }
                 
+                // Small delay to ensure ports are fully closed
+                Thread.Sleep(100);
+                
                 // Update baud rate
                 currentBaudRate = newBaudRate;
                 
@@ -976,12 +1096,19 @@ class SerialCapture
                 }
                 
                 LogMessage($"*** Baud rate changed successfully to {newBaudRate} ***", ConsoleColor.Magenta);
-                Console.WriteLine();
+                
+                lock (logLock)
+                {
+                    Console.WriteLine();
+                }
             }
             catch (Exception ex)
             {
-                WriteLog($"ERROR changing baud rate: {ex.Message}");
-                Console.WriteLine($"ERROR changing baud rate: {ex.Message}");
+                lock (logLock)
+                {
+                    WriteLog($"ERROR changing baud rate: {ex.Message}");
+                    Console.WriteLine($"ERROR changing baud rate: {ex.Message}");
+                }
             }
         }
     }
@@ -999,6 +1126,7 @@ class SerialCapture
 
     private static void WriteLog(string message)
     {
+        // This method is always called within a lock, so it's thread-safe
         logWriter?.WriteLine(message);
     }
 
@@ -1031,6 +1159,21 @@ class SerialCapture
     {
         try
         {
+            isRunning = false;
+            
+            // Wait for threads to finish (with timeout)
+            if (softwareThread != null && softwareThread.IsAlive)
+            {
+                Console.WriteLine("Waiting for Software reader thread to finish...");
+                softwareThread.Join(1000);
+            }
+            
+            if (machineThread != null && machineThread.IsAlive)
+            {
+                Console.WriteLine("Waiting for Machine reader thread to finish...");
+                machineThread.Join(1000);
+            }
+
             if (port1 != null && port1.IsOpen)
             {
                 Console.WriteLine($"Closing Software port ({softwarePort})...");
@@ -1047,10 +1190,13 @@ class SerialCapture
 
             if (logWriter != null)
             {
-                WriteLog("");
-                WriteLog($"Session Ended - {DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}");
-                logWriter.Close();
-                logWriter.Dispose();
+                lock (logLock)
+                {
+                    WriteLog("");
+                    WriteLog($"Session Ended - {DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}");
+                    logWriter.Close();
+                    logWriter.Dispose();
+                }
                 Console.WriteLine("Log file closed.");
             }
 

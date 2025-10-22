@@ -116,7 +116,7 @@ In order to upload a lot of data from the software to the machine, the PS comman
 - Software sends 256 bytes of data.
 - Machines replays with "O".
 
-If a problem occurs, the machine sends "Q" back, software sends a series of "RF?" until it works and then tries again. Note that this command can compliment the Write (W) command that can be used to write at exact location. We will see the software use the Write command a few times until it gets to the next 256 byte memory boundery and then will use the Upload (PS) command.
+If a problem occurs, the machine sends "Q" back, software sends a series of "RF?" until it works and then tries again. Note that this command can compliment the Write (W) command that can be used to write at exact location. We will see the software use the Write command a few times until it gets to the next 256 byte memory boundary and then will use the Upload (PS) command.
 
 ## The Sum Command (L)
 

@@ -9,6 +9,9 @@ class SerialCapture
     private static readonly object logLock = new object();
     private static string? serial1Name;
     private static string? serial2Name;
+    private static Thread? readThread1;
+    private static Thread? readThread2;
+    private static volatile bool isRunning = true;
 
     static async Task Main(string[] args)
     {
@@ -21,6 +24,7 @@ class SerialCapture
         {
             e.Cancel = true;
             Console.WriteLine("\n\nShutting down...");
+            isRunning = false;
             Cleanup();
             Environment.Exit(0);
         };
@@ -54,14 +58,14 @@ class SerialCapture
             WriteLog($"Port 1: {serial1Name}, Port 2: {serial2Name}, Baud: {baudRate}");
             WriteLog("=".PadRight(80, '='));
 
-            // Initialize serial ports
+            // Initialize serial ports with infinite read timeout
             port1 = new SerialPort(serial1Name, int.Parse(baudRate))
             {
                 DataBits = 8,
                 Parity = Parity.None,
                 StopBits = StopBits.One,
                 Handshake = Handshake.None,
-                ReadTimeout = 500,
+                ReadTimeout = SerialPort.InfiniteTimeout,
                 WriteTimeout = 500
             };
 
@@ -71,13 +75,9 @@ class SerialCapture
                 Parity = Parity.None,
                 StopBits = StopBits.One,
                 Handshake = Handshake.None,
-                ReadTimeout = 500,
+                ReadTimeout = SerialPort.InfiniteTimeout,
                 WriteTimeout = 500
             };
-
-            // Set up data received event handlers
-            port1.DataReceived += (sender, e) => OnDataReceived(port1, port2, serial1Name, serial2Name);
-            port2.DataReceived += (sender, e) => OnDataReceived(port2, port1, serial2Name, serial1Name);
 
             // Open ports
             Console.WriteLine($"Opening {serial1Name}...");
@@ -86,6 +86,25 @@ class SerialCapture
             port2.Open();
 
             Console.WriteLine("\nBoth ports opened successfully!");
+            Console.WriteLine("Starting reader threads...");
+
+            // Create and start reader threads for each port
+            readThread1 = new Thread(() => ReadPortData(port1, port2, serial1Name, serial2Name))
+            {
+                IsBackground = true,
+                Name = $"Reader-{serial1Name}"
+            };
+
+            readThread2 = new Thread(() => ReadPortData(port2, port1, serial2Name, serial1Name))
+            {
+                IsBackground = true,
+                Name = $"Reader-{serial2Name}"
+            };
+
+            readThread1.Start();
+            readThread2.Start();
+
+            Console.WriteLine("Reader threads started!");
             Console.WriteLine("Listening for serial data... (CTRL+C to exit)\n");
 
             // Keep the application running
@@ -107,6 +126,7 @@ class SerialCapture
         }
         finally
         {
+            isRunning = false;
             Cleanup();
         }
     }
@@ -157,47 +177,80 @@ class SerialCapture
         }
     }
 
-    private static void OnDataReceived(SerialPort sourcePort, SerialPort destinationPort, string sourceName, string destName)
+    private static void ReadPortData(SerialPort sourcePort, SerialPort destinationPort, string sourceName, string destName)
     {
+        // Create a single buffer for this thread
+        byte[] buffer = new byte[4096];
+
+        WriteLog($"Reader thread started for {sourceName}");
+
         try
         {
-            int bytesToRead = sourcePort.BytesToRead;
-            if (bytesToRead == 0)
-                return;
-
-            byte[] buffer = new byte[bytesToRead];
-            int bytesRead = sourcePort.Read(buffer, 0, bytesToRead);
-
-            if (bytesRead > 0)
+            while (isRunning && sourcePort.IsOpen)
             {
-                // Forward data to the other port
-                destinationPort.Write(buffer, 0, bytesRead);
-
-                // Log the data
-                string timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff");
-                string hexData = BitConverter.ToString(buffer, 0, bytesRead).Replace("-", " ");
-                string asciiData = GetAsciiRepresentation(buffer, bytesRead);
-
-                string logEntry = $"[{timestamp}] {sourceName} → {destName}: {hexData} ({asciiData})";
-                WriteLog(logEntry);
-
-                // Also display on console with color coding
-                lock (logLock)
+                try
                 {
-                    Console.ForegroundColor = sourceName == serial1Name ? ConsoleColor.Cyan : ConsoleColor.Yellow;
-                    Console.Write($"[{timestamp}] ");
-                    Console.ForegroundColor = ConsoleColor.White;
-                    Console.Write($"{sourceName} → {destName}: ");
-                    Console.ForegroundColor = ConsoleColor.Green;
-                    Console.WriteLine($"{hexData} ({asciiData})");
-                    Console.ResetColor();
+                    // Blocking read - will wait indefinitely for at least 1 byte
+                    int bytesRead = sourcePort.Read(buffer, 0, buffer.Length);
+
+                    if (bytesRead > 0)
+                    {
+                        // Forward data to the other port
+                        destinationPort.Write(buffer, 0, bytesRead);
+
+                        // Log the data with thread-safe file writing
+                        string timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff");
+                        string hexData = BitConverter.ToString(buffer, 0, bytesRead).Replace("-", " ");
+                        string asciiData = GetAsciiRepresentation(buffer, bytesRead);
+
+                        string logEntry = $"[{timestamp}] {sourceName} → {destName}: {hexData} ({asciiData})";
+                        WriteLog(logEntry);
+
+                        // Also display on console with color coding
+                        lock (logLock)
+                        {
+                            Console.ForegroundColor = sourceName == serial1Name ? ConsoleColor.Cyan : ConsoleColor.Yellow;
+                            Console.Write($"[{timestamp}] ");
+                            Console.ForegroundColor = ConsoleColor.White;
+                            Console.Write($"{sourceName} → {destName}: ");
+                            Console.ForegroundColor = ConsoleColor.Green;
+                            Console.WriteLine($"{hexData} ({asciiData})");
+                            Console.ResetColor();
+                        }
+                    }
+                }
+                catch (TimeoutException)
+                {
+                    // This should not happen with infinite timeout, but handle it anyway
+                    continue;
+                }
+                catch (InvalidOperationException)
+                {
+                    // Port was closed
+                    break;
+                }
+                catch (IOException ioEx)
+                {
+                    if (isRunning)
+                    {
+                        WriteLog($"ERROR in {sourceName} reader thread: {ioEx.Message}");
+                        Console.WriteLine($"ERROR in {sourceName}: {ioEx.Message}");
+                    }
+                    break;
                 }
             }
         }
         catch (Exception ex)
         {
-            WriteLog($"ERROR in data transfer: {ex.Message}");
-            Console.WriteLine($"ERROR: {ex.Message}");
+            if (isRunning)
+            {
+                WriteLog($"FATAL ERROR in {sourceName} reader thread: {ex.Message}");
+                Console.WriteLine($"FATAL ERROR in {sourceName}: {ex.Message}");
+            }
+        }
+        finally
+        {
+            WriteLog($"Reader thread stopped for {sourceName}");
         }
     }
 
@@ -217,7 +270,14 @@ class SerialCapture
     {
         lock (logLock)
         {
-            logWriter?.WriteLine(message);
+            try
+            {
+                logWriter?.WriteLine(message);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"ERROR writing to log: {ex.Message}");
+            }
         }
     }
 
@@ -225,6 +285,25 @@ class SerialCapture
     {
         try
         {
+            isRunning = false;
+
+            // Wait for threads to complete (with timeout)
+            if (readThread1 != null && readThread1.IsAlive)
+            {
+                if (!readThread1.Join(1000))
+                {
+                    Console.WriteLine($"Warning: Reader thread for {serial1Name} did not stop gracefully");
+                }
+            }
+
+            if (readThread2 != null && readThread2.IsAlive)
+            {
+                if (!readThread2.Join(1000))
+                {
+                    Console.WriteLine($"Warning: Reader thread for {serial2Name} did not stop gracefully");
+                }
+            }
+
             if (port1 != null && port1.IsOpen)
             {
                 Console.WriteLine($"Closing {serial1Name}...");

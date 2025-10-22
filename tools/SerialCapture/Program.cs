@@ -8,11 +8,19 @@ class SerialCapture
     private static StreamWriter? logWriter;
     private static StreamWriter? hLogWriter;
     private static readonly object logLock = new object();
-    private static readonly object dataProcessingLock = new object();
     private static string? softwarePort;
     private static string? machinePort;
     private static bool logHex = false;
     private static int currentBaudRate = 57600;
+    
+    // Per-port buffers for blocking reads
+    private static byte[] port1Buffer = new byte[4096];
+    private static byte[] port2Buffer = new byte[4096];
+    
+    // Thread control
+    private static bool running = true;
+    private static Thread? port1Thread;
+    private static Thread? port2Thread;
     
     // Baud rate switch detection
     private static readonly byte[] baudSwitchSequence = Encoding.ASCII.GetBytes("TrMEJ05");
@@ -43,6 +51,7 @@ class SerialCapture
         {
             e.Cancel = true;
             Console.WriteLine("\n\nShutting down...");
+            running = false;
             Cleanup();
             Environment.Exit(0);
         };
@@ -88,28 +97,30 @@ class SerialCapture
             Console.WriteLine($"  Log Hex: {logHex}");
             Console.WriteLine();
 
-            // Initialize log file
-            logWriter = new StreamWriter(logFile, false, Encoding.UTF8);
-            logWriter.AutoFlush = true;
-            WriteLog($"Serial Capture Session Started - {DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}");
-            WriteLog($"Software: {softwarePort}, Machine: {machinePort}, Baud: {baudRate}");
-            WriteLog("=".PadRight(80, '='));
+            // Initialize log files with thread-safe access
+            lock (logLock)
+            {
+                logWriter = new StreamWriter(logFile, false, Encoding.UTF8);
+                logWriter.AutoFlush = true;
+                logWriter.WriteLine($"Serial Capture Session Started - {DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}");
+                logWriter.WriteLine($"Software: {softwarePort}, Machine: {machinePort}, Baud: {baudRate}");
+                logWriter.WriteLine("=".PadRight(80, '='));
 
-            // Initialize high-level log file
-            hLogWriter = new StreamWriter(hLogFile, false, Encoding.UTF8);
-            hLogWriter.AutoFlush = true;
-            WriteHLog($"High-Level Protocol Analysis - {DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}");
-            WriteHLog($"Software: {softwarePort}, Machine: {machinePort}, Baud: {baudRate}");
-            WriteHLog("=".PadRight(80, '='));
+                hLogWriter = new StreamWriter(hLogFile, false, Encoding.UTF8);
+                hLogWriter.AutoFlush = true;
+                hLogWriter.WriteLine($"High-Level Protocol Analysis - {DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}");
+                hLogWriter.WriteLine($"Software: {softwarePort}, Machine: {machinePort}, Baud: {baudRate}");
+                hLogWriter.WriteLine("=".PadRight(80, '='));
+            }
 
-            // Initialize serial ports
+            // Initialize serial ports with infinite read timeout
             port1 = new SerialPort(softwarePort, baudRate)
             {
                 DataBits = 8,
                 Parity = Parity.None,
                 StopBits = StopBits.One,
                 Handshake = Handshake.None,
-                ReadTimeout = 500,
+                ReadTimeout = Timeout.Infinite,  // Infinite timeout for blocking reads
                 WriteTimeout = 500
             };
 
@@ -119,13 +130,9 @@ class SerialCapture
                 Parity = Parity.None,
                 StopBits = StopBits.One,
                 Handshake = Handshake.None,
-                ReadTimeout = 500,
+                ReadTimeout = Timeout.Infinite,  // Infinite timeout for blocking reads
                 WriteTimeout = 500
             };
-
-            // Set up data received event handlers
-            port1.DataReceived += (sender, e) => OnDataReceived(port1, port2, "Software", "Machine");
-            port2.DataReceived += (sender, e) => OnDataReceived(port2, port1, "Machine", "Software");
 
             // Open ports
             Console.WriteLine($"Opening Software port ({softwarePort})...");
@@ -139,6 +146,19 @@ class SerialCapture
             FlushSerialPort(port2, machinePort);
 
             Console.WriteLine("\nBoth ports opened successfully!");
+            Console.WriteLine("Starting reader threads with blocking reads...\n");
+
+            // Start dedicated reader threads for each port
+            port1Thread = new Thread(() => ReadPortThread(port1, port2, port1Buffer, "Software", "Machine"));
+            port1Thread.Name = "Software Port Reader";
+            port1Thread.IsBackground = false;
+            port1Thread.Start();
+
+            port2Thread = new Thread(() => ReadPortThread(port2, port1, port2Buffer, "Machine", "Software"));
+            port2Thread.Name = "Machine Port Reader";
+            port2Thread.IsBackground = false;
+            port2Thread.Start();
+
             Console.WriteLine("Listening for serial data... (CTRL+C to exit)\n");
 
             // Keep the application running
@@ -160,7 +180,226 @@ class SerialCapture
         }
         finally
         {
+            running = false;
             Cleanup();
+        }
+    }
+
+    private static void ReadPortThread(SerialPort sourcePort, SerialPort destinationPort, byte[] buffer, string sourceName, string destName)
+    {
+        Console.WriteLine($"[{sourceName}] Reader thread started");
+        
+        try
+        {
+            while (running && sourcePort.IsOpen)
+            {
+                try
+                {
+                    // Blocking read - will wait indefinitely until data arrives
+                    int bytesRead = sourcePort.Read(buffer, 0, buffer.Length);
+                    
+                    if (bytesRead > 0 && running)
+                    {
+                        ProcessData(sourcePort, destinationPort, buffer, bytesRead, sourceName, destName);
+                    }
+                }
+                catch (InvalidOperationException)
+                {
+                    // Port was closed
+                    break;
+                }
+                catch (IOException ex)
+                {
+                    if (running)
+                    {
+                        WriteLog($"ERROR in {sourceName} reader: {ex.Message}");
+                        Console.WriteLine($"ERROR in {sourceName} reader: {ex.Message}");
+                    }
+                    break;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            if (running)
+            {
+                WriteLog($"FATAL ERROR in {sourceName} reader thread: {ex.Message}");
+                Console.WriteLine($"FATAL ERROR in {sourceName} reader thread: {ex.Message}");
+            }
+        }
+        finally
+        {
+            Console.WriteLine($"[{sourceName}] Reader thread exiting");
+        }
+    }
+
+    private static void ProcessData(SerialPort sourcePort, SerialPort destinationPort, byte[] buffer, int bytesRead, string sourceName, string destName)
+    {
+        // Check if we need to enable forwarding
+        if (!forwardingEnabled && sourceName == "Software")
+        {
+            // Look for 'R' (0x52) in the buffer from Software
+            int rIndex = -1;
+            for (int i = 0; i < bytesRead; i++)
+            {
+                if (buffer[i] == 'R')
+                {
+                    rIndex = i;
+                    forwardingEnabled = true;
+                    lock (logLock)
+                    {
+                        Console.ForegroundColor = ConsoleColor.Magenta;
+                        Console.WriteLine($"*** Forwarding ENABLED - 'R' received from Software ***");
+                        Console.ResetColor();
+                    }
+                    WriteLog($"*** Forwarding ENABLED - 'R' received from Software ***");
+                    WriteHLog($"*** Forwarding ENABLED - 'R' received from Software ***");
+                    break;
+                }
+            }
+            
+            // If 'R' was found, forward 'R' and everything after it
+            if (rIndex >= 0)
+            {
+                // Filter NULL characters from Software to Machine if enabled
+                byte[] dataToForward;
+                int startIndex = rIndex;
+                int lengthToForward = bytesRead - rIndex;
+                
+                if (filterNullCharacters)
+                {
+                    // Remove NULL (0x00) characters from the data
+                    List<byte> filtered = new List<byte>();
+                    for (int i = rIndex; i < bytesRead; i++)
+                    {
+                        if (buffer[i] != 0x00)
+                        {
+                            filtered.Add(buffer[i]);
+                        }
+                    }
+                    dataToForward = filtered.ToArray();
+                    lengthToForward = dataToForward.Length;
+                }
+                else
+                {
+                    dataToForward = buffer;
+                    startIndex = rIndex;
+                }
+                
+                // Forward the data
+                if (lengthToForward > 0)
+                {
+                    if (filterNullCharacters)
+                    {
+                        destinationPort.Write(dataToForward, 0, lengthToForward);
+                    }
+                    else
+                    {
+                        destinationPort.Write(dataToForward, startIndex, lengthToForward);
+                    }
+                }
+                
+                // Log the forwarded data (what was actually sent)
+                string timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff");
+                if (lengthToForward > 0)
+                {
+                    byte[] logData = filterNullCharacters ? dataToForward : buffer.Skip(rIndex).Take(lengthToForward).ToArray();
+                    string fwdHexData = BitConverter.ToString(logData).Replace("-", " ");
+                    string fwdAsciiData = GetAsciiRepresentation(logData, logData.Length);
+                    string fwdLogEntry = $"[{timestamp}] {sourceName} → {destName}: {fwdHexData} ({fwdAsciiData})";
+                    WriteLog(fwdLogEntry);
+                    
+                    lock (logLock)
+                    {
+                        Console.ForegroundColor = ConsoleColor.Cyan;
+                        Console.Write($"[{timestamp}] ");
+                        Console.ForegroundColor = ConsoleColor.White;
+                        Console.Write($"{sourceName} → {destName}: ");
+                        Console.ForegroundColor = ConsoleColor.Green;
+                        Console.WriteLine($"{fwdHexData} ({fwdAsciiData})");
+                        Console.ResetColor();
+                    }
+                    
+                    // Process forwarded bytes for protocol analysis
+                    for (int i = 0; i < logData.Length; i++)
+                    {
+                        ProcessHighLevelProtocol(logData[i], sourceName);
+                    }
+                }
+            }
+            
+            return; // Done processing this batch from Software
+        }
+        
+        // Don't forward Machine data until forwarding is enabled
+        if (!forwardingEnabled && sourceName == "Machine")
+        {
+            return; // Silently ignore - don't forward or log
+        }
+        
+        // Normal forwarding (after 'R' has been received)
+        if (forwardingEnabled)
+        {
+            // Prepare data to forward
+            byte[] dataToForward = buffer;
+            int lengthToForward = bytesRead;
+            
+            // Filter NULL characters from Software to Machine if enabled
+            if (filterNullCharacters && sourceName == "Software")
+            {
+                // Remove NULL (0x00) characters from the data
+                List<byte> filtered = new List<byte>();
+                for (int i = 0; i < bytesRead; i++)
+                {
+                    if (buffer[i] != 0x00)
+                    {
+                        filtered.Add(buffer[i]);
+                    }
+                }
+                dataToForward = filtered.ToArray();
+                lengthToForward = dataToForward.Length;
+            }
+            
+            // Forward data to the other port
+            if (lengthToForward > 0)
+            {
+                destinationPort.Write(dataToForward, 0, lengthToForward);
+            }
+
+            // Log the data (what was actually forwarded)
+            if (lengthToForward > 0)
+            {
+                string timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff");
+                string hexData = BitConverter.ToString(dataToForward, 0, lengthToForward).Replace("-", " ");
+                string asciiData = GetAsciiRepresentation(dataToForward, lengthToForward);
+
+                string logEntry = $"[{timestamp}] {sourceName} → {destName}: {hexData} ({asciiData})";
+                WriteLog(logEntry);
+
+                // Also display on console with color coding
+                lock (logLock)
+                {
+                    Console.ForegroundColor = sourceName == "Software" ? ConsoleColor.Cyan : ConsoleColor.Yellow;
+                    Console.Write($"[{timestamp}] ");
+                    Console.ForegroundColor = ConsoleColor.White;
+                    Console.Write($"{sourceName} → {destName}: ");
+                    Console.ForegroundColor = ConsoleColor.Green;
+                    Console.WriteLine($"{hexData} ({asciiData})");
+                    Console.ResetColor();
+                }
+
+                // Check for baud rate switch sequence if data is from Machine
+                if (sourceName == "Machine")
+                {
+                    CheckForBaudRateSwitch(dataToForward, lengthToForward);
+                }
+
+                // Process each byte for high-level protocol analysis
+                for (int i = 0; i < lengthToForward; i++)
+                {
+                    ProcessHighLevelProtocol(dataToForward[i], sourceName);
+                }
+            }
         }
     }
 
@@ -207,196 +446,6 @@ class SerialCapture
         {
             Console.WriteLine($"ERROR reading config file: {ex.Message}");
             return null;
-        }
-    }
-
-    private static void OnDataReceived(SerialPort sourcePort, SerialPort destinationPort, string sourceName, string destName)
-    {
-        // Use lock to ensure only one thread processes data at a time
-        // This prevents race conditions in the protocol state machine
-        lock (dataProcessingLock)
-        {
-            try
-            {
-                int bytesToRead = sourcePort.BytesToRead;
-                if (bytesToRead == 0)
-                    return;
-
-                byte[] buffer = new byte[bytesToRead];
-                int bytesRead = sourcePort.Read(buffer, 0, bytesToRead);
-
-                if (bytesRead > 0)
-                {
-                    // Check if we need to enable forwarding
-                    if (!forwardingEnabled && sourceName == "Software")
-                    {
-                        // Look for 'R' (0x52) in the buffer from Software
-                        int rIndex = -1;
-                        for (int i = 0; i < bytesRead; i++)
-                        {
-                            if (buffer[i] == 'R')
-                            {
-                                rIndex = i;
-                                forwardingEnabled = true;
-                                Console.ForegroundColor = ConsoleColor.Magenta;
-                                Console.WriteLine($"*** Forwarding ENABLED - 'R' received from Software ***");
-                                Console.ResetColor();
-                                WriteLog($"*** Forwarding ENABLED - 'R' received from Software ***");
-                                WriteHLog($"*** Forwarding ENABLED - 'R' received from Software ***");
-                                break;
-                            }
-                        }
-                        
-                        // If 'R' was found, forward 'R' and everything after it
-                        if (rIndex >= 0)
-                        {
-                            // Filter NULL characters from Software to Machine if enabled
-                            byte[] dataToForward;
-                            int startIndex = rIndex;
-                            int lengthToForward = bytesRead - rIndex;
-                            
-                            if (filterNullCharacters)
-                            {
-                                // Remove NULL (0x00) characters from the data
-                                List<byte> filtered = new List<byte>();
-                                for (int i = rIndex; i < bytesRead; i++)
-                                {
-                                    if (buffer[i] != 0x00)
-                                    {
-                                        filtered.Add(buffer[i]);
-                                    }
-                                }
-                                dataToForward = filtered.ToArray();
-                                lengthToForward = dataToForward.Length;
-                            }
-                            else
-                            {
-                                dataToForward = buffer;
-                                startIndex = rIndex;
-                            }
-                            
-                            // Forward the data
-                            if (lengthToForward > 0)
-                            {
-                                if (filterNullCharacters)
-                                {
-                                    destinationPort.Write(dataToForward, 0, lengthToForward);
-                                }
-                                else
-                                {
-                                    destinationPort.Write(dataToForward, startIndex, lengthToForward);
-                                }
-                            }
-                            
-                            // Log the forwarded data (what was actually sent)
-                            string timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff");
-                            if (lengthToForward > 0)
-                            {
-                                byte[] logData = filterNullCharacters ? dataToForward : buffer.Skip(rIndex).Take(lengthToForward).ToArray();
-                                string fwdHexData = BitConverter.ToString(logData).Replace("-", " ");
-                                string fwdAsciiData = GetAsciiRepresentation(logData, logData.Length);
-                                string fwdLogEntry = $"[{timestamp}] {sourceName} → {destName}: {fwdHexData} ({fwdAsciiData})";
-                                WriteLog(fwdLogEntry);
-                                
-                                lock (logLock)
-                                {
-                                    Console.ForegroundColor = ConsoleColor.Cyan;
-                                    Console.Write($"[{timestamp}] ");
-                                    Console.ForegroundColor = ConsoleColor.White;
-                                    Console.Write($"{sourceName} → {destName}: ");
-                                    Console.ForegroundColor = ConsoleColor.Green;
-                                    Console.WriteLine($"{fwdHexData} ({fwdAsciiData})");
-                                    Console.ResetColor();
-                                }
-                                
-                                // Process forwarded bytes for protocol analysis
-                                for (int i = 0; i < logData.Length; i++)
-                                {
-                                    ProcessHighLevelProtocol(logData[i], sourceName);
-                                }
-                            }
-                        }
-                        
-                        return; // Done processing this batch from Software
-                    }
-                    
-                    // Don't forward Machine data until forwarding is enabled
-                    if (!forwardingEnabled && sourceName == "Machine")
-                    {
-                        return; // Silently ignore - don't forward or log
-                    }
-                    
-                    // Normal forwarding (after 'R' has been received)
-                    if (forwardingEnabled)
-                    {
-                        // Prepare data to forward
-                        byte[] dataToForward = buffer;
-                        int lengthToForward = bytesRead;
-                        
-                        // Filter NULL characters from Software to Machine if enabled
-                        if (filterNullCharacters && sourceName == "Software")
-                        {
-                            // Remove NULL (0x00) characters from the data
-                            List<byte> filtered = new List<byte>();
-                            for (int i = 0; i < bytesRead; i++)
-                            {
-                                if (buffer[i] != 0x00)
-                                {
-                                    filtered.Add(buffer[i]);
-                                }
-                            }
-                            dataToForward = filtered.ToArray();
-                            lengthToForward = dataToForward.Length;
-                        }
-                        
-                        // Forward data to the other port
-                        if (lengthToForward > 0)
-                        {
-                            destinationPort.Write(dataToForward, 0, lengthToForward);
-                        }
-
-                        // Log the data (what was actually forwarded)
-                        if (lengthToForward > 0)
-                        {
-                            string timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff");
-                            string hexData = BitConverter.ToString(dataToForward, 0, lengthToForward).Replace("-", " ");
-                            string asciiData = GetAsciiRepresentation(dataToForward, lengthToForward);
-
-                            string logEntry = $"[{timestamp}] {sourceName} → {destName}: {hexData} ({asciiData})";
-                            WriteLog(logEntry);
-
-                            // Also display on console with color coding
-                            lock (logLock)
-                            {
-                                Console.ForegroundColor = sourceName == "Software" ? ConsoleColor.Cyan : ConsoleColor.Yellow;
-                                Console.Write($"[{timestamp}] ");
-                                Console.ForegroundColor = ConsoleColor.White;
-                                Console.Write($"{sourceName} → {destName}: ");
-                                Console.ForegroundColor = ConsoleColor.Green;
-                                Console.WriteLine($"{hexData} ({asciiData})");
-                                Console.ResetColor();
-                            }
-
-                            // Check for baud rate switch sequence if data is from Machine
-                            if (sourceName == "Machine")
-                            {
-                                CheckForBaudRateSwitch(dataToForward, lengthToForward);
-                            }
-
-                            // Process each byte for high-level protocol analysis
-                            for (int i = 0; i < lengthToForward; i++)
-                            {
-                                ProcessHighLevelProtocol(dataToForward[i], sourceName);
-                            }
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                WriteLog($"ERROR in data transfer: {ex.Message}");
-                Console.WriteLine($"ERROR: {ex.Message}");
-            }
         }
     }
 
@@ -514,6 +563,7 @@ class SerialCapture
 
     private static void FlushAccumulatedData(string? newDataType = null)
     {
+        // Must be called within logLock
         if (accumulatedData.Count > 0 && currentDataType != null && accumulationStartTime != null)
         {
             string timestamp = accumulationStartTime.Value.ToString("yyyy-MM-dd HH:mm:ss.fff");
@@ -533,7 +583,7 @@ class SerialCapture
                 logEntry = $"[{timestamp}] {paddedDataType} {asciiData}";
             }
             
-            WriteHLog(logEntry);
+            hLogWriter?.WriteLine(logEntry);
             
             accumulatedData.Clear();
         }
@@ -576,9 +626,12 @@ class SerialCapture
                 {
                     // Sequence detected!
                     string sequenceStr = Encoding.ASCII.GetString(baudSwitchSequence);
-                    Console.ForegroundColor = ConsoleColor.Magenta;
-                    Console.WriteLine($"\n*** Baud rate switch sequence detected: \"{sequenceStr}\" ***");
-                    Console.ResetColor();
+                    lock (logLock)
+                    {
+                        Console.ForegroundColor = ConsoleColor.Magenta;
+                        Console.WriteLine($"\n*** Baud rate switch sequence detected: \"{sequenceStr}\" ***");
+                        Console.ResetColor();
+                    }
                     WriteLog($"*** Baud rate switch sequence detected: \"{sequenceStr}\" ***");
                     WriteHLog($"*** Baud rate switch sequence detected: \"{sequenceStr}\" ***");
                     
@@ -589,9 +642,12 @@ class SerialCapture
                     }
                     else
                     {
-                        Console.ForegroundColor = ConsoleColor.Yellow;
-                        Console.WriteLine("*** Already at 57600 baud - no action needed ***\n");
-                        Console.ResetColor();
+                        lock (logLock)
+                        {
+                            Console.ForegroundColor = ConsoleColor.Yellow;
+                            Console.WriteLine("*** Already at 57600 baud - no action needed ***\n");
+                            Console.ResetColor();
+                        }
                         WriteLog("*** Already at 57600 baud - no action needed ***");
                         WriteHLog("*** Already at 57600 baud - no action needed ***");
                     }
@@ -608,23 +664,16 @@ class SerialCapture
     {
         try
         {
-            Console.ForegroundColor = ConsoleColor.Magenta;
-            Console.WriteLine($"*** Switching baud rate from {currentBaudRate} to {newBaudRate} ***");
-            Console.ResetColor();
+            lock (logLock)
+            {
+                Console.ForegroundColor = ConsoleColor.Magenta;
+                Console.WriteLine($"*** Switching baud rate from {currentBaudRate} to {newBaudRate} ***");
+                Console.ResetColor();
+            }
             WriteLog($"*** Switching baud rate from {currentBaudRate} to {newBaudRate} ***");
             WriteHLog($"*** Switching baud rate from {currentBaudRate} to {newBaudRate} ***");
             
-            // Remove event handlers before closing
-            if (port1 != null)
-            {
-                port1.DataReceived -= (sender, e) => OnDataReceived(port1, port2, "Software", "Machine");
-            }
-            if (port2 != null)
-            {
-                port2.DataReceived -= (sender, e) => OnDataReceived(port2, port1, "Machine", "Software");
-            }
-            
-            // Close both ports
+            // Close both ports (this will cause the reader threads to exit their loops)
             if (port1 != null && port1.IsOpen)
             {
                 Console.WriteLine($"  Closing Software port ({softwarePort})...");
@@ -637,6 +686,11 @@ class SerialCapture
                 port2.Close();
             }
             
+            // Wait for reader threads to exit
+            Console.WriteLine("  Waiting for reader threads to exit...");
+            port1Thread?.Join(1000);
+            port2Thread?.Join(1000);
+            
             // Wait a moment for ports to fully close
             Thread.Sleep(100);
             
@@ -648,7 +702,7 @@ class SerialCapture
                 Parity = Parity.None,
                 StopBits = StopBits.One,
                 Handshake = Handshake.None,
-                ReadTimeout = 500,
+                ReadTimeout = Timeout.Infinite,
                 WriteTimeout = 500
             };
             port1.Open();
@@ -660,29 +714,43 @@ class SerialCapture
                 Parity = Parity.None,
                 StopBits = StopBits.One,
                 Handshake = Handshake.None,
-                ReadTimeout = 500,
+                ReadTimeout = Timeout.Infinite,
                 WriteTimeout = 500
             };
             port2.Open();
             
-            // Re-attach event handlers
-            port1.DataReceived += (sender, e) => OnDataReceived(port1, port2, "Software", "Machine");
-            port2.DataReceived += (sender, e) => OnDataReceived(port2, port1, "Machine", "Software");
+            // Restart reader threads
+            Console.WriteLine("  Restarting reader threads...");
+            port1Thread = new Thread(() => ReadPortThread(port1, port2, port1Buffer, "Software", "Machine"));
+            port1Thread.Name = "Software Port Reader";
+            port1Thread.IsBackground = false;
+            port1Thread.Start();
+
+            port2Thread = new Thread(() => ReadPortThread(port2, port1, port2Buffer, "Machine", "Software"));
+            port2Thread.Name = "Machine Port Reader";
+            port2Thread.IsBackground = false;
+            port2Thread.Start();
             
             // Update current baud rate
             currentBaudRate = newBaudRate;
             
-            Console.ForegroundColor = ConsoleColor.Green;
-            Console.WriteLine($"*** Baud rate switch completed successfully - now at {newBaudRate} ***\n");
-            Console.ResetColor();
+            lock (logLock)
+            {
+                Console.ForegroundColor = ConsoleColor.Green;
+                Console.WriteLine($"*** Baud rate switch completed successfully - now at {newBaudRate} ***\n");
+                Console.ResetColor();
+            }
             WriteLog($"*** Baud rate switch completed successfully - now at {newBaudRate} ***");
             WriteHLog($"*** Baud rate switch completed successfully - now at {newBaudRate} ***");
         }
         catch (Exception ex)
         {
-            Console.ForegroundColor = ConsoleColor.Red;
-            Console.WriteLine($"*** ERROR during baud rate switch: {ex.Message} ***\n");
-            Console.ResetColor();
+            lock (logLock)
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine($"*** ERROR during baud rate switch: {ex.Message} ***\n");
+                Console.ResetColor();
+            }
             WriteLog($"*** ERROR during baud rate switch: {ex.Message} ***");
             WriteHLog($"*** ERROR during baud rate switch: {ex.Message} ***");
         }
@@ -718,6 +786,8 @@ class SerialCapture
     {
         try
         {
+            running = false;
+            
             if (port1 != null && port1.IsOpen)
             {
                 Console.WriteLine($"Closing Software port ({softwarePort})...");
@@ -732,28 +802,33 @@ class SerialCapture
                 port2.Dispose();
             }
 
+            // Wait for threads to exit
+            Console.WriteLine("Waiting for reader threads to exit...");
+            port1Thread?.Join(2000);
+            port2Thread?.Join(2000);
+
             // Flush any remaining high-level protocol data
             lock (logLock)
             {
                 FlushAccumulatedData();
-            }
 
-            if (hLogWriter != null)
-            {
-                WriteHLog("=".PadRight(80, '='));
-                WriteHLog($"Session Ended - {DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}");
-                hLogWriter.Close();
-                hLogWriter.Dispose();
-                Console.WriteLine("High-level log file closed.");
-            }
+                if (hLogWriter != null)
+                {
+                    hLogWriter.WriteLine("=".PadRight(80, '='));
+                    hLogWriter.WriteLine($"Session Ended - {DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}");
+                    hLogWriter.Close();
+                    hLogWriter.Dispose();
+                    Console.WriteLine("High-level log file closed.");
+                }
 
-            if (logWriter != null)
-            {
-                WriteLog("=".PadRight(80, '='));
-                WriteLog($"Session Ended - {DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}");
-                logWriter.Close();
-                logWriter.Dispose();
-                Console.WriteLine("Log file closed.");
+                if (logWriter != null)
+                {
+                    logWriter.WriteLine("=".PadRight(80, '='));
+                    logWriter.WriteLine($"Session Ended - {DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}");
+                    logWriter.Close();
+                    logWriter.Dispose();
+                    Console.WriteLine("Log file closed.");
+                }
             }
 
             Console.WriteLine("Cleanup complete.");
