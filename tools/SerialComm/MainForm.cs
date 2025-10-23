@@ -245,6 +245,7 @@ namespace SerialComm
                     connectToolStripMenuItem.Enabled = false;
                     disconnectToolStripMenuItem.Enabled = true;
                     selectCOMPortToolStripMenuItem.Enabled = false;
+                    sessionStartToolStripMenuItem.Enabled = true;
                     readToolStripMenuItem.Enabled = true;
                     largeReadToolStripMenuItem.Enabled = true;
                     writeToolStripMenuItem.Enabled = true;
@@ -336,6 +337,7 @@ namespace SerialComm
             connectToolStripMenuItem.Enabled = true;
             disconnectToolStripMenuItem.Enabled = false;
             selectCOMPortToolStripMenuItem.Enabled = true;
+            sessionStartToolStripMenuItem.Enabled = false;
             readToolStripMenuItem.Enabled = false;
             largeReadToolStripMenuItem.Enabled = false;
             writeToolStripMenuItem.Enabled = false;
@@ -656,6 +658,36 @@ namespace SerialComm
             }
         }
 
+        private async Task PerformSessionStartAsync()
+        {
+            if (_serialStack == null || !_isConnected)
+            {
+                MessageBox.Show("Not connected to machine.", "Error",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            UpdateStatus("Sending Session Start command...");
+            AppendOutput("Session Start command: Sending TrMEYQ");
+
+            var result = await _serialStack.SessionStartAsync();
+
+            if (result.Success)
+            {
+                AppendOutput("Session Start successful");
+                UpdateStatus("Session Start complete");
+            }
+            else
+            {
+                AppendOutput($"Session Start failed: {result.ErrorMessage}");
+                UpdateStatus("Session Start failed");
+                MessageBox.Show($"Session Start failed: {result.ErrorMessage}", "Command Error",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+
+            AppendOutput("");
+        }
+
         private async void btnSwitchBaud_Click(object sender, EventArgs e)
         {
             await SwitchTo57600BaudAsync();
@@ -768,6 +800,11 @@ namespace SerialComm
         private void sumToolStripMenuItem_Click(object sender, EventArgs e)
         {
             _ = PerformSumAsync();
+        }
+
+        private void sessionStartToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            _ = PerformSessionStartAsync();
         }
 
         private void switchTo19200BaudToolStripMenuItem_Click(object sender, EventArgs e)

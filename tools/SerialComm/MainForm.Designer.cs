@@ -194,10 +194,23 @@
             // 
             // commandsToolStripMenuItem
             // 
-            commandsToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { readToolStripMenuItem, largeReadToolStripMenuItem, writeToolStripMenuItem, sumToolStripMenuItem, toolStripSeparator3, memoryViewerToolStripMenuItem });
+            commandsToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { sessionStartToolStripMenuItem, toolStripSeparator6, readToolStripMenuItem, largeReadToolStripMenuItem, writeToolStripMenuItem, sumToolStripMenuItem, toolStripSeparator3, memoryViewerToolStripMenuItem });
             commandsToolStripMenuItem.Name = "commandsToolStripMenuItem";
             commandsToolStripMenuItem.Size = new Size(98, 24);
             commandsToolStripMenuItem.Text = "C&ommands";
+            // 
+            // sessionStartToolStripMenuItem
+            // 
+            sessionStartToolStripMenuItem.Enabled = false;
+            sessionStartToolStripMenuItem.Name = "sessionStartToolStripMenuItem";
+            sessionStartToolStripMenuItem.Size = new Size(205, 26);
+            sessionStartToolStripMenuItem.Text = "&Session Start";
+            sessionStartToolStripMenuItem.Click += sessionStartToolStripMenuItem_Click;
+            // 
+            // toolStripSeparator6
+            // 
+            toolStripSeparator6.Name = "toolStripSeparator6";
+            toolStripSeparator6.Size = new Size(202, 6);
             // 
             // readToolStripMenuItem
             // 
@@ -495,5 +508,7 @@
         private ToolStripSeparator toolStripSeparator4;
         private Panel panel1;
         private ToolStripSeparator toolStripMenuItem1;
+        private ToolStripMenuItem sessionStartToolStripMenuItem;
+        private ToolStripSeparator toolStripSeparator6;
     }
 }

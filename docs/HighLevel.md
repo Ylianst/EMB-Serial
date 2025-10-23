@@ -10,6 +10,34 @@ N200100 --> "NMMV03.01·English     ·Bernina Electronic  AG  ·July 98"
 
 Reading memory at 0x200100 will give you the machine firmware version. You also see the firmware language and manufacturer after this. It's a set of fixed length null terminated strings.
 
+## Invoke Machine Function Call
+
+You can invoke code to run on the machine by placing argument 1 in 0x0201E1 and argument 2 in 0x0201DC and then writing the function call number into 0xFFFED0. For example:
+
+W0201DC01? --> Write 01 to 0201DC         // Set argument 2
+W0201E100? --> Write 00 to 0201E1         // Set argument 1
+WFFFED00031? --> Write 0031 to FFFED0     // Invoke function 0x0031
+
+When a function is called, the software always reads 0xFFFED0, this is likely to read the 2 first bytes that may indicate is the invocation completed and if so, what is the return value.
+
+RFFFED0 -->
+   ASCII: .....@.....3................@...
+   HEX: 00 02 00 00 00 40 00 00 00 83 00 33 00 00 00 00 00 00 00 00 00 00 00 00 04 00 00 01 40 00 00 00
+
+Note that most of this data past the two first bytes is likely of no use and only requested because the read command always pulls 32 bytes.
+
+A guess is that this read is made to make sure the first two bytes are not equal to the number of the calling function. So, you write 0x0031 to FFFED0 and read it back to make sure it's changed confirming the call completed. Most of the time the read value will be 0x0002, however method call 0x0101 will return a value of 0x0000.
+
+This method invocation system allows the software to tell the machine to do all sorts of things. Figuring out what function call do what is the real magic.
+
+## Motor Reset/Sync Command
+
+This seems to initiate the motors for a little bit.
+
+WFFFED000A1? --> Write 00A1 to FFFED0
+
+WFFFED00031? --> Write 0031 to FFFED0
+
 ## Startup Sequence
 
 This sequence is performed when you first enter the software and reads the BIOS version and the name of all of the embroidery files. The user will then be presented with a list of file that they can preview or download. The preview and download flows will be covered later.

@@ -570,6 +570,73 @@ namespace Bernina.SerialStack
         }
 
         /// <summary>
+        /// Sends the SessionStart command "TrMEYQ" character by character.
+        /// Each character is sent and its echo is awaited before sending the next one.
+        /// After all characters are echoed, waits for an additional "O" confirmation from the machine.
+        /// </summary>
+        public async Task<CommandResult> SessionStartAsync()
+        {
+            if (State != ConnectionState.Connected)
+            {
+                return new CommandResult
+                {
+                    Success = false,
+                    ErrorMessage = "Not connected"
+                };
+            }
+
+            try
+            {
+                const string command = "TrMEYQ";
+                
+                // Clear response buffer
+                _responseBuffer.Clear();
+                
+                // Send each character and wait for echo
+                for (int i = 0; i < command.Length; i++)
+                {
+                    char c = command[i];
+                    if (!await SendAndWaitForEchoAsync(c, 500))
+                    {
+                        return new CommandResult
+                        {
+                            Success = false,
+                            ErrorMessage = $"SessionStart failed - no echo for '{c}'"
+                        };
+                    }
+                }
+
+                // Wait for the confirmation 'O' character
+                bool oReceived = await WaitForCharAsync('O', 1000);
+                if (!oReceived)
+                {
+                    return new CommandResult
+                    {
+                        Success = false,
+                        ErrorMessage = "Did not receive confirmation 'O' after TrMEYQ"
+                    };
+                }
+
+                // Clear the buffer after successful completion
+                _responseBuffer.Clear();
+
+                return new CommandResult
+                {
+                    Success = true,
+                    Response = "SessionStart completed successfully"
+                };
+            }
+            catch (Exception ex)
+            {
+                return new CommandResult
+                {
+                    Success = false,
+                    ErrorMessage = $"SessionStart error: {ex.Message}"
+                };
+            }
+        }
+
+        /// <summary>
         /// Generic method to change baud rate
         /// </summary>
         private async Task<bool> ChangeBaudRateAsync(int targetBaudRate, string command)
