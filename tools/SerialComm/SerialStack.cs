@@ -708,7 +708,10 @@ namespace Bernina.SerialStack
                 await Task.WhenAny(_processingTask ?? Task.CompletedTask, Task.Delay(1000));
                 await Task.WhenAny(_readTask ?? Task.CompletedTask, Task.Delay(1000));
 
-                // Close and reopen port at new baud rate immediately (no delay)
+                // CRITICAL: Clear the buffer BEFORE closing the port to prepare for new data
+                _responseBuffer.Clear();
+
+                // Close and reopen port at new baud rate with minimal delay
                 if (_serialPort?.IsOpen == true)
                 {
                     _serialPort.Close();
@@ -727,47 +730,61 @@ namespace Bernina.SerialStack
                 };
 
                 _serialPort.Open();
-                _serialPort.DiscardInBuffer();
-                _serialPort.DiscardOutBuffer();
+                
+                // DON'T discard buffers - we need any data that arrives!
+                // The machine may have already sent BOS while we were opening
+                
+                _currentBaudRate = targetBaudRate;
 
-                // Start blocking read thread
+                // Start blocking read thread IMMEDIATELY before any delays
                 _processingCts = new CancellationTokenSource();
                 _readTask = Task.Run(() => BlockingReadLoopAsync(_processingCts.Token));
 
-                _currentBaudRate = targetBaudRate;
+                // Give the read thread a moment to start
+                await Task.Delay(50);
 
                 ConnectionStateChanged?.Invoke(this, new ConnectionStateChangedEventArgs 
                 { 
                     OldState = State, 
                     NewState = State, 
-                    Message = $"Port opened at {targetBaudRate} baud, listening for BOS..." 
+                    Message = $"Port opened at {targetBaudRate} baud, sending EBYQ confirmation..." 
                 });
 
-                // Wait for machine to send "BOS" at new baud rate (no delay, start listening immediately)
-                _responseBuffer.Clear();
-                bool bosReceived = await WaitForStringAsync("BOS", 2000);
-                
-                if (!bosReceived)
-                {
-                    SetConnectionState(ConnectionState.Error, $"Did not receive BOS from machine at {targetBaudRate} baud");
-                    return false;
-                }
-
-                ConnectionStateChanged?.Invoke(this, new ConnectionStateChangedEventArgs 
-                { 
-                    OldState = State, 
-                    NewState = State, 
-                    Message = "Received BOS from machine, sending EBYQ confirmation..." 
-                });
-
-                // Send EBYQ to confirm new baud rate
+                // Send EBYQ immediately to confirm new baud rate (no need to wait for BOS)
                 // Each character will be echoed by the machine, plus an extra 'O' at the end
                 _responseBuffer.Clear();
                 
-                // Send 'E' and wait for echo
-                if (!await SendAndWaitForEchoAsync('E', 500))
+                // Send 'E' up to 20 times at 50ms intervals until we get an echo
+                bool eEchoed = false;
+                for (int attempt = 0; attempt < 30; attempt++)
                 {
-                    SetConnectionState(ConnectionState.Error, "EBYQ failed - no echo for 'E'");
+                    if (_serialPort == null || !_serialPort.IsOpen)
+                    {
+                        SetConnectionState(ConnectionState.Error, "Serial port not open");
+                        return false;
+                    }
+                    
+                    // Send 'E'
+                    byte[] eData = new byte[] { (byte)'E' };
+                    _serialPort.Write(eData, 0, 1);
+                    _serialPort.BaseStream.Flush();
+                    SerialTraffic?.Invoke(this, new SerialTrafficEventArgs { IsSent = true, Data = eData });
+                    
+                    // Wait 50ms and check for echo
+                    await Task.Delay(50);
+                    
+                    string currentBuffer = _responseBuffer.ToString();
+                    if (currentBuffer.Contains('E'))
+                    {
+                        eEchoed = true;
+                        _responseBuffer.Clear();
+                        break;
+                    }
+                }
+                
+                if (!eEchoed)
+                {
+                    SetConnectionState(ConnectionState.Error, "EBYQ failed - no echo for 'E' after 20 attempts");
                     return false;
                 }
                 
@@ -1035,7 +1052,8 @@ namespace Bernina.SerialStack
                     {
                         return true;
                     }
-                    await Task.Delay(50, cts.Token);
+                    // Check more frequently (every 5ms instead of 50ms) to catch BOS quickly
+                    await Task.Delay(5, cts.Token);
                 }
 
                 return false;
