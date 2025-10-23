@@ -400,6 +400,141 @@ namespace Bernina.SerialStack
         }
 
         /// <summary>
+        /// Sends an Upload command (PS + 4 hex chars) to upload 256 bytes of binary data
+        /// The address must be on a 256-byte boundary (last 2 hex digits are 00)
+        /// </summary>
+        /// <param name="address">The starting address (must be 256-byte aligned, e.g., 0x028F00)</param>
+        /// <param name="data">Exactly 256 bytes of data to upload</param>
+        public async Task<CommandResult> UploadAsync(int address, byte[] data)
+        {
+            if (data == null || data.Length != 256)
+            {
+                return new CommandResult
+                {
+                    Success = false,
+                    ErrorMessage = "Data must be exactly 256 bytes"
+                };
+            }
+
+            // Verify address is on 256-byte boundary (last 2 hex digits must be 00)
+            if ((address & 0xFF) != 0)
+            {
+                return new CommandResult
+                {
+                    Success = false,
+                    ErrorMessage = $"Address 0x{address:X6} is not on a 256-byte boundary (must end in 00)"
+                };
+            }
+
+            // PS command uses only the upper 4 hex digits (implicitly adding 00 at the end)
+            string command = $"PS{(address >> 8):X4}";
+            return await EnqueueUploadCommandAsync(command, data);
+        }
+
+        /// <summary>
+        /// Writes a block of memory by efficiently combining Write and Upload commands
+        /// Uses Write command for unaligned portions and Upload command for 256-byte aligned blocks
+        /// </summary>
+        /// <param name="address">The starting address to write to</param>
+        /// <param name="data">The data bytes to write</param>
+        /// <param name="progress">Optional progress callback (current bytes written, total bytes)</param>
+        /// <returns>CommandResult indicating success or failure</returns>
+        public async Task<CommandResult> WriteMemoryBlockAsync(int address, byte[] data, Action<int, int>? progress = null)
+        {
+            if (data == null || data.Length == 0)
+            {
+                return new CommandResult
+                {
+                    Success = false,
+                    ErrorMessage = "Data cannot be null or empty"
+                };
+            }
+
+            if (State != ConnectionState.Connected)
+            {
+                return new CommandResult
+                {
+                    Success = false,
+                    ErrorMessage = "Not connected"
+                };
+            }
+
+            try
+            {
+                int totalLength = data.Length;
+                int bytesWritten = 0;
+                int currentAddress = address;
+
+                while (bytesWritten < totalLength)
+                {
+                    int remainingBytes = totalLength - bytesWritten;
+
+                    // Calculate bytes until next 256-byte boundary
+                    int bytesToBoundary = 256 - (currentAddress & 0xFF);
+                    
+                    // If we're at a 256-byte boundary and have at least 256 bytes remaining, use Upload command
+                    if ((currentAddress & 0xFF) == 0 && remainingBytes >= 256)
+                    {
+                        // Use Upload command for 256 bytes
+                        byte[] uploadData = new byte[256];
+                        Array.Copy(data, bytesWritten, uploadData, 0, 256);
+                        
+                        var result = await UploadAsync(currentAddress, uploadData);
+                        if (!result.Success)
+                        {
+                            return new CommandResult
+                            {
+                                Success = false,
+                                ErrorMessage = $"Upload failed at address 0x{currentAddress:X6}: {result.ErrorMessage}"
+                            };
+                        }
+                        
+                        bytesWritten += 256;
+                        currentAddress += 256;
+                    }
+                    else
+                    {
+                        // Use Write command for bytes until boundary or remaining bytes (whichever is smaller)
+                        int bytesToWrite = Math.Min(bytesToBoundary, remainingBytes);
+                        
+                        byte[] writeData = new byte[bytesToWrite];
+                        Array.Copy(data, bytesWritten, writeData, 0, bytesToWrite);
+                        
+                        var result = await WriteAsync(currentAddress, writeData);
+                        if (!result.Success)
+                        {
+                            return new CommandResult
+                            {
+                                Success = false,
+                                ErrorMessage = $"Write failed at address 0x{currentAddress:X6}: {result.ErrorMessage}"
+                            };
+                        }
+                        
+                        bytesWritten += bytesToWrite;
+                        currentAddress += bytesToWrite;
+                    }
+
+                    // Report progress
+                    progress?.Invoke(bytesWritten, totalLength);
+                }
+
+                return new CommandResult
+                {
+                    Success = true,
+                    Response = $"Wrote {totalLength} bytes to 0x{address:X6}"
+                };
+            }
+            catch (Exception ex)
+            {
+                return new CommandResult
+                {
+                    Success = false,
+                    ErrorMessage = $"Memory block write error: {ex.Message}"
+                };
+            }
+        }
+
+        /// <summary>
         /// Sends a custom command
         /// </summary>
         public async Task<CommandResult> SendCommandAsync(string command)
@@ -899,6 +1034,13 @@ namespace Bernina.SerialStack
                 return response.Length >= expectedLength && response.EndsWith("O");
             }
 
+            // For Upload commands (PS + 4 hex) - expect command echo + "OE"
+            if (command.StartsWith("PS") && command.Length == 6)
+            {
+                int expectedLength = command.Length + 2; // Command echo + "OE"
+                return response.Length >= expectedLength && response.Contains("OE");
+            }
+
             // For Write commands - just echo
             if (command.StartsWith("W") && command.Contains("?"))
             {
@@ -1065,6 +1207,154 @@ namespace Bernina.SerialStack
 
             _commandQueue.Enqueue(queuedCommand);
             return await queuedCommand.CompletionSource.Task;
+        }
+
+        private async Task<CommandResult> EnqueueUploadCommandAsync(string command, byte[] data)
+        {
+            if (State != ConnectionState.Connected)
+            {
+                return new CommandResult
+                {
+                    Success = false,
+                    ErrorMessage = "Not connected"
+                };
+            }
+
+            // Execute upload command directly (not through queue) due to two-phase protocol
+            await _commandSemaphore.WaitAsync();
+            try
+            {
+                return await ExecuteUploadCommandAsync(command, data);
+            }
+            finally
+            {
+                _commandSemaphore.Release();
+            }
+        }
+
+        private async Task<CommandResult> ExecuteUploadCommandAsync(string command, byte[] data)
+        {
+            _responseBuffer.Clear();
+
+            try
+            {
+                if (_serialPort == null || !_serialPort.IsOpen)
+                {
+                    return new CommandResult
+                    {
+                        Success = false,
+                        ErrorMessage = "Serial port not open"
+                    };
+                }
+
+                // Phase 1: Send PS command and wait for "OE" response
+                // Set up a temporary command to track the PS command response
+                var phaseOneCommand = new QueuedCommand
+                {
+                    Command = command,
+                    EnqueuedTime = DateTime.Now
+                };
+                _currentCommand = phaseOneCommand;
+
+                // Send PS command character by character
+                foreach (char c in command)
+                {
+                    byte[] charData = new byte[] { (byte)c };
+                    _serialPort.Write(charData, 0, 1);
+                    _serialPort.BaseStream.Flush();
+                    SerialTraffic?.Invoke(this, new SerialTrafficEventArgs { IsSent = true, Data = charData });
+                    await Task.Delay(20);
+                }
+
+                // Wait for "OE" response (command echo + "OE")
+                var timeoutTask = Task.Delay(2000);
+                var completedTask = await Task.WhenAny(phaseOneCommand.CompletionSource.Task, timeoutTask);
+
+                if (completedTask == timeoutTask)
+                {
+                    _currentCommand = null;
+                    await RecoverFromErrorAsync();
+                    return new CommandResult
+                    {
+                        Success = false,
+                        ErrorMessage = "Upload command timeout waiting for OE"
+                    };
+                }
+
+                var phaseOneResult = await phaseOneCommand.CompletionSource.Task;
+                _currentCommand = null;
+
+                if (!phaseOneResult.Success)
+                {
+                    await RecoverFromErrorAsync();
+                    return phaseOneResult;
+                }
+
+                // Verify we got "OE" response
+                if (phaseOneResult.Response == null || !phaseOneResult.Response.Contains("OE"))
+                {
+                    await RecoverFromErrorAsync();
+                    return new CommandResult
+                    {
+                        Success = false,
+                        ErrorMessage = $"Expected OE response, got: {phaseOneResult.Response}"
+                    };
+                }
+
+                // Phase 2: Send 256 bytes of binary data and wait for "O"
+                _responseBuffer.Clear();
+                
+                // Create a completion source for phase 2
+                var phaseTwoCompletion = new TaskCompletionSource<bool>();
+                
+                // Send all 256 bytes
+                _serialPort.Write(data, 0, data.Length);
+                _serialPort.BaseStream.Flush();
+                SerialTraffic?.Invoke(this, new SerialTrafficEventArgs { IsSent = true, Data = data });
+
+                // Wait for "O" confirmation
+                var waitStart = DateTime.Now;
+                while ((DateTime.Now - waitStart).TotalMilliseconds < 3000)
+                {
+                    string currentBuffer = _responseBuffer.ToString();
+                    if (currentBuffer.Contains("O"))
+                    {
+                        return new CommandResult
+                        {
+                            Success = true,
+                            Response = $"Successfully uploaded 256 bytes to {command}"
+                        };
+                    }
+                    else if (currentBuffer.Contains("Q"))
+                    {
+                        // Error - try to recover
+                        await RecoverFromErrorAsync();
+                        return new CommandResult
+                        {
+                            Success = false,
+                            ErrorMessage = "Machine reported error (Q) during data upload"
+                        };
+                    }
+                    await Task.Delay(50);
+                }
+
+                // Timeout waiting for confirmation
+                await RecoverFromErrorAsync();
+                return new CommandResult
+                {
+                    Success = false,
+                    ErrorMessage = "Timeout waiting for O confirmation after sending data"
+                };
+            }
+            catch (Exception ex)
+            {
+                _currentCommand = null;
+                return new CommandResult
+                {
+                    Success = false,
+                    ErrorMessage = $"Upload command error: {ex.Message}"
+                };
+            }
         }
 
         private async Task ProcessCommandQueueAsync(CancellationToken cancellationToken)
