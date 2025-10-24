@@ -30,6 +30,32 @@ A guess is that this read is made to make sure the first two bytes are not equal
 
 This method invocation system allows the software to tell the machine to do all sorts of things. Figuring out what function call do what is the real magic.
 
+## Emboidery Module Session Start
+
+When starting up you can communicate with the sewing machine, but if you want to access the embroidery module, you need to open a session first. If you read 0x57FF80 the first byte will be 0xB4A5 if the session is not started. In this case, you can't read/write data to the embroidery module.
+
+R57FF80 --> B4A5000020DF002B797D03700FCE0C08535332FF0370FFFFFFFFFFFFFFFFFFFF  (Session Closed)
+
+To start the embroidery module communication, you need to send command "TrMEYQ" and get a "O" in return. If you don't get a "O", the embroidery module is not attached. Once the session started, you can read 0x57FF80 again to check the session state.
+
+R57FF80 --> 00CE800400CF80010000800403378004033704370704000A00F6F9FC07040010  (Session Open)
+
+If the embroidery module session is started, you now read 0x00CE. Once the session is started, you can't start it again, so "TrMEYQ" again will not work (it will not return "O") also, once the session is open, you can't change the baudrate, that too will not return "O".
+
+Do not send the "TrMEYQ" again if the session is already openned. If you do that, you will not get a "O" confirmation and the communication will be in an invalid state. You will not be able to close the session anymore. You will need to turn off/on the machine to reset it into a good state.
+
+When first starting up, the embroidery software will issue a R57FF80 to see if a session is already started or not. If it's not started, it will start it. Opening the embroidery module session is required to download/upload/view/delete embroidery files.
+
+## Emboidery Module Session End
+
+To close the session, send the "TrME" command. You can see how R57FF80 looks before and after the command: 
+
+R57FF80 --> 00CE800400CF80010000800403378004033704370704000A00F6F9FC07040010  (Session Open)
+Send "TrME" to close the session.
+R57FF80 --> B4A5000020DF002B797D03700FCE0C08535332FF0370FFFFFFFFFFFFFFFFFFFF  (Session Closed)
+
+You notice that once "TrME" is send, the session closes and the 0x57FF80 memory location reverts to 0xB4A5.
+
 ## Motor Reset/Sync Command
 
 This seems to initiate the motors for a little bit.

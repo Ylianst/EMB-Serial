@@ -213,9 +213,27 @@
             toolStripSeparator6.Name = "toolStripSeparator6";
             toolStripSeparator6.Size = new Size(202, 6);
             // 
+            // sessionEndToolStripMenuItem
+            // 
+            sessionEndToolStripMenuItem = new ToolStripMenuItem();
+            sessionEndToolStripMenuItem.Enabled = false;
+            sessionEndToolStripMenuItem.Name = "sessionEndToolStripMenuItem";
+            sessionEndToolStripMenuItem.Size = new Size(205, 26);
+            sessionEndToolStripMenuItem.Text = "Session &End";
+            sessionEndToolStripMenuItem.Click += sessionEndToolStripMenuItem_Click;
+            // 
+            // protocolResetToolStripMenuItem
+            // 
+            protocolResetToolStripMenuItem = new ToolStripMenuItem();
+            protocolResetToolStripMenuItem.Enabled = false;
+            protocolResetToolStripMenuItem.Name = "protocolResetToolStripMenuItem";
+            protocolResetToolStripMenuItem.Size = new Size(205, 26);
+            protocolResetToolStripMenuItem.Text = "&Protocol Reset";
+            protocolResetToolStripMenuItem.Click += protocolResetToolStripMenuItem_Click;
+            // 
             // commandsToolStripMenuItem items
             // 
-            commandsToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { sessionStartToolStripMenuItem, toolStripSeparator6, readToolStripMenuItem, largeReadToolStripMenuItem, writeToolStripMenuItem, sumToolStripMenuItem, toolStripSeparator3, memoryViewerToolStripMenuItem });
+            commandsToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { sessionStartToolStripMenuItem, sessionEndToolStripMenuItem, protocolResetToolStripMenuItem, toolStripSeparator6, readToolStripMenuItem, largeReadToolStripMenuItem, writeToolStripMenuItem, sumToolStripMenuItem, toolStripSeparator3, memoryViewerToolStripMenuItem });
             // 
             // readToolStripMenuItem
             // 
@@ -514,6 +532,8 @@
         private Panel panel1;
         private ToolStripSeparator toolStripMenuItem1;
         private ToolStripMenuItem sessionStartToolStripMenuItem;
+        private ToolStripMenuItem sessionEndToolStripMenuItem;
+        private ToolStripMenuItem protocolResetToolStripMenuItem;
         private ToolStripSeparator toolStripSeparator6;
     }
 }

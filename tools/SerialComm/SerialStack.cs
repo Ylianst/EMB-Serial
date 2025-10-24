@@ -570,6 +570,106 @@ namespace Bernina.SerialStack
         }
 
         /// <summary>
+        /// Sends the Protocol Reset command "RF?" to reset the machine's protocol state.
+        /// The 'R' character is sent up to 30 times at 50ms intervals until an echo is received,
+        /// then 'F' and '?' are sent with echo confirmation.
+        /// </summary>
+        public async Task<CommandResult> ProtocolResetAsync()
+        {
+            if (State != ConnectionState.Connected)
+            {
+                return new CommandResult
+                {
+                    Success = false,
+                    ErrorMessage = "Not connected"
+                };
+            }
+
+            try
+            {
+                // Clear response buffer
+                _responseBuffer.Clear();
+                
+                // Send 'R' up to 30 times at 50ms intervals until we get an echo
+                bool rEchoed = false;
+                for (int attempt = 0; attempt < 30; attempt++)
+                {
+                    if (_serialPort == null || !_serialPort.IsOpen)
+                    {
+                        return new CommandResult
+                        {
+                            Success = false,
+                            ErrorMessage = "Serial port not open"
+                        };
+                    }
+                    
+                    // Send 'R'
+                    byte[] rData = new byte[] { (byte)'R' };
+                    _serialPort.Write(rData, 0, 1);
+                    _serialPort.BaseStream.Flush();
+                    SerialTraffic?.Invoke(this, new SerialTrafficEventArgs { IsSent = true, Data = rData });
+                    
+                    // Wait 50ms and check for echo
+                    await Task.Delay(50);
+                    
+                    string currentBuffer = _responseBuffer.ToString();
+                    if (currentBuffer.Contains('R'))
+                    {
+                        rEchoed = true;
+                        _responseBuffer.Clear();
+                        break;
+                    }
+                }
+                
+                if (!rEchoed)
+                {
+                    return new CommandResult
+                    {
+                        Success = false,
+                        ErrorMessage = "Protocol Reset failed - no echo for 'R' after 30 attempts"
+                    };
+                }
+                
+                // Send 'F' and wait for echo
+                if (!await SendAndWaitForEchoAsync('F', 500))
+                {
+                    return new CommandResult
+                    {
+                        Success = false,
+                        ErrorMessage = "Protocol Reset failed - no echo for 'F'"
+                    };
+                }
+                
+                // Send '?' and wait for echo
+                if (!await SendAndWaitForEchoAsync('?', 500))
+                {
+                    return new CommandResult
+                    {
+                        Success = false,
+                        ErrorMessage = "Protocol Reset failed - no echo for '?'"
+                    };
+                }
+
+                // Clear the buffer after successful completion
+                _responseBuffer.Clear();
+
+                return new CommandResult
+                {
+                    Success = true,
+                    Response = "Protocol Reset completed successfully"
+                };
+            }
+            catch (Exception ex)
+            {
+                return new CommandResult
+                {
+                    Success = false,
+                    ErrorMessage = $"Protocol Reset error: {ex.Message}"
+                };
+            }
+        }
+
+        /// <summary>
         /// Sends the SessionStart command "TrMEYQ" character by character.
         /// Each character is sent and its echo is awaited before sending the next one.
         /// After all characters are echoed, waits for an additional "O" confirmation from the machine.
@@ -632,6 +732,61 @@ namespace Bernina.SerialStack
                 {
                     Success = false,
                     ErrorMessage = $"SessionStart error: {ex.Message}"
+                };
+            }
+        }
+
+        /// <summary>
+        /// Sends the SessionEnd command "TrME" character by character.
+        /// Each character is sent and its echo is awaited before sending the next one.
+        /// </summary>
+        public async Task<CommandResult> SessionEndAsync()
+        {
+            if (State != ConnectionState.Connected)
+            {
+                return new CommandResult
+                {
+                    Success = false,
+                    ErrorMessage = "Not connected"
+                };
+            }
+
+            try
+            {
+                const string command = "TrME";
+                
+                // Clear response buffer
+                _responseBuffer.Clear();
+                
+                // Send each character and wait for echo
+                for (int i = 0; i < command.Length; i++)
+                {
+                    char c = command[i];
+                    if (!await SendAndWaitForEchoAsync(c, 500))
+                    {
+                        return new CommandResult
+                        {
+                            Success = false,
+                            ErrorMessage = $"SessionEnd failed - no echo for '{c}'"
+                        };
+                    }
+                }
+
+                // Clear the buffer after successful completion
+                _responseBuffer.Clear();
+
+                return new CommandResult
+                {
+                    Success = true,
+                    Response = "SessionEnd completed successfully"
+                };
+            }
+            catch (Exception ex)
+            {
+                return new CommandResult
+                {
+                    Success = false,
+                    ErrorMessage = $"SessionEnd error: {ex.Message}"
                 };
             }
         }

@@ -246,6 +246,8 @@ namespace SerialComm
                     disconnectToolStripMenuItem.Enabled = true;
                     selectCOMPortToolStripMenuItem.Enabled = false;
                     sessionStartToolStripMenuItem.Enabled = true;
+                    sessionEndToolStripMenuItem.Enabled = true;
+                    protocolResetToolStripMenuItem.Enabled = true;
                     readToolStripMenuItem.Enabled = true;
                     largeReadToolStripMenuItem.Enabled = true;
                     writeToolStripMenuItem.Enabled = true;
@@ -338,6 +340,8 @@ namespace SerialComm
             disconnectToolStripMenuItem.Enabled = false;
             selectCOMPortToolStripMenuItem.Enabled = true;
             sessionStartToolStripMenuItem.Enabled = false;
+            sessionEndToolStripMenuItem.Enabled = false;
+            protocolResetToolStripMenuItem.Enabled = false;
             readToolStripMenuItem.Enabled = false;
             largeReadToolStripMenuItem.Enabled = false;
             writeToolStripMenuItem.Enabled = false;
@@ -688,6 +692,66 @@ namespace SerialComm
             AppendOutput("");
         }
 
+        private async Task PerformSessionEndAsync()
+        {
+            if (_serialStack == null || !_isConnected)
+            {
+                MessageBox.Show("Not connected to machine.", "Error",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            UpdateStatus("Sending Session End command...");
+            AppendOutput("Session End command: Sending TrME");
+
+            var result = await _serialStack.SessionEndAsync();
+
+            if (result.Success)
+            {
+                AppendOutput("Session End successful");
+                UpdateStatus("Session End complete");
+            }
+            else
+            {
+                AppendOutput($"Session End failed: {result.ErrorMessage}");
+                UpdateStatus("Session End failed");
+                MessageBox.Show($"Session End failed: {result.ErrorMessage}", "Command Error",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+
+            AppendOutput("");
+        }
+
+        private async Task PerformProtocolResetAsync()
+        {
+            if (_serialStack == null || !_isConnected)
+            {
+                MessageBox.Show("Not connected to machine.", "Error",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            UpdateStatus("Sending Protocol Reset command...");
+            AppendOutput("Protocol Reset command: Sending RF?");
+
+            var result = await _serialStack.ProtocolResetAsync();
+
+            if (result.Success)
+            {
+                AppendOutput("Protocol Reset successful");
+                UpdateStatus("Protocol Reset complete");
+            }
+            else
+            {
+                AppendOutput($"Protocol Reset failed: {result.ErrorMessage}");
+                UpdateStatus("Protocol Reset failed");
+                MessageBox.Show($"Protocol Reset failed: {result.ErrorMessage}", "Command Error",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+
+            AppendOutput("");
+        }
+
         private async void btnSwitchBaud_Click(object sender, EventArgs e)
         {
             await SwitchTo57600BaudAsync();
@@ -805,6 +869,16 @@ namespace SerialComm
         private void sessionStartToolStripMenuItem_Click(object sender, EventArgs e)
         {
             _ = PerformSessionStartAsync();
+        }
+
+        private void sessionEndToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            _ = PerformSessionEndAsync();
+        }
+
+        private void protocolResetToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            _ = PerformProtocolResetAsync();
         }
 
         private void switchTo19200BaudToolStripMenuItem_Click(object sender, EventArgs e)
