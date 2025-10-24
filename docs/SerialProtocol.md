@@ -45,8 +45,10 @@ After the machine sends "BOS" at 57600 bauds you have very little time to send t
 
 Once you are in 57600 baud speed, it's possible to go back to 19200 baud using the "TrMEJ04" with the same process as above. It looks like this speed commands are:
 
+```
 "TrMEJ04" = 19200 bauds.
 "TrMEJ05" = 57600 bauds.
+```
 
 So you can switch to and from each baud rates. It's important to note that when switching baud rate you may also start a emdroidey module session at the same time. So, once you switch baud rates, you may want to do a "R57FF80" command to see what mode you are in. See "Emboidery Module Session Start" below.
 
@@ -133,11 +135,15 @@ There is really two processors, the sewing machine and the enbroidery module. Bo
 
 When irst starting up, you communicate with the sewing machine by default, but if you want to access the embroidery module, you need to open the communication path to the embroidery module first. If you read 0x57FF80 the first bytes will be 0xB4A5 if the emboidery session is not started. In this case, you can't read/write data to the embroidery module.
 
+```
 R57FF80 --> B4A5000020DF002B797D03700FCE0C08535332FF0370FFFFFFFFFFFFFFFFFFFF  (Session Closed)
+```
 
 To start the embroidery module communication, you need to send command "TrMEYQ" and get a "O" in return. If you don't get a "O", the embroidery module is not attached. Once the session started, you can read 0x57FF80 again to check the session state.
 
+```
 R57FF80 --> 00CE800400CF80010000800403378004033704370704000A00F6F9FC07040010  (Session Open)
+```
 
 If the embroidery module session is started, you now read 0x00CE. Once the session is started, you can't start it again, so sending "TrMEYQ" again will not work (it will not return "O") also, once the session is open, you can't change the baudrate, that too will not return "O".
 
@@ -151,9 +157,11 @@ Also note that when changing baud rates, you may also be switching modes at the 
 
 To close the session, send the "TrME" command. You can see how R57FF80 looks before and after the command: 
 
+```
 R57FF80 --> 00CE800400CF80010000800403378004033704370704000A00F6F9FC07040010  (Session Open)
 Send "TrME" to close the session.
 R57FF80 --> B4A5000020DF002B797D03700FCE0C08535332FF0370FFFFFFFFFFFFFFFFFFFF  (Session Closed)
+```
 
 You notice that once "TrME" is send, the session closes and the 0x57FF80 memory location reverts to 0xB4A5. The embroidery software has a tendency to close the embroidery module connection each time it's done with some operation probably in order to keep the default state being to communicate with the sewing machine. So, if you disconnect the serial cable at normal times, the serial port will be ready for sewing software.
 
@@ -161,15 +169,19 @@ You notice that once "TrME" is send, the session closes and the 0x57FF80 memory 
 
 You can invoke code to run on the machine by placing argument 1 in 0x0201E1 and argument 2 in 0x0201DC and then writing the function call number into 0xFFFED0. For example:
 
+```
 W0201DC01? --> Write 01 to 0201DC         // Set argument 2
 W0201E100? --> Write 00 to 0201E1         // Set argument 1
 WFFFED00031? --> Write 0031 to FFFED0     // Invoke function 0x0031
+```
 
 When a function is called, the software always reads 0xFFFED0, this is likely to read the 2 first bytes that may indicate is the invocation completed and if so, what is the return value.
 
+```
 RFFFED0 -->
    ASCII: .....@.....3................@...
    HEX: 00 02 00 00 00 40 00 00 00 83 00 33 00 00 00 00 00 00 00 00 00 00 00 00 04 00 00 01 40 00 00 00
+```
 
 Note that most of this data past the two first bytes is likely of no use and only requested because the read command always pulls 32 bytes.
 
