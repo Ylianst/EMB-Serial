@@ -32,7 +32,7 @@ This method invocation system allows the software to tell the machine to do all 
 
 ## Emboidery Module Session Start
 
-When starting up you can communicate with the sewing machine, but if you want to access the embroidery module, you need to open a session first. If you read 0x57FF80 the first byte will be 0xB4A5 if the session is not started. In this case, you can't read/write data to the embroidery module.
+When starting up you communicate with the sewing machine, but if you want to access the embroidery module, you need to open the communication path to the embroidery module first. If you read 0x57FF80 the first bytes will be 0xB4A5 if the emboidery session is not started. In this case, you can't read/write data to the embroidery module.
 
 R57FF80 --> B4A5000020DF002B797D03700FCE0C08535332FF0370FFFFFFFFFFFFFFFFFFFF  (Session Closed)
 
@@ -40,9 +40,9 @@ To start the embroidery module communication, you need to send command "TrMEYQ" 
 
 R57FF80 --> 00CE800400CF80010000800403378004033704370704000A00F6F9FC07040010  (Session Open)
 
-If the embroidery module session is started, you now read 0x00CE. Once the session is started, you can't start it again, so "TrMEYQ" again will not work (it will not return "O") also, once the session is open, you can't change the baudrate, that too will not return "O".
+If the embroidery module session is started, you now read 0x00CE. Once the session is started, you can't start it again, so sending "TrMEYQ" again will not work (it will not return "O") also, once the session is open, you can't change the baudrate, that too will not return "O".
 
-Do not send the "TrMEYQ" again if the session is already openned. If you do that, you will not get a "O" confirmation and the communication will be in an invalid state. You will not be able to close the session anymore. You will need to turn off/on the machine to reset it into a good state.
+Do not send the "TrMEYQ" again if the session is already opened. If you do that, you will not get a "O" confirmation and the communication will be in an invalid state. You will not be able to close the session anymore and will need to turn off/on the machine to reset it into a good state.
 
 When first starting up, the embroidery software will issue a R57FF80 to see if a session is already started or not. If it's not started, it will start it. Opening the embroidery module session is required to download/upload/view/delete embroidery files.
 
@@ -54,15 +54,7 @@ R57FF80 --> 00CE800400CF80010000800403378004033704370704000A00F6F9FC07040010  (S
 Send "TrME" to close the session.
 R57FF80 --> B4A5000020DF002B797D03700FCE0C08535332FF0370FFFFFFFFFFFFFFFFFFFF  (Session Closed)
 
-You notice that once "TrME" is send, the session closes and the 0x57FF80 memory location reverts to 0xB4A5.
-
-## Motor Reset/Sync Command
-
-This seems to initiate the motors for a little bit.
-
-WFFFED000A1? --> Write 00A1 to FFFED0
-
-WFFFED00031? --> Write 0031 to FFFED0
+You notice that once "TrME" is send, the session closes and the 0x57FF80 memory location reverts to 0xB4A5. The embroidery software has a tendency to close the embroidery module connection each time it's done with some operation probably in order to keep the default state being to communicate with the sewing machine. So, if you disconnect the serial cable at normal times, the serial port will be ready for sewing software.
 
 ## Startup Sequence
 
@@ -134,23 +126,6 @@ R0242F5 --> 4E76383530000000000000000000000000000000000000000000000000000000
 L0240D5000240 --> Response: 00001C79    (This could be LOAD 0x240 of data at 0240D500)
 R024040 --> 000206A000020764000000000000000000000000000000000000000000000000
 R0206A0 --> 1D1B2A0300002C070200000305000000FFFFFF00FC6000000000000000000000
-WFFFED00101? --> Write 0101 to FFFED0
-RFFFED0 --> 000000000040000000830063000000000000000000000000FF00000100000000
-(End)
-```
-
-## The odd FFFED0 address
-
-```
-(Other commands)
-WFFFED00031? --> Write 0031 to FFFED0
-RFFFED0 --> 0002000000400000008300630000000000000000000000000300000130000000
-WFFFED00021? --> Write 0021 to FFFED0
-RFFFED0 --> 0002000000400000008300630000000000000000000000000300000120000000
-(Other commands)
-WFFFED00061? --> Write 0061 to FFFED0
-RFFFED0 --> 0002000000400000008300630000000000000000000000000300000160000000
-(Other commands)
 WFFFED00101? --> Write 0101 to FFFED0
 RFFFED0 --> 000000000040000000830063000000000000000000000000FF00000100000000
 (End)
