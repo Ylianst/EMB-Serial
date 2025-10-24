@@ -135,13 +135,11 @@ There is really two processors, the sewing machine and the enbroidery module. Bo
 
 When irst starting up, you communicate with the sewing machine by default, but if you want to access the embroidery module, you need to open the communication path to the embroidery module first. If you read 0x57FF80 the first bytes will be 0xB4A5 if the emboidery session is not started. In this case, you can't read/write data to the embroidery module.
 
-```
-R57FF80 --> B4A5000020DF002B797D03700FCE0C08535332FF0370FFFFFFFFFFFFFFFFFFFF  (Session Closed)
-```
-
 To start the embroidery module communication, you need to send command "TrMEYQ" and get a "O" in return. If you don't get a "O", the embroidery module is not attached. Once the session started, you can read 0x57FF80 again to check the session state.
 
 ```
+R57FF80 --> B4A5000020DF002B797D03700FCE0C08535332FF0370FFFFFFFFFFFFFFFFFFFF  (Session Closed)
+TrMEYQ  --> Replay with "O"
 R57FF80 --> 00CE800400CF80010000800403378004033704370704000A00F6F9FC07040010  (Session Open)
 ```
 
