@@ -10,10 +10,15 @@ This sequence is performed when you first enter the software and reads the BIOS 
 - Check if in embroidery mode and change to it , uses `R57FF80` and `TrMEYQ`.
 - Read the embroidery module firmware version, uses `N200100`.
 
-- Peforms these 4 reads (Unknown)
+- Peforms this unknown read
 ```
 R024004 --> 00000000004B0000000000000000000000000000004B00000000000000000000
-RFFFED9 --> 8300330000000000000000000000000200000100000000000000000000000000
+```
+
+- Check if a PC Card is in the slot, 0x82 = No PC Card, 0x83 = Yes, card present.
+```
+RFFFED9 --> 8300330000000000000000000000000200000100000000000000000000000000  <- PC Card Present
+            8200000000000000000000000000000200000100000000000000000000000000  <- No PC Card
 ```
 
 Read the pointer to the block allocation array. We see 0x0206A0 is the location of the block vector.
@@ -22,10 +27,15 @@ R024040 --> 000206A000020764000000000000000000000000000000000000000000000000
 ```
 
 Read allocation of blocks (?), we see 0305 and the 03 is the number of user (Mx) files.
+This must indicate if a PC Card or build-in memory is present?
 ```
 R0206A0 --> 1D1B2A0380002C070200000305000000FFFFFF00FC6000000000000000000000
 ```
-- Invoke function 0x00A1 with no arguments.         (Unknown)
+
+- Select if you want to read from the Embroidery Module Memory or PC Card
+    - Invoke function 0x00A1 with no arguments to read from Embroidery Module Memory.
+    - Invoke function 0x0051 with no arguments to read fro PC Card.
+
 - Invoke function 0x0031 with arguments (01, 00)    (Unknown)
 - Invoke function 0x0021 with no arguments.         (Unknown)
 
@@ -71,6 +81,7 @@ R0206A0 --> 1D1B2A0300002C070200000305000000FFFFFF00FC6000000000000000000000
 - Close embroidery session using `TrME`
 
 
+## Read Files from Embroidery Modules Memory (Details)
 
 Here is an example startup sequence in more detail
 
@@ -93,7 +104,7 @@ R024040 --> 000206A000020764000000000000000000000000000000000000000000000000
 Read block management ventor, here 0305, the 03 is number of user files.
 R0206A0 --> 1D1B2A0380002C070200000305000000FFFFFF00FC6000000000000000000000
 
-WFFFED000A1? --> Write 00A1 at FFFED0   (Invoke Function 0x00a1)
+WFFFED000A1? --> Write 00A1 at FFFED0   (Invoke Function 0x00a1)  - Indicate we want to read from embroidery module memory, not the PC Card
 RFFFED0 --> 00020000004000000083006300000000000000000000000003000001A0000000
 
 W0201DC01? --> Write 01 to 0201DC
@@ -161,3 +172,51 @@ RFFFED0 --> 000000000040000000830063000000000000000000000000FF00000100000000
 
 (End)
 ```
+
+
+## Read Files from the Add-in Card
+
+TrMEYQ --> Acknowledged
+WFFFED00051? --> Write 0051 to FFFED0 - Indicate we want to read from the PC Card, not the embroidery module memory
+RFFFED0 -->
+   ASCII: .....@.....3................P...
+   HEX: 00 02 00 00 00 40 00 00 00 83 00 33 00 00 00 00 00 00 00 00 00 00 00 00 03 00 00 01 50 00 00 00
+W0201DC01? --> Write 01 to 0201DC
+W0201E100? --> Write 00 to 0201E1
+WFFFED00031? --> Write 0031 to FFFED0
+RFFFED0 -->
+   ASCII: .....@.....3................0...
+   HEX: 00 02 00 00 00 40 00 00 00 83 00 33 00 00 00 00 00 00 00 00 00 00 00 00 03 00 00 01 30 00 00 00
+WFFFED00021? --> Write 0021 to FFFED0
+RFFFED0 -->
+   ASCII: .....@.....3................ ...
+   HEX: 00 02 00 00 00 40 00 00 00 83 00 33 00 00 00 00 00 00 00 00 00 00 00 00 03 00 00 01 20 00 00 00
+R024080 --> Read the number of files, here 0x11 or 17 files.
+   ASCII: ................................
+   HEX: 11 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 90 8F 93
+R024004 -->
+   ASCII: ..............."......@........$
+   HEX: 00 FF FE D4 00 02 03 FC 00 02 82 AE 00 02 04 22 00 02 01 DC 00 02 40 80 00 FF FE E4 00 02 04 24
+RFFFEDB -->
+   ASCII: 3................ ..............
+   HEX: 33 00 00 00 00 00 00 00 00 00 00 00 00 03 00 00 01 20 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+W0201E100? --> Write 00 to 0201E1
+R0240B9 --> Read the file types, 5 fonts (AC) and 12 images (A4)
+   ASCII: ............................Drif
+   HEX: AC AC AC AC AC A4 A4 A4 A4 A4 A4 A4 A4 A4 A4 A4 A4 86 86 86 86 A4 A4 A4 A4 A4 A4 00 44 72 69 66
+R0240D5 --> Read file names, 17 of them  at 32 bytes each.
+   ASCII: Drifterv4-5Rev6.................
+   HEX: 44 72 69 66 74 65 72 76 34 2D 35 52 65 76 36 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+N0240F5 -->
+   ASCII: Lisav4-5Rev66...................BlackBoardv4-5Rev6..............SwissBlock v4-5 rev6a...........Zurichv45rev6a..................1    ...........................2    ...........................3    ...........................4    ...........................
+   HEX: 4C 69 73 61 76 34 2D 35 52 65 76 36 36 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 42 6C 61 63 6B 42 6F 61 72 64 76 34 2D 35 52 65 76 36 00 00 00 00 00 00 00 00 00 00 00 00 00 00 53 77 69 73 73 42 6C 6F 63 6B 20 76 34 2D 35 20 72 65 76 36 61 00 00 00 00 00 00 00 00 00 00 00 5A 75 72 69 63 68 76 34 35 72 65 76 36 61 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 31 20 20 20 20 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 32 20 20 20 20 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 33 20 20 20 20 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 34 20 20 20 20 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+N0241F5 -->
+   ASCII: 5    ...........................6    ...........................7    ...........................8    ...........................9    ...........................10   ...........................11   ...........................12   ...........................
+   HEX: 35 20 20 20 20 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 36 20 20 20 20 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 37 20 20 20 20 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 38 20 20 20 20 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 39 20 20 20 20 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 31 30 20 20 20 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 31 31 20 20 20 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 31 32 20 20 20 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+L0240D5000220 --> Sum starting at 0240D5 with length 000220 is 000024B0
+WFFFED00101? --> Write 0101 to FFFED0
+RFFFED0 -->
+   ASCII: .....@.....3....................
+   HEX: 00 00 00 00 00 40 00 00 00 83 00 33 00 00 00 00 00 00 00 00 00 00 00 00 FF 00 00 01 00 00 00 00
+
+Session Ended - 2025-10-25 00:15:24.148
