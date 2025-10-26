@@ -2,7 +2,7 @@
 
 Now that we have the basics of the serial protocol understood, we can build code that reads an area of memory, writes at a location and we have this load (?) operation. You can build a low-level stack in code that will do all that and we now need to figure out the high level workings of the machine.
 
-## Startup Sequence
+## List Files in Internal Memory
 
 This sequence is performed when you first enter the software and reads the BIOS version and the name of all of the embroidery files. It will read both read-only and read/write files. The user will then be presented with a list of file that they can preview or download. The preview and download flows will be covered later.
 
@@ -115,8 +115,10 @@ RFFFED0 --> 0002000000400000008300630000000000000000000000000300000130000000
 WFFFED00021? --> Write 0021 to FFFED0   (Invoke Function 0x0021)
 RFFFED0 --> 0002000000400000008300630000000000000000000000000300000120000000
 
-(Don't know what this is)
+Read the number of files, we have 0x2D or 45 files.
 R024080 --> 2D00000000000000000000000000000000000000000000000000000000908F93
+
+Unknown read
 R024004 --> 00FFFED4000203FC000282AE00020422000201DC0002408000FFFEE400020424
 RFFFEDB --> 6300000000000000000000000003000001200000000000000000000000000000
 W0201E100? --> Write 00 to 0201E1       (Set argument 1 to zero)
@@ -173,7 +175,6 @@ RFFFED0 --> 000000000040000000830063000000000000000000000000FF00000100000000
 (End)
 ```
 
-
 ## Read Files from the Add-in Card
 
 TrMEYQ --> Acknowledged
@@ -220,3 +221,71 @@ RFFFED0 -->
    HEX: 00 00 00 00 00 40 00 00 00 83 00 33 00 00 00 00 00 00 00 00 00 00 00 00 FF 00 00 01 00 00 00 00
 
 Session Ended - 2025-10-25 00:15:24.148
+
+## Delete a File in Internal Memory (Not PC Card)
+
+TrMEYQ --> Acknowledged (Switch to Embroidery Mode)
+WFFFED00041? --> Write 0041 to FFFED0 - Unknown call, this is unique to delete.
+RFFFED0 -->
+   ASCII: .....@.....3................@...
+   HEX: 00 02 00 00 00 40 00 00 00 83 00 33 00 00 00 00 00 00 00 00 00 00 00 00 03 00 00 01 40 00 00 00
+W0201DC2E? --> Write 2E to 0201DC - File to delete, in this case number 46.
+W0201E101? --> Write 01 to 0201E1
+WFFFED00801? --> Write 0801 to FFFED0 - Invoke "Delete a file"
+RFFFED0 -->
+   ASCII: .....@.....3................@...
+   HEX: 00 02 00 00 00 40 00 00 00 83 00 33 00 00 00 00 00 00 00 00 00 00 00 00 04 00 00 01 40 00 00 00
+
+WFFFED000A1? --> Write 00A1 to FFFED0 - Indicate we want to read from embroidery module, not PC card.
+
+At this point, we re-read all of the files in memory just like the normal startup sequence.
+
+## Get the Preview Image for a File
+
+TrMEYQ --> Acknowledged
+WFFFED000A1? --> Write 00A1 to FFFED0 - Indicate we want to read from embroidery module, not PC card.
+RFFFED0 -->
+   ASCII: .....@.....c....................
+   HEX: 00 02 00 00 00 40 00 00 00 83 00 63 00 00 00 00 00 00 00 00 00 00 00 00 03 00 00 01 A0 00 00 00
+W0201DC01? --> Write 01 to 0201DC
+W0201E100? --> Write 00 to 0201E1
+WFFFED00031? --> Write 0031 to FFFED0
+RFFFED0 -->
+   ASCII: .....@.....c................0...
+   HEX: 00 02 00 00 00 40 00 00 00 83 00 63 00 00 00 00 00 00 00 00 00 00 00 00 03 00 00 01 30 00 00 00
+WFFFED00021? --> Write 0021 to FFFED0
+RFFFED0 -->
+   ASCII: .....@.....c................ ...
+   HEX: 00 02 00 00 00 40 00 00 00 83 00 63 00 00 00 00 00 00 00 00 00 00 00 00 03 00 00 01 20 00 00 00
+R024080 --> Read the number of files in memory, there are 45 (0x2D) right now.
+   ASCII: -...............................
+   HEX: 2D 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 90 8F 93
+R024480 --> This is a new read unique to preview
+   ASCII: ...>............................
+   HEX: 01 00 09 3E FF 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+
+Start reading the preview data, 0x2452E for a length of 558 (0x22E) bytes.
+R02452E -->
+   ASCII: ................................
+   HEX: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+N02454E --> (Here, the capture is not correct as it's not capturing the full 8 bit values)
+   ASCII: ..........................................................................................................................?...............................?........?......................?........?............................................................
+   HEX: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 07 3F 00 00 00 00 7F 00 00 0F 3F 0F 3F 3F 01 3F 3F 00 1F 3F 1F 3F 3F 03 3F 3F 00 3F 3F 1F 3F 3F 0F 3F 3F 00 7F 3F 1F 3F 3F 0F 3F 3F 00 3F 3F 1F 3F 3F 1F 3F 3F 01 3F 3F 1F 3F 3F 3F 3F 3F 01 3F 3F 1F 3F 3F 3F 3F 3F 03 3F 3F 1F 3F 3F 7F 3F 3F 03 3F 7F 3F 3F 3F 7F 00 3F 07 3F 3F 3F 3F 3F 3F 00 00 07 3F 3F 3F 3F 3F 3F 00 00 0F 3F 1F 3F 3F 3F 3F 00 00 0F 3F 1F 3F 3F 3F 3F 00 00 1F 3F 1F 3F 3F 3F 3F 00 00 1F 3F 3F 3F 3F 3F 3F 00 00 1F 3F 3F 3F 3F 3F 3F 00 00 1F 3F 3F 3F 3F 3F 3F 00 00
+N02464E --> (Here, the capture is not correct as it's not capturing the full 8 bit values)
+   ASCII: ?........?........?........?........?........?....?...?....?..<?....?...?........?.....?..?........?........?.?........?........?...............................................................................................................................
+   HEX: 3F 3F 3F 3F 3F 3F 3F 00 00 3F 3F 3F 3F 3F 3F 3F 00 00 3F 3F 3F 3F 3F 3F 3F 00 08 3F 3F 1F 3F 3F 7F 3F 00 0C 3F 3F 0F 3F 3F 7F 3F 00 1C 3F 3F 0F 3F 3F 3F 3F 3F 1C 3F 3F 0F 3F 3F 3F 3F 3F 3C 3F 3F 0F 3F 3F 3F 3F 3F 3F 3F 3F 0F 3F 3F 7F 3F 3F 3F 3F 3F 1F 3F 3F 3F 3F 3F 3F 3F 3F 1F 3F 3F 3F 1F 3F 3F 3F 3F 1F 3F 3F 3F 1F 3F 3F 3F 3F 3F 3F 3F 3F 0F 3F 3F 1F 3F 3F 3F 3F 3F 07 3F 3F 1F 3F 3F 3F 3F 3F 03 3F 3F 00 00 00 1F 3F 3F 00 3F 3F 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+R02474E -->
+   ASCII: ................................
+   HEX: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+L02452E00022E --> 0000B25B
+
+WFFFED00101? --> Write 0101 to FFFED0   - End Session / Cler State Invocation
+RFFFED0 -->
+   ASCII: .....@.....c....................
+   HEX: 00 00 00 00 00 40 00 00 00 83 00 63 00 00 00 00 00 00 00 00 00 00 00 00 FF 00 00 01 00 00 00 00
+
+## Preview Image Decoding
+
+72 x 64 pixes black & white image. 558 (0x22E) bytes long.
+
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 1C 00 00 00 00 00 00 00 00 7E 00 00 00 00 00 00 00 00 FF 00 00 00 00 00 00 00 03 FF C0 00 00 00 00 00 01 CF E7 F3 80 00 00 00 00 03 FF C3 FF C0 00 00 00 00 07 FF 00 FF C0 00 00 00 00 0F FC 00 3F F8 00 00 00 00 1F F0 00 0F F8 00 00 00 00 1F 80 00 00 F8 00 00 00 01 1F 00 00 00 F8 00 00 00 01 FF 00 00 00 FF 80 00 00 03 FF 00 00 00 7F C0 00 00 1F FE 00 00 00 7F F8 00 00 3F F8 00 00 00 3F FC 00 00 3F 00 00 00 00 00 FC 00 00 3E 00 00 00 00 00 7C 00 00 3E 00 00 00 00 00 7C 00 00 1F 00 00 00 00 00 F8 00 00 1F 80 00 00 00 00 F8 00 00 07 80 00 00 00 01 E0 00 00 03 80 00 00 00 01 C0 00 00 03 80 00 00 00 01 C0 00 00 03 C0 00 00 00 01 C0 00 00 03 C0 00 00 00 03 C0 00 00 03 C0 00 00 00 03 C0 00 00 03 C0 00 00 00 03 C0 00 00 03 C0 00 00 00 03 C0 00 00 03 C0 00 00 00 03 C0 00 00 03 C0 00 00 00 01 E0 00 00 03 C0 00 00 00 01 E0 00 00 03 80 00 00 00 01 E0 00 00 03 80 00 00 00 01 E0 00 00 03 C0 00 00 00 01 E0 00 00 03 C0 00 00 00 01 E0 00 00 03 C0 00 00 00 03 C0 00 00 03 C0 00 00 00 03 C0 00 00 03 C0 00 00 00 03 C0 00 00 03 C0 00 00 00 03 C0 00 00 01 E0 00 00 00 03 C0 00 00 01 E0 00 00 00 07 80 00 00 01 F0 00 00 00 0F 80 00 00 00 F8 00 00 00 1F 80 00 00 00 FE 00 00 00 7F 00 00 00 00 7F D8 00 1B FE 00 00 00 00 1F F8 00 1F FC 00 00 00 00 07 F8 00 1F F0 00 00 00 00 01 FC 00 3F 80 00 00 00 00 01 FE 00 3F 80 00 00 00 00 03 FF 00 7F C0 00 00 00 00 07 EF 81 F7 E0 00 00 00 00 03 C7 C3 F3 E0 00 00 00 00 00 03 FF E0 00 00 00 00 00 00 01 FF 80 00 00 00 00 00 00 00 FF 00 00 00 00 00 00 00 00 FF 00 00 00 00 00 00 00 00 FF 00 00 00 00 00 00 00 01 F7 80 00 00 00 00 00 00 01 C3 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00

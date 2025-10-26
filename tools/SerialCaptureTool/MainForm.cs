@@ -18,6 +18,7 @@ namespace SerialCaptureTool
         // Command parsing state
         private StringBuilder softwareCommandBuffer = new StringBuilder();
         private StringBuilder machineResponseBuffer = new StringBuilder();
+        private List<byte> machineResponseBytes = new List<byte>();
         private string? currentCommand = null;
         private int expectedResponseBytes = 0;
         private bool waitingForResponse = false;
@@ -29,6 +30,7 @@ namespace SerialCaptureTool
         // Upload command state
         private bool waitingForUploadData = false;
         private StringBuilder uploadDataBuffer = new StringBuilder();
+        private List<byte> uploadDataBytes = new List<byte>();
         private int uploadBytesReceived = 0;
 
         // Thread control
@@ -593,6 +595,7 @@ namespace SerialCaptureTool
                 if (waitingForUploadData)
                 {
                     uploadDataBuffer.Append(c);
+                    uploadDataBytes.Add(dataByte);
                     uploadBytesReceived++;
 
                     if (uploadBytesReceived % 32 == 0 || uploadBytesReceived == 256)
@@ -681,6 +684,7 @@ namespace SerialCaptureTool
                 if (waitingForResponse)
                 {
                     machineResponseBuffer.Append(c);
+                    machineResponseBytes.Add(dataByte);
 
                     if (IsResponseComplete(machineResponseBuffer.ToString(), currentCommandType, expectedResponseBytes))
                     {
@@ -736,6 +740,7 @@ namespace SerialCaptureTool
             currentCommandType = DetectCommandType(cmd);
             expectedResponseBytes = GetExpectedResponseLength(cmd, currentCommandType);
             waitingForResponse = true;
+            machineResponseBytes.Clear();
             softwareCommandBuffer.Clear();
         }
 
@@ -818,34 +823,61 @@ namespace SerialCaptureTool
                     AppendCapture($"{command} --> ERROR: Machine responded with '{response}'", Color.Red);
                     WriteLog($"{command} --> ERROR: Machine responded with '{response}'");
                 }
+                machineResponseBytes.Clear();
                 return;
             }
 
             if (type == CommandType.Read || type == CommandType.LargeRead)
             {
-                string data = "";
-                if (response.Length > command.Length)
-                {
-                    data = response.Substring(command.Length);
-                    if (data.EndsWith("O"))
-                        data = data.Substring(0, data.Length - 1);
-                }
-
                 if (type == CommandType.LargeRead)
                 {
-                    string ascii = GetPrintableAscii(data);
-                    string hex = BytesToHex(Encoding.ASCII.GetBytes(data));
+                    // LargeRead returns raw binary data
+                    // Response format: <command_echo><256_data_bytes><'O'>
+                    // Command is 1 char 'N' (not including the address which is part of data)
+                    
+                    // Debug: log the actual details
+                    WriteLog($"DEBUG: command='{command}' (len={command.Length}), machineResponseBytes.Count={machineResponseBytes.Count}");
+                    WriteLog($"DEBUG: First 10 response bytes as hex: {string.Join(" ", machineResponseBytes.Take(10).Select(b => b.ToString("X2")))}");
+                    
+                    // The command is just "N" (1 char), the address is part of the response data
+                    // So we skip 1 byte for 'N', take 256 bytes, and ignore the trailing 'O'
+                    int dataStart = 1; // Skip only the 'N' character
+                    int dataLength = 256; // We want exactly 256 bytes
+                    
+                    if (machineResponseBytes.Count < dataStart + dataLength + 1)
+                    {
+                        WriteLog($"ERROR: Not enough bytes. Expected at least {dataStart + dataLength + 1}, got {machineResponseBytes.Count}");
+                        machineResponseBytes.Clear();
+                        return;
+                    }
+                    
+                    byte[] dataBytes = new byte[dataLength];
+                    for (int i = 0; i < dataBytes.Length; i++)
+                    {
+                        dataBytes[i] = machineResponseBytes[dataStart + i];
+                    }
 
-                    AppendCapture($"{command} -->", Color.Cyan);
+                    string ascii = GetPrintableAsciiFromBytes(dataBytes);
+                    string hex = BytesToHex(dataBytes);
+
+                    AppendCapture($"{command} --> [{dataBytes.Length} bytes]", Color.Cyan);
                     AppendCapture($"   ASCII: {ascii}", Color.Yellow);
                     AppendCapture($"   HEX: {hex}", Color.Gray);
 
-                    WriteLog($"{command} -->");
+                    WriteLog($"{command} --> [{dataBytes.Length} bytes]");
                     WriteLog($"   ASCII: {ascii}");
                     WriteLog($"   HEX: {hex}");
                 }
-                else
+                else // Read command returns hex-encoded ASCII
                 {
+                    string data = "";
+                    if (response.Length > command.Length)
+                    {
+                        data = response.Substring(command.Length);
+                        if (data.EndsWith("O"))
+                            data = data.Substring(0, data.Length - 1);
+                    }
+
                     string hexDisplay = FormatHexWithSpaces(data);
                     string asciiDisplay = DecodeHexString(data);
 
@@ -857,6 +889,8 @@ namespace SerialCaptureTool
                     WriteLog($"   ASCII: {asciiDisplay}");
                     WriteLog($"   HEX: {hexDisplay}");
                 }
+
+                machineResponseBytes.Clear();
             }
             else if (type == CommandType.Write)
             {
@@ -906,8 +940,9 @@ namespace SerialCaptureTool
         private void DisplayUploadCommand(string command, string uploadData)
         {
             string address = command.Substring(2, 4);
-            string ascii = GetPrintableAscii(uploadData);
-            string hex = BytesToHex(Encoding.ASCII.GetBytes(uploadData));
+            byte[] dataBytes = uploadDataBytes.ToArray();
+            string ascii = GetPrintableAsciiFromBytes(dataBytes);
+            string hex = BytesToHex(dataBytes);
 
             AppendCapture($"{command} --> Upload 256 bytes to address {address}:", Color.Cyan);
             AppendCapture($"   ASCII: {ascii}", Color.Yellow);
@@ -916,6 +951,8 @@ namespace SerialCaptureTool
             WriteLog($"{command} --> Upload 256 bytes to address {address}:");
             WriteLog($"   ASCII: {ascii}");
             WriteLog($"   HEX: {hex}");
+            
+            uploadDataBytes.Clear();
         }
 
         private string GetPrintableAscii(string data)
@@ -928,9 +965,26 @@ namespace SerialCaptureTool
             return sb.ToString();
         }
 
+        private string GetPrintableAsciiFromBytes(byte[] bytes)
+        {
+            StringBuilder sb = new StringBuilder();
+            foreach (byte b in bytes)
+            {
+                sb.Append(b >= 32 && b <= 126 ? (char)b : '.');
+            }
+            return sb.ToString();
+        }
+
         private string BytesToHex(byte[] bytes)
         {
-            return BitConverter.ToString(bytes).Replace("-", " ");
+            StringBuilder sb = new StringBuilder(bytes.Length * 3);
+            for (int i = 0; i < bytes.Length; i++)
+            {
+                if (i > 0)
+                    sb.Append(' ');
+                sb.AppendFormat("{0:X2}", bytes[i]);
+            }
+            return sb.ToString();
         }
 
         private string DecodeHexString(string hexString)

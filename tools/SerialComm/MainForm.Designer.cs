@@ -231,9 +231,18 @@
             protocolResetToolStripMenuItem.Text = "&Protocol Reset";
             protocolResetToolStripMenuItem.Click += protocolResetToolStripMenuItem_Click;
             // 
+            // imageViewerToolStripMenuItem
+            // 
+            imageViewerToolStripMenuItem = new ToolStripMenuItem();
+            imageViewerToolStripMenuItem.Name = "imageViewerToolStripMenuItem";
+            imageViewerToolStripMenuItem.Size = new Size(205, 26);
+            imageViewerToolStripMenuItem.Text = "&Image Viewer...";
+            imageViewerToolStripMenuItem.Click += imageViewerToolStripMenuItem_Click;
+            // Note: Image Viewer is always enabled (doesn't require connection)
+            // 
             // commandsToolStripMenuItem items
             // 
-            commandsToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { sessionStartToolStripMenuItem, sessionEndToolStripMenuItem, protocolResetToolStripMenuItem, toolStripSeparator6, readToolStripMenuItem, largeReadToolStripMenuItem, writeToolStripMenuItem, sumToolStripMenuItem, toolStripSeparator3, memoryViewerToolStripMenuItem });
+            commandsToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { sessionStartToolStripMenuItem, sessionEndToolStripMenuItem, protocolResetToolStripMenuItem, toolStripSeparator6, readToolStripMenuItem, largeReadToolStripMenuItem, writeToolStripMenuItem, sumToolStripMenuItem, toolStripSeparator3, memoryViewerToolStripMenuItem, imageViewerToolStripMenuItem });
             // 
             // readToolStripMenuItem
             // 
@@ -535,5 +544,6 @@
         private ToolStripMenuItem sessionEndToolStripMenuItem;
         private ToolStripMenuItem protocolResetToolStripMenuItem;
         private ToolStripSeparator toolStripSeparator6;
+        private ToolStripMenuItem imageViewerToolStripMenuItem;
     }
 }

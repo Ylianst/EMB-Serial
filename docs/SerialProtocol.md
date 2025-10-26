@@ -196,3 +196,13 @@ N200100 --> "NMMV03.01·English     ·Bernina Electronic  AG  ·July 98"
 ```
 
 The software uses the R200100 command to read firmware version.
+
+## Inserting and Removing a PC Card
+
+If inserting or disconnecting a PC card while a embroidery session is enabled, the embroidery module will start sending this HEX string rapidly in a loop:
+
+HEX: 70 00 40 00 00 00 A3 00 33 00 00 00 00 86
+
+This does not seem to be recoverable. Your going to have to turn off/on the machine to get into a good state. This said, the software will close the embroidery session quickly so, as long as the PC card is removed or inserted without an active embroidery session going on, it should be ok.
+
+Sending "F" during this message loop may stop it, but more investigation needs to be done. The normal software does not seem to handle this case.

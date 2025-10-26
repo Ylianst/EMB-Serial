@@ -925,6 +925,13 @@ namespace SerialComm
             memoryWindow.Show();
         }
 
+        private void imageViewerToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            // Image Viewer doesn't require a connection - create and show the window
+            ImageViewer imageViewer = new ImageViewer();
+            imageViewer.Show();
+        }
+
         private void aboutToolStripMenuItem_Click(object sender, EventArgs e)
         {
             MessageBox.Show(
