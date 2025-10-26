@@ -859,8 +859,10 @@ class SerialCapture
                 if (type == CommandType.LargeRead)
                 {
                     // For N command, show both ASCII and HEX on separate indented lines
+                    // Convert string to byte array using ISO-8859-1 encoding to preserve all byte values (0x00-0xFF)
+                    byte[] dataBytes = Encoding.GetEncoding("ISO-8859-1").GetBytes(data);
                     string ascii = GetPrintableAscii(data);
-                    string hex = BytesToHex(Encoding.ASCII.GetBytes(data));
+                    string hex = BytesToHex(dataBytes);
                     
                     Console.ForegroundColor = ConsoleColor.Cyan;
                     Console.WriteLine($"{command} -->");
@@ -982,8 +984,10 @@ class SerialCapture
             string address = command.Substring(2, 4);
             
             // Show both ASCII and HEX like LargeRead
+            // Convert string to byte array using ISO-8859-1 encoding to preserve all byte values (0x00-0xFF)
+            byte[] uploadBytes = Encoding.GetEncoding("ISO-8859-1").GetBytes(uploadData);
             string ascii = GetPrintableAscii(uploadData);
-            string hex = BytesToHex(Encoding.ASCII.GetBytes(uploadData));
+            string hex = BytesToHex(uploadBytes);
             
             Console.ForegroundColor = ConsoleColor.Cyan;
             Console.WriteLine($"{command} --> Upload 256 bytes to address {address}:");
