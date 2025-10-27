@@ -149,7 +149,12 @@ Do not send the "TrMEYQ" again if the session is already opened. If you do that,
 
 When first starting up, the embroidery software will issue a R57FF80 to see if a session is already started or not. If it's not started, it will start it. Opening the embroidery module session is required to download/upload/view/delete embroidery files.
 
-Also note that when changing baud rates, you may also be switching modes at the same time. For example, when you switch fro 19200 bauds to 57600 bauds you may also at the same time be opening a embroidery module session. So, you should call "R57FF80" to make sure what mode you are in.
+Also note that when changing baud rates, you may also be switching modes at the same time. For example, when you switch from 19200 bauds to 57600 bauds you may also at the same time be opening a embroidery module session. So, you should call "R57FF80" to make sure what mode you are in.
+
+If you move into embroidery mode and read all 0xFF, the embroidery module was not initialized.
+```
+R57FF80 --> FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF  (Session Open, No initialized)
+```
 
 ## Emboidery Module Session End
 

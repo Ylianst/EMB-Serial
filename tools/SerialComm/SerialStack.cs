@@ -19,6 +19,15 @@ namespace Bernina.SerialStack
     }
 
     /// <summary>
+    /// Session mode of the machine
+    /// </summary>
+    public enum SessionMode
+    {
+        SewingMachine,
+        EmbroideryModule
+    }
+
+    /// <summary>
     /// Event arguments for connection state changes
     /// </summary>
     public class ConnectionStateChangedEventArgs : EventArgs
@@ -67,6 +76,18 @@ namespace Bernina.SerialStack
         public string? Response { get; set; }
         public string? ErrorMessage { get; set; }
         public byte[]? BinaryData { get; set; }
+    }
+
+    /// <summary>
+    /// Firmware information read from the machine
+    /// </summary>
+    public class FirmwareInfo
+    {
+        public SessionMode Mode { get; set; }
+        public string Version { get; set; } = "";
+        public string? Language { get; set; } = "";
+        public string Manufacturer { get; set; } = "";
+        public string Date { get; set; } = "";
     }
 
     /// <summary>
@@ -1741,6 +1762,384 @@ namespace Bernina.SerialStack
                     NewState = newState,
                     Message = message
                 });
+            }
+        }
+
+        /// <summary>
+        /// Sets argument 1 for function invocation by writing a byte to 0x0201E1.
+        /// </summary>
+        /// <param name="value">The byte value to set as argument 1</param>
+        /// <returns>CommandResult indicating success or failure</returns>
+        public async Task<CommandResult> SetArgument1Async(byte value)
+        {
+            // Check connection status
+            if (State != ConnectionState.Connected)
+            {
+                return new CommandResult
+                {
+                    Success = false,
+                    ErrorMessage = "Not connected to machine"
+                };
+            }
+
+            try
+            {
+                byte[] data = new byte[] { value };
+                var writeResult = await WriteAsync(0x0201E1, data);
+                
+                if (!writeResult.Success)
+                {
+                    return new CommandResult
+                    {
+                        Success = false,
+                        ErrorMessage = $"Failed to write argument 1 to 0x0201E1: {writeResult.ErrorMessage}"
+                    };
+                }
+
+                return new CommandResult
+                {
+                    Success = true,
+                    Response = $"Argument 1 set to 0x{value:X2} at 0x0201E1"
+                };
+            }
+            catch (Exception ex)
+            {
+                return new CommandResult
+                {
+                    Success = false,
+                    ErrorMessage = $"SetArgument1 error: {ex.Message}"
+                };
+            }
+        }
+
+        /// <summary>
+        /// Sets argument 2 for function invocation by writing a byte to 0x0201DC.
+        /// </summary>
+        /// <param name="value">The byte value to set as argument 2</param>
+        /// <returns>CommandResult indicating success or failure</returns>
+        public async Task<CommandResult> SetArgument2Async(byte value)
+        {
+            // Check connection status
+            if (State != ConnectionState.Connected)
+            {
+                return new CommandResult
+                {
+                    Success = false,
+                    ErrorMessage = "Not connected to machine"
+                };
+            }
+
+            try
+            {
+                byte[] data = new byte[] { value };
+                var writeResult = await WriteAsync(0x0201DC, data);
+                
+                if (!writeResult.Success)
+                {
+                    return new CommandResult
+                    {
+                        Success = false,
+                        ErrorMessage = $"Failed to write argument 2 to 0x0201DC: {writeResult.ErrorMessage}"
+                    };
+                }
+
+                return new CommandResult
+                {
+                    Success = true,
+                    Response = $"Argument 2 set to 0x{value:X2} at 0x0201DC"
+                };
+            }
+            catch (Exception ex)
+            {
+                return new CommandResult
+                {
+                    Success = false,
+                    ErrorMessage = $"SetArgument2 error: {ex.Message}"
+                };
+            }
+        }
+
+        /// <summary>
+        /// Gets the current session mode by reading address 0x57FF80.
+        /// If the first two bytes are 0xB4A5, the machine is in Sewing Machine mode.
+        /// Otherwise, it's in Embroidery Module mode.
+        /// </summary>
+        /// <returns>SessionMode enum value, or null if read fails</returns>
+        public async Task<SessionMode?> GetCurrentSessionModeAsync()
+        {
+            // Check connection status
+            if (State != ConnectionState.Connected)
+            {
+                return null;
+            }
+
+            try
+            {
+                var readResult = await ReadAsync(0x57FF80);
+                
+                if (!readResult.Success || readResult.BinaryData == null || readResult.BinaryData.Length < 2)
+                {
+                    return null;
+                }
+
+                // Check if first two bytes are 0xB4A5 (Sewing Machine mode)
+                if (readResult.BinaryData[0] == 0xB4 && readResult.BinaryData[1] == 0xA5)
+                {
+                    return SessionMode.SewingMachine;
+                }
+                else
+                {
+                    return SessionMode.EmbroideryModule;
+                }
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Reads firmware information from address 0x200100.
+        /// First detects the mode (Sewing Machine or Embroidery Module) by calling GetCurrentSessionModeAsync().
+        /// Parses version, language (if in Sewing Machine mode), manufacturer, and date.
+        /// </summary>
+        /// <returns>FirmwareInfo object containing mode, version, language, manufacturer, and date, or null if read fails</returns>
+        public async Task<FirmwareInfo?> ReadFirmwareInfoAsync()
+        {
+            // Check connection status
+            if (State != ConnectionState.Connected)
+            {
+                return null;
+            }
+
+            try
+            {
+                // Detect the current session mode
+                var sessionMode = await GetCurrentSessionModeAsync();
+                
+                if (sessionMode == null)
+                {
+                    return null;
+                }
+
+                bool isSewingMachineMode = (sessionMode == SessionMode.SewingMachine);
+
+                // Read 256 bytes from address 0x200100
+                var readResult = await LargeReadAsync(0x200100);
+                
+                if (!readResult.Success || readResult.BinaryData == null)
+                {
+                    return null;
+                }
+
+                byte[] data = readResult.BinaryData;
+                
+                string version = "";
+                string? language = null;
+                string manufacturer = "";
+                string date = "";
+                
+                int index = 0;
+                
+                // Read version string (until first null byte)
+                StringBuilder versionBuilder = new StringBuilder();
+                while (index < data.Length && data[index] != 0x00)
+                {
+                    // Only include printable ASCII characters
+                    if (data[index] >= 0x20 && data[index] <= 0x7E)
+                    {
+                        versionBuilder.Append((char)data[index]);
+                    }
+                    index++;
+                }
+                version = versionBuilder.ToString().Trim();
+                
+                // Skip the null terminator
+                if (index < data.Length && data[index] == 0x00)
+                {
+                    index++;
+                }
+                
+                // In Sewing Machine mode, read language string
+                // In Embroidery Module mode, skip language (set to null)
+                if (isSewingMachineMode)
+                {
+                    // Read language string (until next null byte)
+                    StringBuilder languageBuilder = new StringBuilder();
+                    while (index < data.Length && data[index] != 0x00)
+                    {
+                        // Only include printable ASCII characters
+                        if (data[index] >= 0x20 && data[index] <= 0x7E)
+                        {
+                            languageBuilder.Append((char)data[index]);
+                        }
+                        index++;
+                    }
+                    language = languageBuilder.ToString().Trim();
+                    
+                    // Skip the null terminator
+                    if (index < data.Length && data[index] == 0x00)
+                    {
+                        index++;
+                    }
+                }
+                
+                // Read manufacturer string (until next null byte)
+                StringBuilder manufacturerBuilder = new StringBuilder();
+                while (index < data.Length && data[index] != 0x00)
+                {
+                    // Only include printable ASCII characters
+                    if (data[index] >= 0x20 && data[index] <= 0x7E)
+                    {
+                        manufacturerBuilder.Append((char)data[index]);
+                    }
+                    index++;
+                }
+                manufacturer = manufacturerBuilder.ToString().Trim();
+                
+                // Skip the null terminator
+                if (index < data.Length && data[index] == 0x00)
+                {
+                    index++;
+                }
+                
+                // Read date string (until next null byte)
+                StringBuilder dateBuilder = new StringBuilder();
+                while (index < data.Length && data[index] != 0x00)
+                {
+                    // Only include printable ASCII characters
+                    if (data[index] >= 0x20 && data[index] <= 0x7E)
+                    {
+                        dateBuilder.Append((char)data[index]);
+                    }
+                    index++;
+                }
+                date = dateBuilder.ToString().Trim();
+                
+                // Return the parsed firmware info
+                return new FirmwareInfo
+                {
+                    Mode = sessionMode.Value,
+                    Version = version,
+                    Language = language,
+                    Manufacturer = manufacturer,
+                    Date = date
+                };
+            }
+            catch (Exception)
+            {
+                // Return null on any parsing errors
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Invokes a machine function by writing the function ID to 0xFFFED0 and verifying completion.
+        /// The machine responds with 0x0002 or 0x0000 in the first two bytes when the function completes.
+        /// </summary>
+        /// <param name="functionId">The function ID to invoke (16-bit value)</param>
+        /// <returns>CommandResult indicating success or failure</returns>
+        public async Task<CommandResult> InvokeFunctionAsync(ushort functionId)
+        {
+            // Check connection status
+            if (State != ConnectionState.Connected)
+            {
+                return new CommandResult
+                {
+                    Success = false,
+                    ErrorMessage = "Not connected to machine"
+                };
+            }
+
+            try
+            {
+                // Write the function ID to 0xFFFED0 as a 16-bit value
+                byte[] functionBytes = new byte[] 
+                { 
+                    (byte)(functionId >> 8),   // High byte
+                    (byte)(functionId & 0xFF)  // Low byte
+                };
+                
+                var writeResult = await WriteAsync(0xFFFED0, functionBytes);
+                if (!writeResult.Success)
+                {
+                    return new CommandResult
+                    {
+                        Success = false,
+                        ErrorMessage = $"Failed to write function ID to 0xFFFED0: {writeResult.ErrorMessage}"
+                    };
+                }
+
+                // Read back from 0xFFFED0 and check the first two bytes
+                const int maxRetries = 5;
+                const int retryDelayMs = 100;
+
+                for (int attempt = 0; attempt <= maxRetries; attempt++)
+                {
+                    var readResult = await ReadAsync(0xFFFED0);
+                    
+                    if (!readResult.Success)
+                    {
+                        return new CommandResult
+                        {
+                            Success = false,
+                            ErrorMessage = $"Failed to read from 0xFFFED0: {readResult.ErrorMessage}"
+                        };
+                    }
+
+                    if (readResult.BinaryData == null || readResult.BinaryData.Length < 2)
+                    {
+                        return new CommandResult
+                        {
+                            Success = false,
+                            ErrorMessage = "Invalid response: expected at least 2 bytes"
+                        };
+                    }
+
+                    // Check if first two bytes are 0x0002 or 0x0000
+                    ushort responseValue = (ushort)((readResult.BinaryData[0] << 8) | readResult.BinaryData[1]);
+                    
+                    if (responseValue == 0x0002 || responseValue == 0x0000)
+                    {
+                        return new CommandResult
+                        {
+                            Success = true,
+                            Response = $"Function 0x{functionId:X4} invoked successfully, response: 0x{responseValue:X4}",
+                            BinaryData = readResult.BinaryData
+                        };
+                    }
+
+                    // If we haven't exhausted retries, wait and try again
+                    if (attempt < maxRetries)
+                    {
+                        await Task.Delay(retryDelayMs);
+                    }
+                    else
+                    {
+                        // Final attempt failed
+                        return new CommandResult
+                        {
+                            Success = false,
+                            ErrorMessage = $"Function invocation failed after {maxRetries + 1} attempts. " +
+                                         $"Expected 0x0002 or 0x0000, but got 0x{responseValue:X4}"
+                        };
+                    }
+                }
+
+                // Should not reach here, but provide a fallback
+                return new CommandResult
+                {
+                    Success = false,
+                    ErrorMessage = "Function invocation failed: unexpected error"
+                };
+            }
+            catch (Exception ex)
+            {
+                return new CommandResult
+                {
+                    Success = false,
+                    ErrorMessage = $"Function invocation error: {ex.Message}"
+                };
             }
         }
 

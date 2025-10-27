@@ -231,6 +231,15 @@
             protocolResetToolStripMenuItem.Text = "&Protocol Reset";
             protocolResetToolStripMenuItem.Click += protocolResetToolStripMenuItem_Click;
             // 
+            // firmwareInfoToolStripMenuItem
+            // 
+            firmwareInfoToolStripMenuItem = new ToolStripMenuItem();
+            firmwareInfoToolStripMenuItem.Enabled = false;
+            firmwareInfoToolStripMenuItem.Name = "firmwareInfoToolStripMenuItem";
+            firmwareInfoToolStripMenuItem.Size = new Size(205, 26);
+            firmwareInfoToolStripMenuItem.Text = "&Firmware Info";
+            firmwareInfoToolStripMenuItem.Click += firmwareInfoToolStripMenuItem_Click;
+            // 
             // imageViewerToolStripMenuItem
             // 
             imageViewerToolStripMenuItem = new ToolStripMenuItem();
@@ -242,7 +251,7 @@
             // 
             // commandsToolStripMenuItem items
             // 
-            commandsToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { sessionStartToolStripMenuItem, sessionEndToolStripMenuItem, protocolResetToolStripMenuItem, toolStripSeparator6, readToolStripMenuItem, largeReadToolStripMenuItem, writeToolStripMenuItem, sumToolStripMenuItem, toolStripSeparator3, memoryViewerToolStripMenuItem, imageViewerToolStripMenuItem });
+            commandsToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { sessionStartToolStripMenuItem, sessionEndToolStripMenuItem, protocolResetToolStripMenuItem, firmwareInfoToolStripMenuItem, toolStripSeparator6, readToolStripMenuItem, largeReadToolStripMenuItem, writeToolStripMenuItem, sumToolStripMenuItem, toolStripSeparator3, memoryViewerToolStripMenuItem, imageViewerToolStripMenuItem });
             // 
             // readToolStripMenuItem
             // 
@@ -543,6 +552,7 @@
         private ToolStripMenuItem sessionStartToolStripMenuItem;
         private ToolStripMenuItem sessionEndToolStripMenuItem;
         private ToolStripMenuItem protocolResetToolStripMenuItem;
+        private ToolStripMenuItem firmwareInfoToolStripMenuItem;
         private ToolStripSeparator toolStripSeparator6;
         private ToolStripMenuItem imageViewerToolStripMenuItem;
     }

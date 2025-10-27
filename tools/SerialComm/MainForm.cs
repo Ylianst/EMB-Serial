@@ -248,6 +248,7 @@ namespace SerialComm
                     sessionStartToolStripMenuItem.Enabled = true;
                     sessionEndToolStripMenuItem.Enabled = true;
                     protocolResetToolStripMenuItem.Enabled = true;
+                    firmwareInfoToolStripMenuItem.Enabled = true;
                     readToolStripMenuItem.Enabled = true;
                     largeReadToolStripMenuItem.Enabled = true;
                     writeToolStripMenuItem.Enabled = true;
@@ -342,6 +343,7 @@ namespace SerialComm
             sessionStartToolStripMenuItem.Enabled = false;
             sessionEndToolStripMenuItem.Enabled = false;
             protocolResetToolStripMenuItem.Enabled = false;
+            firmwareInfoToolStripMenuItem.Enabled = false;
             readToolStripMenuItem.Enabled = false;
             largeReadToolStripMenuItem.Enabled = false;
             writeToolStripMenuItem.Enabled = false;
@@ -671,6 +673,26 @@ namespace SerialComm
                 return;
             }
 
+            // Check if we're in Sewing Machine mode
+            UpdateStatus("Checking session mode...");
+            var sessionMode = await _serialStack.GetCurrentSessionModeAsync();
+            
+            if (sessionMode == null)
+            {
+                MessageBox.Show("Failed to detect session mode.", "Error",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                UpdateStatus("Ready");
+                return;
+            }
+
+            // Only start session if we're in Sewing Machine mode
+            if (sessionMode != Bernina.SerialStack.SessionMode.SewingMachine)
+            {
+                AppendOutput("Session Start: Already in Embroidery Module mode (session already open)");
+                UpdateStatus("Ready");
+                return;
+            }
+
             UpdateStatus("Sending Session Start command...");
             AppendOutput("Session Start command: Sending TrMEYQ");
 
@@ -746,6 +768,52 @@ namespace SerialComm
                 AppendOutput($"Protocol Reset failed: {result.ErrorMessage}");
                 UpdateStatus("Protocol Reset failed");
                 MessageBox.Show($"Protocol Reset failed: {result.ErrorMessage}", "Command Error",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+
+            AppendOutput("");
+        }
+
+        private async Task PerformFirmwareInfoAsync()
+        {
+            if (_serialStack == null || !_isConnected)
+            {
+                MessageBox.Show("Not connected to machine.", "Error",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            UpdateStatus("Reading firmware information...");
+            AppendOutput("Firmware Info: Detecting mode and reading from address 0x200100");
+
+            var firmwareInfo = await _serialStack.ReadFirmwareInfoAsync();
+
+            if (firmwareInfo != null)
+            {
+                // Convert SessionMode enum to string
+                string modeString = firmwareInfo.Mode == Bernina.SerialStack.SessionMode.SewingMachine 
+                    ? "Sewing Machine" 
+                    : "Embroidery Module";
+                
+                AppendOutput("Firmware Info successful:");
+                AppendOutput($"  Mode: {modeString}");
+                AppendOutput($"  Version: {firmwareInfo.Version}");
+                
+                // Only display language if it's not null (Sewing Machine mode)
+                if (firmwareInfo.Language != null)
+                {
+                    AppendOutput($"  Language: {firmwareInfo.Language}");
+                }
+                
+                AppendOutput($"  Manufacturer: {firmwareInfo.Manufacturer}");
+                AppendOutput($"  Date: {firmwareInfo.Date}");
+                UpdateStatus("Firmware Info complete");
+            }
+            else
+            {
+                AppendOutput("Firmware Info failed: Unable to read or parse firmware information");
+                UpdateStatus("Firmware Info failed");
+                MessageBox.Show("Failed to read firmware information from the machine.", "Command Error",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
 
@@ -879,6 +947,11 @@ namespace SerialComm
         private void protocolResetToolStripMenuItem_Click(object sender, EventArgs e)
         {
             _ = PerformProtocolResetAsync();
+        }
+
+        private void firmwareInfoToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            _ = PerformFirmwareInfoAsync();
         }
 
         private void switchTo19200BaudToolStripMenuItem_Click(object sender, EventArgs e)
