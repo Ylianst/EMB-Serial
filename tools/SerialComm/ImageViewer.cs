@@ -1,113 +1,91 @@
 using System.Drawing;
 using System.Drawing.Imaging;
-using System.Text;
-using System.Text.RegularExpressions;
 
 namespace SerialComm
 {
     public partial class ImageViewer : Form
     {
-        private bool _use7Bits = true; // Toggle between 7-bit and 8-bit mode
+        private Bernina.SerialStack.SerialStack? _serialStack;
+        private const int ImageWidth = 72;
+        private const int ImageHeight = 64;
 
-        public ImageViewer()
+        public ImageViewer(Bernina.SerialStack.SerialStack serialStack)
         {
             InitializeComponent();
+            _serialStack = serialStack;
         }
 
-        private void btnConvert_Click(object sender, EventArgs e)
+        private async void btnLoad_Click(object sender, EventArgs e)
         {
-            ConvertAndDisplayImage();
+            await LoadPreviewImage();
         }
 
-        private void trackBarWidth_Scroll(object sender, EventArgs e)
-        {
-            // Update the width display
-            txtWidth.Text = trackBarWidth.Value.ToString();
-            
-            // Auto-convert if there's already HEX data
-            if (!string.IsNullOrWhiteSpace(txtHexData.Text))
-            {
-                ConvertAndDisplayImage();
-            }
-        }
-
-        private void ConvertAndDisplayImage()
+        private async Task LoadPreviewImage()
         {
             try
             {
-                // Validate inputs
-                string hexData = txtHexData.Text.Trim();
-                if (string.IsNullOrEmpty(hexData))
+                // Validate FileId input
+                if (!int.TryParse(txtFileId.Text, out int fileId))
                 {
-                    MessageBox.Show("Please enter HEX data.", "Input Required",
+                    MessageBox.Show("Please enter a valid File ID number.", "Input Error",
                         MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
                 }
 
-                int width = trackBarWidth.Value;
-
-                // Parse HEX data into bytes
-                byte[] data = ParseHexData(hexData);
-                if (data == null || data.Length == 0)
+                // Validate serial stack is connected
+                if (_serialStack == null || !_serialStack.IsConnected)
                 {
-                    MessageBox.Show("Failed to parse HEX data. Please ensure it contains valid hexadecimal values.", "Parse Error",
+                    MessageBox.Show("Not connected to machine. Please connect first.", "Connection Error",
                         MessageBoxButtons.OK, MessageBoxIcon.Error);
                     return;
                 }
 
-                // Calculate height based on data length and width (7 bits per byte)
-                int totalBits = data.Length * 8;
-                int height = (int)Math.Ceiling((double)totalBits / width);
+                // Get storage location from dropdown
+                string selectedLocation = cmbStorageLocation.SelectedItem?.ToString() ?? "Memory";
+                Bernina.SerialStack.StorageLocation location = selectedLocation == "PC Card"
+                    ? Bernina.SerialStack.StorageLocation.PCCard
+                    : Bernina.SerialStack.StorageLocation.EmbroideryModuleMemory;
 
-                // Limit height to 512 pixels to match max width
-                if (height > 512)
+                // Show loading status
+                btnLoad.Enabled = false;
+                lblStatus.Text = $"Loading preview for File ID {fileId} from {selectedLocation}...";
+
+                // Call the async method to read the preview
+                byte[]? previewData = await _serialStack.ReadEmbroideryFilePreviewAsync(location, fileId);
+
+                if (previewData == null)
                 {
-                    height = 512;
+                    MessageBox.Show("Failed to read preview image. Please check the File ID and try again.", "Load Error",
+                        MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    lblStatus.Text = "Error loading preview";
+                    return;
                 }
 
-                // Create the 1-bit per pixel image
-                Bitmap bitmap = CreateBitmapFromBits(data, width, height);
-                
-                // Display the image
+                if (previewData.Length != 0x22E)
+                {
+                    MessageBox.Show($"Invalid preview data size: {previewData.Length} bytes (expected 558 bytes).", "Data Error",
+                        MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    lblStatus.Text = "Error: Invalid preview data size";
+                    return;
+                }
+
+                // Create and display the bitmap from preview data
+                Bitmap bitmap = CreateBitmapFromBits(previewData, ImageWidth, ImageHeight);
                 pictureBox.Image?.Dispose();
                 pictureBox.Image = bitmap;
 
-                lblStatus.Text = $"Image created: {width}x{height} pixels from {data.Length} bytes (7 bits/byte)";
+                lblStatus.Text = $"Preview loaded: {ImageWidth}x{ImageHeight} pixels ({previewData.Length} bytes)";
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error creating image: {ex.Message}", "Error",
+                MessageBox.Show($"Error loading preview: {ex.Message}", "Error",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
                 lblStatus.Text = "Error";
             }
-        }
-
-        private byte[] ParseHexData(string hexData)
-        {
-            // Remove common separators and whitespace
-            string cleaned = Regex.Replace(hexData, @"[\s,:\-]", "");
-
-            // Check if it's valid hex
-            if (!Regex.IsMatch(cleaned, @"^[0-9A-Fa-f]*$"))
+            finally
             {
-                return null;
+                btnLoad.Enabled = true;
             }
-
-            // Ensure even length (each byte needs 2 hex chars)
-            if (cleaned.Length % 2 != 0)
-            {
-                cleaned = "0" + cleaned; // Pad with leading zero
-            }
-
-            // Convert to bytes
-            List<byte> bytes = new List<byte>();
-            for (int i = 0; i < cleaned.Length; i += 2)
-            {
-                string byteStr = cleaned.Substring(i, 2);
-                bytes.Add(Convert.ToByte(byteStr, 16));
-            }
-
-            return bytes.ToArray();
         }
 
         private Bitmap CreateBitmapFromBits(byte[] data, int width, int height)
@@ -135,7 +113,7 @@ namespace SerialComm
                         int byteIndex = bitIndex / 8; // 8 bits per byte
                         int bitPosition = 7 - (bitIndex % 8); // Use bits 7-0
 
-                        // Extract the bit value from the lower 7 bits
+                        // Extract the bit value
                         bool bitValue = (data[byteIndex] & (1 << bitPosition)) != 0;
 
                         // Only set pixel if it should be black (bit value is 1)
@@ -154,7 +132,8 @@ namespace SerialComm
                 }
                 
                 // If we've processed all bits, no need to continue with remaining rows
-                if (bitIndex >= totalBits) break;
+                if (bitIndex >= totalBits)
+                    break;
             }
 
             return bitmap;

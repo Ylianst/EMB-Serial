@@ -1091,8 +1091,15 @@ namespace SerialComm
 
         private void imageViewerToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            // Image Viewer doesn't require a connection - create and show the window
-            ImageViewer imageViewer = new ImageViewer();
+            if (_serialStack == null || !_isConnected)
+            {
+                MessageBox.Show("Not connected to machine.", "Error",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            // Create and show the Image Viewer with the current serial stack connection
+            ImageViewer imageViewer = new ImageViewer(_serialStack);
             imageViewer.Show();
         }
 

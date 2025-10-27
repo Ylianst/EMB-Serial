@@ -15,106 +15,90 @@ namespace SerialComm
         /// </summary>
         private void InitializeComponent()
         {
-            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(ImageViewer));
             panel1 = new Panel();
-            btnConvert = new Button();
-            txtWidth = new TextBox();
-            trackBarWidth = new TrackBar();
-            lblWidth = new Label();
-            txtHexData = new TextBox();
-            lblHexData = new Label();
+            btnLoad = new Button();
+            cmbStorageLocation = new ComboBox();
+            lblStorageLocation = new Label();
+            txtFileId = new TextBox();
+            lblFileId = new Label();
             pictureBox = new PictureBox();
             statusStrip = new StatusStrip();
             lblStatus = new ToolStripStatusLabel();
             panel1.SuspendLayout();
-            ((System.ComponentModel.ISupportInitialize)trackBarWidth).BeginInit();
             ((System.ComponentModel.ISupportInitialize)pictureBox).BeginInit();
             statusStrip.SuspendLayout();
             SuspendLayout();
             // 
             // panel1
             // 
-            panel1.Controls.Add(btnConvert);
-            panel1.Controls.Add(txtWidth);
-            panel1.Controls.Add(trackBarWidth);
-            panel1.Controls.Add(lblWidth);
-            panel1.Controls.Add(txtHexData);
-            panel1.Controls.Add(lblHexData);
+            panel1.Controls.Add(btnLoad);
+            panel1.Controls.Add(cmbStorageLocation);
+            panel1.Controls.Add(lblStorageLocation);
+            panel1.Controls.Add(txtFileId);
+            panel1.Controls.Add(lblFileId);
             panel1.Dock = DockStyle.Top;
             panel1.Location = new Point(0, 0);
             panel1.Name = "panel1";
-            panel1.Size = new Size(384, 120);
+            panel1.Size = new Size(384, 80);
             panel1.TabIndex = 0;
             // 
-            // btnConvert
+            // btnLoad
             // 
-            btnConvert.Location = new Point(12, 82);
-            btnConvert.Name = "btnConvert";
-            btnConvert.Size = new Size(110, 29);
-            btnConvert.TabIndex = 4;
-            btnConvert.Text = "Convert";
-            btnConvert.UseVisualStyleBackColor = true;
-            btnConvert.Click += btnConvert_Click;
+            btnLoad.Location = new Point(12, 46);
+            btnLoad.Name = "btnLoad";
+            btnLoad.Size = new Size(110, 29);
+            btnLoad.TabIndex = 4;
+            btnLoad.Text = "Load";
+            btnLoad.UseVisualStyleBackColor = true;
+            btnLoad.Click += btnLoad_Click;
             // 
-            // txtWidth
+            // cmbStorageLocation
             // 
-            txtWidth.Location = new Point(322, 83);
-            txtWidth.MaxLength = 3;
-            txtWidth.Name = "txtWidth";
-            txtWidth.ReadOnly = true;
-            txtWidth.Size = new Size(50, 27);
-            txtWidth.TabIndex = 3;
-            txtWidth.Text = "72";
-            txtWidth.TextAlign = HorizontalAlignment.Center;
+            cmbStorageLocation.DropDownStyle = ComboBoxStyle.DropDownList;
+            cmbStorageLocation.FormattingEnabled = true;
+            cmbStorageLocation.Items.AddRange(new object[] { "Memory", "PC Card" });
+            cmbStorageLocation.Location = new Point(240, 46);
+            cmbStorageLocation.Name = "cmbStorageLocation";
+            cmbStorageLocation.Size = new Size(132, 28);
+            cmbStorageLocation.TabIndex = 3;
+            cmbStorageLocation.SelectedIndex = 0;
             // 
-            // trackBarWidth
+            // lblStorageLocation
             // 
-            trackBarWidth.Location = new Point(227, 78);
-            trackBarWidth.Maximum = 512;
-            trackBarWidth.Minimum = 1;
-            trackBarWidth.Name = "trackBarWidth";
-            trackBarWidth.Size = new Size(89, 56);
-            trackBarWidth.TabIndex = 5;
-            trackBarWidth.Value = 72;
-            trackBarWidth.Scroll += trackBarWidth_Scroll;
+            lblStorageLocation.AutoSize = true;
+            lblStorageLocation.Location = new Point(240, 15);
+            lblStorageLocation.Name = "lblStorageLocation";
+            lblStorageLocation.Size = new Size(119, 20);
+            lblStorageLocation.TabIndex = 2;
+            lblStorageLocation.Text = "Storage Location:";
             // 
-            // lblWidth
+            // txtFileId
             // 
-            lblWidth.AutoSize = true;
-            lblWidth.Location = new Point(128, 86);
-            lblWidth.Name = "lblWidth";
-            lblWidth.Size = new Size(98, 20);
-            lblWidth.TabIndex = 2;
-            lblWidth.Text = "Width (pixel):";
+            txtFileId.Location = new Point(111, 46);
+            txtFileId.MaxLength = 5;
+            txtFileId.Name = "txtFileId";
+            txtFileId.Size = new Size(110, 27);
+            txtFileId.TabIndex = 1;
+            txtFileId.Text = "0";
+            txtFileId.TextAlign = HorizontalAlignment.Center;
             // 
-            // txtHexData
+            // lblFileId
             // 
-            txtHexData.Location = new Point(111, 12);
-            txtHexData.Multiline = true;
-            txtHexData.Name = "txtHexData";
-            txtHexData.PlaceholderText = "Paste HEX data here";
-            txtHexData.ScrollBars = ScrollBars.Vertical;
-            txtHexData.Size = new Size(261, 60);
-            txtHexData.TabIndex = 1;
-            txtHexData.Text = resources.GetString("txtHexData.Text");
-            // 
-            // lblHexData
-            // 
-            lblHexData.AutoSize = true;
-            lblHexData.Location = new Point(12, 15);
-            lblHexData.Name = "lblHexData";
-            lblHexData.Size = new Size(76, 20);
-            lblHexData.TabIndex = 0;
-            lblHexData.Text = "HEX Data:";
+            lblFileId.AutoSize = true;
+            lblFileId.Location = new Point(12, 15);
+            lblFileId.Name = "lblFileId";
+            lblFileId.Size = new Size(59, 20);
+            lblFileId.TabIndex = 0;
+            lblFileId.Text = "File ID:";
             // 
             // pictureBox
             // 
             pictureBox.BackColor = Color.White;
             pictureBox.BorderStyle = BorderStyle.FixedSingle;
             pictureBox.Dock = DockStyle.Fill;
-            pictureBox.Location = new Point(0, 120);
+            pictureBox.Location = new Point(0, 80);
             pictureBox.Name = "pictureBox";
-            pictureBox.Size = new Size(384, 304);
+            pictureBox.Size = new Size(384, 344);
             pictureBox.SizeMode = PictureBoxSizeMode.Zoom;
             pictureBox.TabIndex = 1;
             pictureBox.TabStop = false;
@@ -149,7 +133,6 @@ namespace SerialComm
             Text = "Image Viewer";
             panel1.ResumeLayout(false);
             panel1.PerformLayout();
-            ((System.ComponentModel.ISupportInitialize)trackBarWidth).EndInit();
             ((System.ComponentModel.ISupportInitialize)pictureBox).EndInit();
             statusStrip.ResumeLayout(false);
             statusStrip.PerformLayout();
@@ -160,12 +143,11 @@ namespace SerialComm
         #endregion
 
         private Panel panel1;
-        private Label lblHexData;
-        private TextBox txtHexData;
-        private Label lblWidth;
-        private TextBox txtWidth;
-        private TrackBar trackBarWidth;
-        private Button btnConvert;
+        private Label lblFileId;
+        private TextBox txtFileId;
+        private Label lblStorageLocation;
+        private ComboBox cmbStorageLocation;
+        private Button btnLoad;
         private PictureBox pictureBox;
         private StatusStrip statusStrip;
         private ToolStripStatusLabel lblStatus;

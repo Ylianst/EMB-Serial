@@ -2672,6 +2672,192 @@ namespace Bernina.SerialStack
             }
         }
 
+        /// <summary>
+        /// Reads the embroidery file preview image from the specified storage location.
+        /// Returns a 72x64 pixel black & white bitmap image (558 bytes, 0x22E bytes).
+        /// </summary>
+        /// <param name="location">Storage location to read from</param>
+        /// <param name="FileId">The file ID (0-based) to get the preview for</param>
+        /// <returns>Byte array containing the preview image data (558 bytes), or null if operation fails</returns>
+        public async Task<byte[]?> ReadEmbroideryFilePreviewAsync(StorageLocation location, int FileId)
+        {
+            RaiseDebugMessage($"ReadEmbroideryFilePreview: Starting read for FileId {FileId} from {location}");
+            
+            // Step 1: Check connection
+            if (State != ConnectionState.Connected)
+            {
+                RaiseDebugMessage("ReadEmbroideryFilePreview: Not connected");
+                return null;
+            }
+
+            try
+            {
+                // Step 2: Ensure we're in Embroidery Mode
+                RaiseDebugMessage("ReadEmbroideryFilePreview: Checking current session mode");
+                var currentMode = await GetCurrentSessionModeAsync();
+                if (currentMode == null)
+                {
+                    RaiseDebugMessage("ReadEmbroideryFilePreview: Failed to get session mode");
+                    return null;
+                }
+                RaiseDebugMessage($"ReadEmbroideryFilePreview: Current mode is {currentMode}");
+
+                // If in Sewing Machine mode, start embroidery session
+                if (currentMode == SessionMode.SewingMachine)
+                {
+                    RaiseDebugMessage("ReadEmbroideryFilePreview: In Sewing Machine mode, starting embroidery session");
+                    var sessionStartResult = await SessionStartAsync();
+                    if (!sessionStartResult.Success)
+                    {
+                        RaiseDebugMessage($"ReadEmbroideryFilePreview: Session start failed: {sessionStartResult.ErrorMessage}");
+                        return null;
+                    }
+                    RaiseDebugMessage("ReadEmbroideryFilePreview: Session start successful");
+                }
+                else
+                {
+                    RaiseDebugMessage("ReadEmbroideryFilePreview: Already in Embroidery Module mode");
+                }
+
+                // Step 3: Check PC Card if reading from PC Card
+                if (location == StorageLocation.PCCard)
+                {
+                    RaiseDebugMessage("ReadEmbroideryFilePreview: Checking PC card status");
+                    var pcCardReadResult = await ReadAsync(0xFFFED9);
+                    
+                    if (pcCardReadResult.Success && pcCardReadResult.BinaryData != null && pcCardReadResult.BinaryData.Length > 0)
+                    {
+                        bool pcCardInserted = (pcCardReadResult.BinaryData[0] & 0x01) == 0x01;
+                        RaiseDebugMessage($"ReadEmbroideryFilePreview: PC card inserted: {pcCardInserted}");
+                        if (!pcCardInserted)
+                        {
+                            RaiseDebugMessage("ReadEmbroideryFilePreview: No PC card present");
+                            return null;
+                        }
+                    }
+                    else
+                    {
+                        RaiseDebugMessage("ReadEmbroideryFilePreview: Failed to read PC card status");
+                        return null;
+                    }
+                }
+
+                // Step 4: Select storage source
+                ushort storageFunction = location == StorageLocation.EmbroideryModuleMemory ? (ushort)0x00A1 : (ushort)0x0051;
+                RaiseDebugMessage($"ReadEmbroideryFilePreview: Selecting storage source with function 0x{storageFunction:X4}");
+                var selectStorageResult = await InvokeFunctionAsync(storageFunction);
+                if (!selectStorageResult.Success)
+                {
+                    RaiseDebugMessage($"ReadEmbroideryFilePreview: Failed to select storage source: {selectStorageResult.ErrorMessage}");
+                    return null;
+                }
+                RaiseDebugMessage("ReadEmbroideryFilePreview: Storage source selected successfully");
+
+                // Step 5: Initialize reading
+                RaiseDebugMessage("ReadEmbroideryFilePreview: Initializing file reading (function 0x0031 with args 0x01, 0x00)");
+                var setArg2Result = await SetArgument2Async(0x01);
+                if (!setArg2Result.Success)
+                {
+                    RaiseDebugMessage($"ReadEmbroideryFilePreview: Failed to set argument 2: {setArg2Result.ErrorMessage}");
+                    return null;
+                }
+
+                var setArg1Result = await SetArgument1Async(0x00);
+                if (!setArg1Result.Success)
+                {
+                    RaiseDebugMessage($"ReadEmbroideryFilePreview: Failed to set argument 1: {setArg1Result.ErrorMessage}");
+                    return null;
+                }
+
+                var invokeFunc31Result = await InvokeFunctionAsync(0x0031);
+                if (!invokeFunc31Result.Success)
+                {
+                    RaiseDebugMessage($"ReadEmbroideryFilePreview: Failed to invoke function 0x0031: {invokeFunc31Result.ErrorMessage}");
+                    return null;
+                }
+                RaiseDebugMessage("ReadEmbroideryFilePreview: Function 0x0031 invoked successfully");
+
+                RaiseDebugMessage("ReadEmbroideryFilePreview: Invoking function 0x0021");
+                var invokeFunc21Result = await InvokeFunctionAsync(0x0021);
+                if (!invokeFunc21Result.Success)
+                {
+                    RaiseDebugMessage($"ReadEmbroideryFilePreview: Failed to invoke function 0x0021: {invokeFunc21Result.ErrorMessage}");
+                    return null;
+                }
+                RaiseDebugMessage("ReadEmbroideryFilePreview: Function 0x0021 invoked successfully");
+
+                // Step 6: Read file count and validate FileId
+                RaiseDebugMessage("ReadEmbroideryFilePreview: Reading file count from 0x024080");
+                var fileCountResult = await ReadAsync(0x024080);
+                if (!fileCountResult.Success || fileCountResult.BinaryData == null || fileCountResult.BinaryData.Length == 0)
+                {
+                    RaiseDebugMessage("ReadEmbroideryFilePreview: Failed to read file count");
+                    return null;
+                }
+
+                int totalFileCount = fileCountResult.BinaryData[0];
+                RaiseDebugMessage($"ReadEmbroideryFilePreview: Total file count: {totalFileCount}");
+
+                // Validate FileId is within range
+                if (FileId < 0 || FileId >= totalFileCount)
+                {
+                    RaiseDebugMessage($"ReadEmbroideryFilePreview: FileId {FileId} is out of range [0, {totalFileCount - 1}]");
+                    return null;
+                }
+                RaiseDebugMessage($"ReadEmbroideryFilePreview: FileId {FileId} is valid");
+
+                // Step 7: Set initial page (required by protocol, even though we won't use the page data)
+                RaiseDebugMessage("ReadEmbroideryFilePreview: Setting initial page to 0");
+                var setPageResult = await SetArgument1Async(0);
+                if (!setPageResult.Success)
+                {
+                    RaiseDebugMessage($"ReadEmbroideryFilePreview: Failed to set initial page: {setPageResult.ErrorMessage}");
+                    return null;
+                }
+
+                // Step 8: Compute preview image location and read preview data
+                int previewAddress = 0x02452E + (0x22E * FileId);
+                RaiseDebugMessage($"ReadEmbroideryFilePreview: Computing preview address - base: 0x02452E0, offset: 0x{(0x22E * FileId):X}, address: 0x{previewAddress:X}");
+
+                const int previewSize = 0x22E; // 558 bytes
+                RaiseDebugMessage($"ReadEmbroideryFilePreview: Reading {previewSize} bytes from 0x{previewAddress:X}");
+                
+                var previewResult = await ReadMemoryBlockCheckedAsync(previewAddress, previewSize);
+                if (!previewResult.Success || previewResult.BinaryData == null)
+                {
+                    RaiseDebugMessage($"ReadEmbroideryFilePreview: Failed to read preview data: {previewResult.ErrorMessage}");
+                    return null;
+                }
+                RaiseDebugMessage($"ReadEmbroideryFilePreview: Successfully read {previewResult.BinaryData.Length} bytes of preview data");
+
+                // Step 9: Invoke function 0x0101 for cleanup
+                RaiseDebugMessage("ReadEmbroideryFilePreview: Invoking cleanup function 0x0101");
+                var invokeFunc101Result = await InvokeFunctionAsync(0x0101);
+                if (!invokeFunc101Result.Success)
+                {
+                    RaiseDebugMessage($"ReadEmbroideryFilePreview: Failed to invoke cleanup function 0x0101: {invokeFunc101Result.ErrorMessage}");
+                    return null;
+                }
+
+                // Step 10: Close embroidery session
+                RaiseDebugMessage("ReadEmbroideryFilePreview: Ending session");
+                var sessionEndResult = await SessionEndAsync();
+                if (!sessionEndResult.Success)
+                {
+                    RaiseDebugMessage($"ReadEmbroideryFilePreview: Session end failed: {sessionEndResult.ErrorMessage}");
+                    return null;
+                }
+
+                RaiseDebugMessage($"ReadEmbroideryFilePreview: Complete - returning {previewResult.BinaryData.Length} bytes of preview image data");
+                return previewResult.BinaryData;
+            }
+            catch (Exception ex)
+            {
+                RaiseDebugMessage($"ReadEmbroideryFilePreview: Exception occurred: {ex.Message}");
+                return null;
+            }
+        }
+
         public void Dispose()
         {
             Close();
