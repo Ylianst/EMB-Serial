@@ -79,6 +79,7 @@ namespace SerialComm
             try
             {
                 // Read memory block
+                //var result = await _serialStack.ReadMemoryBlockCheckedAsync(address, length, (current, total) =>
                 var result = await _serialStack.ReadMemoryBlockAsync(address, length, (current, total) =>
                 {
                     // Update progress on UI thread

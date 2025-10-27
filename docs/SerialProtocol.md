@@ -151,7 +151,7 @@ When first starting up, the embroidery software will issue a R57FF80 to see if a
 
 Also note that when changing baud rates, you may also be switching modes at the same time. For example, when you switch from 19200 bauds to 57600 bauds you may also at the same time be opening a embroidery module session. So, you should call "R57FF80" to make sure what mode you are in.
 
-If you move into embroidery mode and read all 0xFF, the embroidery module was not initialized.
+If you move into embroidery mode and read all 0xFF, the embroidery module was not initialized?
 ```
 R57FF80 --> FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF  (Session Open, No initialized)
 ```
@@ -201,6 +201,17 @@ N200100 --> "NMMV03.01·English     ·Bernina Electronic  AG  ·July 98"
 ```
 
 The software uses the R200100 command to read firmware version.
+
+## Detecting the PC Card
+
+The embroidery module has a PC card slot. Then a embroidery session is enabled, You can check if the PC card is inserted or not by reading the memory at location 0xFFFED9. The fist byte will be 0x82 = No PC Card oe 0x83 = Yes, card present. Here are sample memory dumps:
+
+```
+RFFFED9 --> 8300330000000000000000000000000200000100000000000000000000000000  <- PC Card Present
+            8200000000000000000000000000000200000100000000000000000000000000  <- No PC Card
+```
+
+It's possible the the least significant bit of the first byte indicates a PC card in inserted. Obviously, if the session is currently open to the sewing machine, other data will be present there that is not relevent.
 
 ## Inserting and Removing a PC Card
 

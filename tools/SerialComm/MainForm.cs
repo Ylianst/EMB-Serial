@@ -10,6 +10,7 @@ namespace SerialComm
         private SerialStack? _serialStack;
         private bool _isConnected = false;
         private bool _showSerialTraffic = false;
+        private bool _showDebug = false;
         private string? _selectedComPort = null;
         private bool _autoSwitchTo57600 = false;
         private const string RegistryKeyPath = @"Software\BerninaSerialComm";
@@ -226,6 +227,7 @@ namespace SerialComm
                 _serialStack.ConnectionStateChanged += OnConnectionStateChanged;
                 _serialStack.CommandCompleted += OnCommandCompleted;
                 _serialStack.SerialTraffic += OnSerialTraffic;
+                _serialStack.DebugMessage += OnDebugMessage;
 
                 // Try to connect
                 bool connected = await _serialStack.OpenAsync();
@@ -249,6 +251,7 @@ namespace SerialComm
                     sessionEndToolStripMenuItem.Enabled = true;
                     protocolResetToolStripMenuItem.Enabled = true;
                     firmwareInfoToolStripMenuItem.Enabled = true;
+                    readEmbroideryFilesToolStripMenuItem.Enabled = true;
                     readToolStripMenuItem.Enabled = true;
                     largeReadToolStripMenuItem.Enabled = true;
                     writeToolStripMenuItem.Enabled = true;
@@ -344,6 +347,7 @@ namespace SerialComm
             sessionEndToolStripMenuItem.Enabled = false;
             protocolResetToolStripMenuItem.Enabled = false;
             firmwareInfoToolStripMenuItem.Enabled = false;
+            readEmbroideryFilesToolStripMenuItem.Enabled = false;
             readToolStripMenuItem.Enabled = false;
             largeReadToolStripMenuItem.Enabled = false;
             writeToolStripMenuItem.Enabled = false;
@@ -807,6 +811,14 @@ namespace SerialComm
                 
                 AppendOutput($"  Manufacturer: {firmwareInfo.Manufacturer}");
                 AppendOutput($"  Date: {firmwareInfo.Date}");
+                
+                // Only display PC card status in Embroidery Module mode
+                if (firmwareInfo.Mode == Bernina.SerialStack.SessionMode.EmbroideryModule)
+                {
+                    string pcCardStatus = firmwareInfo.PcCardInserted ? "Yes" : "No";
+                    AppendOutput($"  PC Card Inserted: {pcCardStatus}");
+                }
+                
                 UpdateStatus("Firmware Info complete");
             }
             else
@@ -818,6 +830,80 @@ namespace SerialComm
             }
 
             AppendOutput("");
+        }
+
+        private async Task PerformReadEmbroideryFilesAsync()
+        {
+            if (_serialStack == null || !_isConnected)
+            {
+                MessageBox.Show("Not connected to machine.", "Error",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            UpdateStatus("Reading embroidery files from internal memory...");
+            AppendOutput("Read Embroidery Files: Reading from Embroidery Module Memory");
+
+            // Read files from Embroidery Module Memory
+            var files = await _serialStack.ReadEmbroideryFilesAsync(Bernina.SerialStack.StorageLocation.EmbroideryModuleMemory);
+
+            if (files != null)
+            {
+                AppendOutput($"Read Embroidery Files successful: Found {files.Count} file(s)");
+                AppendOutput("");
+
+                if (files.Count > 0)
+                {
+                    // Display file list
+                    AppendOutput("File List:");
+                    AppendOutput("  ID  | Attributes | File Name");
+                    AppendOutput("  ----|------------|----------------------------------");
+
+                    foreach (var file in files)
+                    {
+                        // Decode file attributes
+                        string attrDesc = DecodeFileAttributes(file.FileAttributes);
+                        
+                        AppendOutput($"  {file.FileId,3} | 0x{file.FileAttributes:X2} ({attrDesc,4}) | {file.FileName}");
+                    }
+                }
+                else
+                {
+                    AppendOutput("  (No files found)");
+                }
+
+                UpdateStatus("Read Embroidery Files complete");
+            }
+            else
+            {
+                AppendOutput("Read Embroidery Files failed: Unable to read file list");
+                UpdateStatus("Read Embroidery Files failed");
+                MessageBox.Show("Failed to read embroidery files from the machine.", "Command Error",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+
+            AppendOutput("");
+        }
+
+        private string DecodeFileAttributes(byte attributes)
+        {
+            // Decode file attributes based on documentation
+            // 0xAC (10101100) = 2 block, Readonly, Alphabet
+            // 0xA4 (10100100) = 1 block, Readonly
+            // 0x86 (10000110) = 1 block, Memory
+            
+            bool isReadonly = (attributes & 0x80) != 0;  // Bit 7
+            bool isTwoBlock = (attributes & 0x08) != 0;  // Bit 3
+            bool isAlphabet = (attributes & 0x04) != 0;  // Bit 2
+            
+            if (isReadonly && isTwoBlock && isAlphabet)
+                return "R2A";  // Readonly, 2 block, Alphabet
+            else if (isReadonly && !isTwoBlock)
+                return "RO";   // Readonly
+            else if (!isReadonly)
+                return "RW";   // Read/Write (Memory)
+            else
+                return "??";   // Unknown
         }
 
         private async void btnSwitchBaud_Click(object sender, EventArgs e)
@@ -954,6 +1040,11 @@ namespace SerialComm
             _ = PerformFirmwareInfoAsync();
         }
 
+        private void readEmbroideryFilesToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            _ = PerformReadEmbroideryFilesAsync();
+        }
+
         private void switchTo19200BaudToolStripMenuItem_Click(object sender, EventArgs e)
         {
             _ = SwitchTo19200BaudAsync();
@@ -1045,6 +1136,23 @@ namespace SerialComm
             }
         }
 
+        private void showDebugToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            _showDebug = showDebugToolStripMenuItem.Checked;
+
+            if (_showDebug)
+            {
+                AppendOutput("--- Debug mode ENABLED ---");
+                AppendOutput("SerialStack debug messages will be displayed");
+                AppendOutput("");
+            }
+            else
+            {
+                AppendOutput("--- Debug mode DISABLED ---");
+                AppendOutput("");
+            }
+        }
+
         // Event handlers
         private void OnConnectionStateChanged(object? sender, ConnectionStateChangedEventArgs e)
         {
@@ -1079,6 +1187,21 @@ namespace SerialComm
             // Display serial traffic if debug mode is enabled
             string direction = e.IsSent ? "TX" : "RX";
             AppendSerialTraffic(direction, e.Data);
+        }
+
+        private void OnDebugMessage(object? sender, DebugMessageEventArgs e)
+        {
+            if (InvokeRequired)
+            {
+                Invoke(new Action(() => OnDebugMessage(sender, e)));
+                return;
+            }
+
+            // Display debug message if debug mode is enabled
+            if (_showDebug)
+            {
+                txtOutput.AppendText($"[{e.Timestamp:HH:mm:ss.fff}] [DEBUG] {e.Message}\r\n");
+            }
         }
 
         // Helper methods

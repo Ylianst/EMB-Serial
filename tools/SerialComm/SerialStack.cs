@@ -28,6 +28,15 @@ namespace Bernina.SerialStack
     }
 
     /// <summary>
+    /// Storage location for embroidery files
+    /// </summary>
+    public enum StorageLocation
+    {
+        EmbroideryModuleMemory,
+        PCCard
+    }
+
+    /// <summary>
     /// Event arguments for connection state changes
     /// </summary>
     public class ConnectionStateChangedEventArgs : EventArgs
@@ -55,6 +64,15 @@ namespace Bernina.SerialStack
     {
         public bool IsSent { get; set; }
         public byte[] Data { get; set; } = Array.Empty<byte>();
+    }
+
+    /// <summary>
+    /// Event arguments for debug messages
+    /// </summary>
+    public class DebugMessageEventArgs : EventArgs
+    {
+        public string Message { get; set; } = "";
+        public DateTime Timestamp { get; set; } = DateTime.Now;
     }
 
     /// <summary>
@@ -88,6 +106,19 @@ namespace Bernina.SerialStack
         public string? Language { get; set; } = "";
         public string Manufacturer { get; set; } = "";
         public string Date { get; set; } = "";
+        public bool PcCardInserted { get; set; }
+    }
+
+    /// <summary>
+    /// Represents an embroidery file stored in the machine
+    /// </summary>
+    public class EmbroideryFile
+    {
+        public int FileId { get; set; }
+        public string FileName { get; set; } = "";
+        public byte FileAttributes { get; set; }
+        public byte[]? PreviewImageData { get; set; } = null;
+        public byte[]? FileData { get; set; } = null;
     }
 
     /// <summary>
@@ -105,6 +136,9 @@ namespace Bernina.SerialStack
         private QueuedCommand? _currentCommand;
         private readonly SemaphoreSlim _commandSemaphore = new(1, 1);
         private readonly object _stateLock = new();
+        private readonly object _currentCommandLock = new();
+        private volatile bool _transmissionComplete = false;
+        private volatile bool _commandInProgress = false;
         
         // Response parsing
         private StringBuilder _responseBuffer = new();
@@ -138,6 +172,11 @@ namespace Bernina.SerialStack
         /// Event raised when serial traffic occurs (for debugging)
         /// </summary>
         public event EventHandler<SerialTrafficEventArgs>? SerialTraffic;
+
+        /// <summary>
+        /// Event raised when debug messages are generated
+        /// </summary>
+        public event EventHandler<DebugMessageEventArgs>? DebugMessage;
 
         /// <summary>
         /// Gets the current connection state
@@ -397,6 +436,107 @@ namespace Bernina.SerialStack
 
             string command = $"W{address:X6}{hexData}?";
             return await EnqueueCommandAsync(command);
+        }
+
+        /// <summary>
+        /// Reads a block of memory and verifies it with a checksum comparison.
+        /// First reads the data using ReadMemoryBlockAsync, then computes a local checksum.
+        /// Then calls SumCommandAsync to get the remote checksum from the machine.
+        /// Compares both checksums to verify data integrity.
+        /// </summary>
+        /// <param name="address">The starting address to read from</param>
+        /// <param name="length">The number of bytes to read</param>
+        /// <param name="progress">Optional progress callback (current bytes read, total bytes)</param>
+        /// <returns>CommandResult with the verified data in BinaryData property, or error if checksums don't match</returns>
+        public async Task<CommandResult> ReadMemoryBlockCheckedAsync(int address, int length, Action<int, int>? progress = null)
+        {
+            if (length <= 0)
+            {
+                return new CommandResult
+                {
+                    Success = false,
+                    ErrorMessage = "Length must be greater than 0"
+                };
+            }
+
+            if (State != ConnectionState.Connected)
+            {
+                return new CommandResult
+                {
+                    Success = false,
+                    ErrorMessage = "Not connected"
+                };
+            }
+
+            try
+            {
+                // Step 1: Read the memory block
+                var readResult = await ReadMemoryBlockAsync(address, length, progress);
+                
+                if (!readResult.Success || readResult.BinaryData == null)
+                {
+                    return new CommandResult
+                    {
+                        Success = false,
+                        ErrorMessage = $"Failed to read memory block: {readResult.ErrorMessage}"
+                    };
+                }
+
+                // Step 2: Calculate local checksum (sum of all bytes)
+                long localSum = 0;
+                foreach (byte b in readResult.BinaryData)
+                {
+                    localSum += b;
+                }
+
+                // Step 3: Get remote checksum from machine
+                var sumResult = await SumCommandAsync(address, length);
+                
+                if (!sumResult.Success || string.IsNullOrEmpty(sumResult.Response))
+                {
+                    return new CommandResult
+                    {
+                        Success = false,
+                        ErrorMessage = $"Failed to get remote checksum: {sumResult.ErrorMessage}"
+                    };
+                }
+
+                // Step 4: Parse remote checksum (hex string)
+                if (!long.TryParse(sumResult.Response, System.Globalization.NumberStyles.HexNumber, null, out long remoteSum))
+                {
+                    return new CommandResult
+                    {
+                        Success = false,
+                        ErrorMessage = $"Failed to parse remote checksum: {sumResult.Response}"
+                    };
+                }
+
+                // Step 5: Compare checksums
+                if (localSum != remoteSum)
+                {
+                    return new CommandResult
+                    {
+                        Success = false,
+                        ErrorMessage = $"Checksum mismatch! Local: 0x{localSum:X}, Remote: 0x{remoteSum:X}"
+                    };
+                }
+
+                // Success - checksums match
+                return new CommandResult
+                {
+                    Success = true,
+                    BinaryData = readResult.BinaryData,
+                    Response = $"Read and verified {length} bytes from 0x{address:X6} (Checksum: 0x{localSum:X})"
+                };
+            }
+            catch (Exception ex)
+            {
+                return new CommandResult
+                {
+                    Success = false,
+                    ErrorMessage = $"Memory block checked read error: {ex.Message}"
+                };
+            }
         }
 
         /// <summary>
@@ -1120,10 +1260,24 @@ namespace Bernina.SerialStack
                             _responseBuffer.Append(c);
                             
                             // Check if we have a complete response after each character
-                            if (_currentCommand != null)
+                            // Only check after transmission is complete to avoid race condition
+                            // Use lock to safely access _currentCommand
+                            bool shouldCheckCompletion = false;
+                            string? commandToCheck = null;
+                            
+                            lock (_currentCommandLock)
+                            {
+                                if (_currentCommand != null && _transmissionComplete)
+                                {
+                                    shouldCheckCompletion = true;
+                                    commandToCheck = _currentCommand.Command;
+                                }
+                            }
+                            
+                            if (shouldCheckCompletion && commandToCheck != null)
                             {
                                 string currentResponse = _responseBuffer.ToString();
-                                if (IsResponseComplete(_currentCommand.Command, currentResponse))
+                                if (IsResponseComplete(commandToCheck, currentResponse))
                                 {
                                     // Complete the command immediately
                                     CompleteCurrentCommand(currentResponse);
@@ -1270,76 +1424,103 @@ namespace Bernina.SerialStack
 
         private bool IsResponseComplete(string command, string response)
         {
+            // Debug: Log the call to IsResponseComplete
+            //($"IsResponseComplete: Command='{command}' (len={command.Length}), Response='{response}' (len={response.Length})");
+            
             if (string.IsNullOrEmpty(response))
             {
+                //RaiseDebugMessage("IsResponseComplete: Response is null or empty, returning false");
                 return false;
             }
 
             // Check for error responses
             if (response == "Q" || response == "?" || response == "!")
             {
+                //RaiseDebugMessage($"IsResponseComplete: Error response detected: '{response}', returning true");
                 return true;
             }
 
             // For Read commands (R + 6 hex) - expect command echo + 64 hex chars + O
+            // Must be EXACT length to avoid false completion with trailing data
             if (command.StartsWith("R") && command.Length == 7)
             {
-                int expectedLength = command.Length + 64 + 1;
-                return response.Length >= expectedLength && response.EndsWith("O");
+                int expectedLength = command.Length + 64 + 1; // Command (7) + Data (64) + 'O' (1) = 72
+                bool isComplete = response.Length == expectedLength && response.EndsWith("O");
+                //RaiseDebugMessage($"IsResponseComplete: Read command - expected={expectedLength}, actual={response.Length}, endsWithO={response.EndsWith("O")}, result={isComplete}");
+                return isComplete;
             }
 
             // For Large Read commands (N + 6 hex) - expect command echo + 256 raw bytes + O
+            // Must be EXACT length to avoid false completion with trailing data
             if (command.StartsWith("N") && command.Length == 7)
             {
-                int expectedLength = command.Length + 256 + 1;
-                return response.Length >= expectedLength && response.EndsWith("O");
+                int expectedLength = command.Length + 256 + 1; // Command (7) + Data (256) + 'O' (1) = 264
+                bool isComplete = response.Length == expectedLength && response.EndsWith("O");
+                //RaiseDebugMessage($"IsResponseComplete: Large Read command - expected={expectedLength}, actual={response.Length}, endsWithO={response.EndsWith("O")}, result={isComplete}");
+                return isComplete;
             }
 
             // For Upload commands (PS + 4 hex) - expect command echo + "OE"
             if (command.StartsWith("PS") && command.Length == 6)
             {
                 int expectedLength = command.Length + 2; // Command echo + "OE"
-                return response.Length >= expectedLength && response.Contains("OE");
+                bool isComplete = response.Length >= expectedLength && response.Contains("OE");
+                //RaiseDebugMessage($"IsResponseComplete: Upload command - expected>={expectedLength}, actual={response.Length}, containsOE={response.Contains("OE")}, result={isComplete}");
+                return isComplete;
             }
 
-            // For Write commands - just echo
-            if (command.StartsWith("W") && command.Contains("?"))
+            // For Write commands (W + 6 hex + data + ?) - just need full echo, no additional confirmation
+            // The Write command has no response beyond echoing the entire command including the '?'
+            // Must be EXACT length to avoid waiting for more data
+            if (command.StartsWith("W") && command.EndsWith("?"))
             {
-                return response.Length >= command.Length;
+                bool isComplete = string.Compare(response, command) == 0;
+                //RaiseDebugMessage($"IsResponseComplete: Write command - exact match={isComplete}, result={isComplete}");
+                return isComplete;
             }
 
             // For L commands - variable length ending in O
             if (command.StartsWith("L"))
             {
-                return response.Length > command.Length && response.EndsWith("O");
+                bool isComplete = response.Length > command.Length && response.EndsWith("O");
+                //RaiseDebugMessage($"IsResponseComplete: L command - len>{command.Length}={response.Length > command.Length}, endsWithO={response.EndsWith("O")}, result={isComplete}");
+                return isComplete;
             }
 
             // For other commands - just echo
-            return response.Length >= command.Length;
+            bool defaultComplete = response.Length >= command.Length;
+            //RaiseDebugMessage($"IsResponseComplete: Other command - len>={command.Length}, result={defaultComplete}");
+            return defaultComplete;
         }
 
         private void CompleteCurrentCommand(string response)
         {
-            if (_currentCommand == null)
+            lock (_currentCommandLock)
             {
-                return;
+                if (_currentCommand == null)
+                {
+                    return;
+                }
+
+                var command = _currentCommand.Command;
+                var result = ParseResponse(command, response);
+
+                _currentCommand.CompletionSource.TrySetResult(result);
+                
+                // Raise event
+                CommandCompleted?.Invoke(this, new CommandCompletedEventArgs
+                {
+                    Command = command,
+                    Success = result.Success,
+                    Response = result.Response,
+                    ErrorMessage = result.ErrorMessage
+                });
+
+                // Clear command state atomically
+                _currentCommand = null;
+                _commandInProgress = false;
+                _transmissionComplete = false;
             }
-
-            var command = _currentCommand.Command;
-            var result = ParseResponse(command, response);
-
-            _currentCommand.CompletionSource.TrySetResult(result);
-            
-            // Raise event
-            CommandCompleted?.Invoke(this, new CommandCompletedEventArgs
-            {
-                Command = command,
-                Success = result.Success,
-                Response = result.Response,
-                ErrorMessage = result.ErrorMessage
-            });
-
-            _currentCommand = null;
         }
 
         private CommandResult ParseResponse(string command, string response)
@@ -1515,7 +1696,19 @@ namespace Bernina.SerialStack
                     Command = command,
                     EnqueuedTime = DateTime.Now
                 };
-                _currentCommand = phaseOneCommand;
+                
+                // Use atomic method to set current command
+                SetCurrentCommand(phaseOneCommand);
+                
+                // Check if command was rejected (already in progress)
+                if (_currentCommand != phaseOneCommand)
+                {
+                    return new CommandResult
+                    {
+                        Success = false,
+                        ErrorMessage = "Another command is already in progress"
+                    };
+                }
 
                 // Send PS command character by character
                 foreach (char c in command)
@@ -1528,7 +1721,7 @@ namespace Bernina.SerialStack
                 }
 
                 // Wait for "OE" response (command echo + "OE")
-                var timeoutTask = Task.Delay(2000);
+                var timeoutTask = Task.Delay(5000);
                 var completedTask = await Task.WhenAny(phaseOneCommand.CompletionSource.Task, timeoutTask);
 
                 if (completedTask == timeoutTask)
@@ -1655,8 +1848,19 @@ namespace Bernina.SerialStack
 
         private async Task ExecuteCommandAsync(QueuedCommand queuedCommand, CancellationToken cancellationToken)
         {
-            _currentCommand = queuedCommand;
-            _responseBuffer.Clear();
+            // Use atomic method to set current command
+            SetCurrentCommand(queuedCommand);
+            
+            // Check if command was rejected (already in progress)
+            if (_currentCommand != queuedCommand)
+            {
+                queuedCommand.CompletionSource.TrySetResult(new CommandResult
+                {
+                    Success = false,
+                    ErrorMessage = "Another command is already in progress"
+                });
+                return;
+            }
 
             try
             {
@@ -1695,8 +1899,26 @@ namespace Bernina.SerialStack
                     // Raise event for sent data
                     SerialTraffic?.Invoke(this, new SerialTrafficEventArgs { IsSent = true, Data = data });
                     
-                    // Wait a bit for echo
-                    await Task.Delay(20, cancellationToken);
+                    // Small delay between characters
+                    await Task.Delay(10, cancellationToken);
+                }
+
+                // CRITICAL: Mark transmission as complete BEFORE starting to wait
+                // This ensures that any data received while we're setting up the wait
+                // can be processed by IsResponseComplete
+                _transmissionComplete = true;
+                
+                // Give a tiny moment for any buffered data to be processed
+                await Task.Delay(5, cancellationToken);
+
+                // Check if response is already complete (data may have arrived during transmission)
+                string currentResponse = _responseBuffer.ToString();
+                if (!string.IsNullOrEmpty(currentResponse) && IsResponseComplete(queuedCommand.Command, currentResponse))
+                {
+                    RaiseDebugMessage($"ExecuteCommand: Response already complete after transmission: '{currentResponse}'");
+                    CompleteCurrentCommand(currentResponse);
+                    _responseBuffer.Clear();
+                    return;
                 }
 
                 // Wait for completion or timeout (using command-specific timeout)
@@ -1722,6 +1944,10 @@ namespace Bernina.SerialStack
                     Success = false,
                     ErrorMessage = $"Command execution error: {ex.Message}"
                 });
+            }
+            finally
+            {
+                _transmissionComplete = false; // Reset flag after command completes
             }
         }
 
@@ -1763,6 +1989,49 @@ namespace Bernina.SerialStack
                     Message = message
                 });
             }
+        }
+
+        /// <summary>
+        /// Atomically sets the current command and resets related state
+        /// </summary>
+        private void SetCurrentCommand(QueuedCommand? command)
+        {
+            lock (_currentCommandLock)
+            {
+                // Wait if a command is still in progress
+                if (_commandInProgress && command != null)
+                {
+                    // Don't set a new command while one is in progress
+                    return;
+                }
+                
+                _currentCommand = command;
+                if (command != null)
+                {
+                    _commandInProgress = true;
+                    _transmissionComplete = false;
+                    lock (_responseBuffer)
+                    {
+                        _responseBuffer.Clear();
+                    }
+                }
+                else
+                {
+                    _commandInProgress = false;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Raises a debug message event
+        /// </summary>
+        private void RaiseDebugMessage(string message)
+        {
+            DebugMessage?.Invoke(this, new DebugMessageEventArgs
+            {
+                Message = message,
+                Timestamp = DateTime.Now
+            });
         }
 
         /// <summary>
@@ -2016,6 +2285,22 @@ namespace Bernina.SerialStack
                 }
                 date = dateBuilder.ToString().Trim();
                 
+                // Check for PC card insertion (only in Embroidery Module mode)
+                bool pcCardInserted = false;
+                if (!isSewingMachineMode)
+                {
+                    // Read 0xFFFED9 to check PC card status
+                    var pcCardReadResult = await ReadAsync(0xFFFED9);
+                    
+                    if (pcCardReadResult.Success && pcCardReadResult.BinaryData != null && pcCardReadResult.BinaryData.Length > 0)
+                    {
+                        // Check the least significant bit of the first byte
+                        // 0x83 (bit 0 = 1) = PC card present
+                        // 0x82 (bit 0 = 0) = No PC card
+                        pcCardInserted = (pcCardReadResult.BinaryData[0] & 0x01) == 0x01;
+                    }
+                }
+                
                 // Return the parsed firmware info
                 return new FirmwareInfo
                 {
@@ -2023,7 +2308,8 @@ namespace Bernina.SerialStack
                     Version = version,
                     Language = language,
                     Manufacturer = manufacturer,
-                    Date = date
+                    Date = date,
+                    PcCardInserted = pcCardInserted
                 };
             }
             catch (Exception)
@@ -2140,6 +2426,249 @@ namespace Bernina.SerialStack
                     Success = false,
                     ErrorMessage = $"Function invocation error: {ex.Message}"
                 };
+            }
+        }
+
+        /// <summary>
+        /// Reads embroidery files from the specified storage location (Embroidery Module Memory or PC Card).
+        /// Returns a list of EmbroideryFile objects with FileId, FileName, and FileAttributes populated.
+        /// PreviewImageData and FileData are not populated by this method (set to null).
+        /// </summary>
+        /// <param name="location">Storage location to read from</param>
+        /// <returns>List of EmbroideryFile objects, or null if operation fails</returns>
+        public async Task<List<EmbroideryFile>?> ReadEmbroideryFilesAsync(StorageLocation location)
+        {
+            RaiseDebugMessage($"ReadEmbroideryFiles: Starting read from {location}");
+            
+            // Step 1: Check connection
+            if (State != ConnectionState.Connected)
+            {
+                RaiseDebugMessage("ReadEmbroideryFiles: Not connected");
+                return null;
+            }
+
+            try
+            {
+                // Step 2: Ensure we're in Embroidery Mode
+                RaiseDebugMessage("ReadEmbroideryFiles: Checking current session mode");
+                var currentMode = await GetCurrentSessionModeAsync();
+                if (currentMode == null)
+                {
+                    RaiseDebugMessage("ReadEmbroideryFiles: Failed to get session mode");
+                    return null;
+                }
+                RaiseDebugMessage($"ReadEmbroideryFiles: Current mode is {currentMode}");
+
+                // If in Sewing Machine mode, start embroidery session
+                if (currentMode == SessionMode.SewingMachine)
+                {
+                    RaiseDebugMessage("ReadEmbroideryFiles: In Sewing Machine mode, starting embroidery session");
+                    var sessionStartResult = await SessionStartAsync();
+                    if (!sessionStartResult.Success)
+                    {
+                        RaiseDebugMessage($"ReadEmbroideryFiles: Session start failed: {sessionStartResult.ErrorMessage}");
+                        return null;
+                    }
+                    RaiseDebugMessage("ReadEmbroideryFiles: Session start successful");
+                }
+                else
+                {
+                    RaiseDebugMessage("ReadEmbroideryFiles: Already in Embroidery Module mode");
+                }
+
+                // Step 3: Check PC Card if reading from PC Card
+                if (location == StorageLocation.PCCard)
+                {
+                    RaiseDebugMessage("ReadEmbroideryFiles: Checking PC card status");
+                    var pcCardReadResult = await ReadAsync(0xFFFED9);
+                    
+                    if (pcCardReadResult.Success && pcCardReadResult.BinaryData != null && pcCardReadResult.BinaryData.Length > 0)
+                    {
+                        bool pcCardInserted = (pcCardReadResult.BinaryData[0] & 0x01) == 0x01;
+                        RaiseDebugMessage($"ReadEmbroideryFiles: PC card inserted: {pcCardInserted}");
+                        if (!pcCardInserted)
+                        {
+                            RaiseDebugMessage("ReadEmbroideryFiles: No PC card present, returning empty list");
+                            return new List<EmbroideryFile>();
+                        }
+                    }
+                    else
+                    {
+                        RaiseDebugMessage("ReadEmbroideryFiles: Failed to read PC card status");
+                        return null;
+                    }
+                }
+
+                // Step 4: Select storage source
+                ushort storageFunction = location == StorageLocation.EmbroideryModuleMemory ? (ushort)0x00A1 : (ushort)0x0051;
+                RaiseDebugMessage($"ReadEmbroideryFiles: Selecting storage source with function 0x{storageFunction:X4}");
+                var selectStorageResult = await InvokeFunctionAsync(storageFunction);
+                if (!selectStorageResult.Success)
+                {
+                    RaiseDebugMessage($"ReadEmbroideryFiles: Failed to select storage source: {selectStorageResult.ErrorMessage}");
+                    return null;
+                }
+                RaiseDebugMessage("ReadEmbroideryFiles: Storage source selected successfully");
+
+                // Step 5: Initialize reading
+                RaiseDebugMessage("ReadEmbroideryFiles: Initializing file reading (function 0x0031 with args 0x01, 0x00)");
+                var setArg2Result = await SetArgument2Async(0x01);
+                if (!setArg2Result.Success)
+                {
+                    RaiseDebugMessage($"ReadEmbroideryFiles: Failed to set argument 2: {setArg2Result.ErrorMessage}");
+                    return null;
+                }
+
+                var setArg1Result = await SetArgument1Async(0x00);
+                if (!setArg1Result.Success)
+                {
+                    RaiseDebugMessage($"ReadEmbroideryFiles: Failed to set argument 1: {setArg1Result.ErrorMessage}");
+                    return null;
+                }
+
+                var invokeFunc31Result = await InvokeFunctionAsync(0x0031);
+                if (!invokeFunc31Result.Success)
+                {
+                    RaiseDebugMessage($"ReadEmbroideryFiles: Failed to invoke function 0x0031: {invokeFunc31Result.ErrorMessage}");
+                    return null;
+                }
+                RaiseDebugMessage("ReadEmbroideryFiles: Function 0x0031 invoked successfully");
+
+                RaiseDebugMessage("ReadEmbroideryFiles: Invoking function 0x0021");
+                var invokeFunc21Result = await InvokeFunctionAsync(0x0021);
+                if (!invokeFunc21Result.Success)
+                {
+                    RaiseDebugMessage($"ReadEmbroideryFiles: Failed to invoke function 0x0021: {invokeFunc21Result.ErrorMessage}");
+                    return null;
+                }
+                RaiseDebugMessage("ReadEmbroideryFiles: Function 0x0021 invoked successfully");
+
+                // Step 6: Read file count
+                RaiseDebugMessage("ReadEmbroideryFiles: Reading file count from 0x024080");
+                var fileCountResult = await ReadAsync(0x024080);
+                if (!fileCountResult.Success || fileCountResult.BinaryData == null || fileCountResult.BinaryData.Length == 0)
+                {
+                    RaiseDebugMessage("ReadEmbroideryFiles: Failed to read file count");
+                    return null;
+                }
+
+                int totalFileCount = fileCountResult.BinaryData[0];
+                RaiseDebugMessage($"ReadEmbroideryFiles: Total file count: {totalFileCount}");
+                var fileList = new List<EmbroideryFile>(totalFileCount);
+
+                // Step 7: Set initial page
+                RaiseDebugMessage("ReadEmbroideryFiles: Setting initial page to 0");
+                var setPageResult = await SetArgument1Async(0);
+                if (!setPageResult.Success)
+                {
+                    RaiseDebugMessage($"ReadEmbroideryFiles: Failed to set initial page: {setPageResult.ErrorMessage}");
+                    return null;
+                }
+
+                // Step 8: Loop through pages (27 files per page)
+                int fileIndex = 0;
+                int pageIndex = 0;
+
+                while (fileIndex < totalFileCount)
+                {
+                    int filesOnThisPage = Math.Min(27, totalFileCount - fileIndex);
+                    RaiseDebugMessage($"ReadEmbroideryFiles: Reading page {pageIndex} ({filesOnThisPage} files, {fileIndex}/{totalFileCount} total)");
+
+                    // Read file attributes
+                    var attributesResult = await ReadAsync(0x0240B9);
+                    if (!attributesResult.Success || attributesResult.BinaryData == null)
+                    {
+                        RaiseDebugMessage("ReadEmbroideryFiles: Failed to read file attributes");
+                        return null;
+                    }
+
+                    // Read file names
+                    int nameLength = filesOnThisPage * 32;
+                    RaiseDebugMessage($"ReadEmbroideryFiles: Reading {nameLength} bytes of file names from 0x0240D5");
+                    var namesResult = await ReadMemoryBlockCheckedAsync(0x0240D5, nameLength);
+                    if (!namesResult.Success || namesResult.BinaryData == null)
+                    {
+                        RaiseDebugMessage($"ReadEmbroideryFiles: Failed to read file names: {namesResult.ErrorMessage}");
+                        return null;
+                    }
+
+                    // Parse each file on this page
+                    for (int i = 0; i < filesOnThisPage; i++)
+                    {
+                        var file = new EmbroideryFile
+                        {
+                            FileId = fileIndex,
+                            FileAttributes = attributesResult.BinaryData[i]
+                        };
+
+                        // Extract filename
+                        int nameOffset = i * 32;
+                        var nameBytes = new byte[32];
+                        Array.Copy(namesResult.BinaryData, nameOffset, nameBytes, 0, 32);
+
+                        StringBuilder nameBuilder = new StringBuilder();
+                        for (int j = 0; j < nameBytes.Length; j++)
+                        {
+                            if (nameBytes[j] == 0x00)
+                                break;
+                            
+                            if (nameBytes[j] >= 0x20 && nameBytes[j] <= 0x7E)
+                            {
+                                nameBuilder.Append((char)nameBytes[j]);
+                            }
+                        }
+                        file.FileName = nameBuilder.ToString().Trim();
+                        RaiseDebugMessage($"ReadEmbroideryFiles: File {fileIndex}: {file.FileName} (attr: 0x{file.FileAttributes:X2})");
+
+                        fileList.Add(file);
+                        fileIndex++;
+                    }
+
+                    // Move to next page if needed
+                    if (fileIndex < totalFileCount)
+                    {
+                        pageIndex++;
+                        RaiseDebugMessage($"ReadEmbroideryFiles: Moving to page {pageIndex}");
+                        var setNextPageResult = await SetArgument1Async((byte)pageIndex);
+                        if (!setNextPageResult.Success)
+                        {
+                            RaiseDebugMessage($"ReadEmbroideryFiles: Failed to set next page: {setNextPageResult.ErrorMessage}");
+                            return null;
+                        }
+
+                        var invokeFunc61Result = await InvokeFunctionAsync(0x0061);
+                        if (!invokeFunc61Result.Success)
+                        {
+                            RaiseDebugMessage($"ReadEmbroideryFiles: Failed to invoke function 0x0061: {invokeFunc61Result.ErrorMessage}");
+                            return null;
+                        }
+                    }
+                }
+
+                // Step 9: Cleanup
+                RaiseDebugMessage("ReadEmbroideryFiles: Cleaning up - invoking function 0x0101");
+                var invokeFunc101Result = await InvokeFunctionAsync(0x0101);
+                if (!invokeFunc101Result.Success)
+                {
+                    RaiseDebugMessage($"ReadEmbroideryFiles: Failed to invoke cleanup function 0x0101: {invokeFunc101Result.ErrorMessage}");
+                    return null;
+                }
+
+                RaiseDebugMessage("ReadEmbroideryFiles: Ending session");
+                var sessionEndResult = await SessionEndAsync();
+                if (!sessionEndResult.Success)
+                {
+                    RaiseDebugMessage($"ReadEmbroideryFiles: Session end failed: {sessionEndResult.ErrorMessage}");
+                    return null;
+                }
+
+                RaiseDebugMessage($"ReadEmbroideryFiles: Complete - returning {fileList.Count} files");
+                return fileList;
+            }
+            catch (Exception)
+            {
+                // Return null on any errors
+                return null;
             }
         }
 

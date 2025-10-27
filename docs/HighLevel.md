@@ -51,7 +51,7 @@ RFFFEDB --> 6300000000000000000000000003000001200000000000000000000000000000
 W0201E100? --> Write 00 to 0201E1
 ```
 
-- Next, read the file types. This has one byte for each file with the bits indicating what type of file it is. Read until you hit the 0x00 byte.
+- Next, read the file types. This has one byte for each file with the bits indicating what type of file it is.
 ```
 AC = 2 block, Readonly, Alphabet - 10101100    (7 of them, 1 to 7)
 A4 = 1 block, Readonly           - 10100100    (20 of them)

@@ -31,6 +31,7 @@
             menuStrip1 = new MenuStrip();
             fileToolStripMenuItem = new ToolStripMenuItem();
             showSerialTrafficToolStripMenuItem = new ToolStripMenuItem();
+            showDebugToolStripMenuItem = new ToolStripMenuItem();
             toolStripSeparator2 = new ToolStripSeparator();
             clearOutputToolStripMenuItem = new ToolStripMenuItem();
             toolStripSeparator4 = new ToolStripSeparator();
@@ -88,7 +89,7 @@
             // 
             // fileToolStripMenuItem
             // 
-            fileToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { showSerialTrafficToolStripMenuItem, toolStripSeparator2, clearOutputToolStripMenuItem, toolStripSeparator4, exitToolStripMenuItem });
+            fileToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { showSerialTrafficToolStripMenuItem, showDebugToolStripMenuItem, toolStripSeparator2, clearOutputToolStripMenuItem, toolStripSeparator4, exitToolStripMenuItem });
             fileToolStripMenuItem.Name = "fileToolStripMenuItem";
             fileToolStripMenuItem.Size = new Size(46, 24);
             fileToolStripMenuItem.Text = "&File";
@@ -100,6 +101,14 @@
             showSerialTrafficToolStripMenuItem.Size = new Size(214, 26);
             showSerialTrafficToolStripMenuItem.Text = "&Show Serial Traffic";
             showSerialTrafficToolStripMenuItem.Click += showSerialTrafficToolStripMenuItem_Click;
+            // 
+            // showDebugToolStripMenuItem
+            // 
+            showDebugToolStripMenuItem.CheckOnClick = true;
+            showDebugToolStripMenuItem.Name = "showDebugToolStripMenuItem";
+            showDebugToolStripMenuItem.Size = new Size(214, 26);
+            showDebugToolStripMenuItem.Text = "Show &Debug";
+            showDebugToolStripMenuItem.Click += showDebugToolStripMenuItem_Click;
             // 
             // toolStripSeparator2
             // 
@@ -240,6 +249,15 @@
             firmwareInfoToolStripMenuItem.Text = "&Firmware Info";
             firmwareInfoToolStripMenuItem.Click += firmwareInfoToolStripMenuItem_Click;
             // 
+            // readEmbroideryFilesToolStripMenuItem
+            // 
+            readEmbroideryFilesToolStripMenuItem = new ToolStripMenuItem();
+            readEmbroideryFilesToolStripMenuItem.Enabled = false;
+            readEmbroideryFilesToolStripMenuItem.Name = "readEmbroideryFilesToolStripMenuItem";
+            readEmbroideryFilesToolStripMenuItem.Size = new Size(205, 26);
+            readEmbroideryFilesToolStripMenuItem.Text = "Read &Embroidery Files";
+            readEmbroideryFilesToolStripMenuItem.Click += readEmbroideryFilesToolStripMenuItem_Click;
+            // 
             // imageViewerToolStripMenuItem
             // 
             imageViewerToolStripMenuItem = new ToolStripMenuItem();
@@ -251,7 +269,7 @@
             // 
             // commandsToolStripMenuItem items
             // 
-            commandsToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { sessionStartToolStripMenuItem, sessionEndToolStripMenuItem, protocolResetToolStripMenuItem, firmwareInfoToolStripMenuItem, toolStripSeparator6, readToolStripMenuItem, largeReadToolStripMenuItem, writeToolStripMenuItem, sumToolStripMenuItem, toolStripSeparator3, memoryViewerToolStripMenuItem, imageViewerToolStripMenuItem });
+            commandsToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { sessionStartToolStripMenuItem, sessionEndToolStripMenuItem, protocolResetToolStripMenuItem, firmwareInfoToolStripMenuItem, readEmbroideryFilesToolStripMenuItem, toolStripSeparator6, readToolStripMenuItem, largeReadToolStripMenuItem, writeToolStripMenuItem, sumToolStripMenuItem, toolStripSeparator3, memoryViewerToolStripMenuItem, imageViewerToolStripMenuItem });
             // 
             // readToolStripMenuItem
             // 
@@ -546,6 +564,7 @@
         private ToolStripSeparator toolStripSeparator3;
         private ToolStripMenuItem memoryViewerToolStripMenuItem;
         private ToolStripMenuItem showSerialTrafficToolStripMenuItem;
+        private ToolStripMenuItem showDebugToolStripMenuItem;
         private ToolStripSeparator toolStripSeparator4;
         private Panel panel1;
         private ToolStripSeparator toolStripMenuItem1;
@@ -553,6 +572,7 @@
         private ToolStripMenuItem sessionEndToolStripMenuItem;
         private ToolStripMenuItem protocolResetToolStripMenuItem;
         private ToolStripMenuItem firmwareInfoToolStripMenuItem;
+        private ToolStripMenuItem readEmbroideryFilesToolStripMenuItem;
         private ToolStripSeparator toolStripSeparator6;
         private ToolStripMenuItem imageViewerToolStripMenuItem;
     }
