@@ -13,9 +13,11 @@ namespace SerialComm
         private bool _showDebug = false;
         private string? _selectedComPort = null;
         private bool _autoSwitchTo57600 = false;
+        private bool _isDisposed = false;
         private const string RegistryKeyPath = @"Software\BerninaSerialComm";
         private const string ComPortValueName = "LastComPort";
         private const string AutoSwitch57600ValueName = "AutoSwitchTo57600";
+        private const string PreviewCacheValueName = "PreviewCache";
 
         public MainForm()
         {
@@ -43,6 +45,73 @@ namespace SerialComm
             btnRead.Enabled = false;
             btnLargeRead.Enabled = false;
             btnWrite.Enabled = false;
+        }
+
+        private async void LoadPreviewCacheFromRegistryAsync()
+        {
+            if (_serialStack == null)
+            {
+                return;
+            }
+
+            try
+            {
+                using (RegistryKey? key = Registry.CurrentUser.OpenSubKey(RegistryKeyPath))
+                {
+                    if (key != null)
+                    {
+                        byte[]? cacheData = key.GetValue(PreviewCacheValueName) as byte[];
+                        if (cacheData != null && cacheData.Length > 0)
+                        {
+                            AppendOutput("Loading preview cache from registry...");
+                            bool success = await _serialStack.DeserializeCacheAsync(cacheData);
+                            if (success)
+                            {
+                                AppendOutput("Preview cache loaded successfully");
+                            }
+                            else
+                            {
+                                AppendOutput("Failed to load preview cache from registry");
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                AppendOutput($"Error loading preview cache from registry: {ex.Message}");
+            }
+        }
+
+        private async void SavePreviewCacheToRegistryAsync()
+        {
+            if (_serialStack == null)
+            {
+                return;
+            }
+
+            try
+            {
+                AppendOutput("Saving preview cache to registry...");
+                byte[] compressedData = await _serialStack.SerializeCacheAsync();
+                
+                if (compressedData.Length > 0)
+                {
+                    using (RegistryKey key = Registry.CurrentUser.CreateSubKey(RegistryKeyPath))
+                    {
+                        key.SetValue(PreviewCacheValueName, compressedData, RegistryValueKind.Binary);
+                        AppendOutput($"Preview cache saved to registry ({compressedData.Length} bytes compressed)");
+                    }
+                }
+                else
+                {
+                    AppendOutput("Preview cache is empty - nothing to save");
+                }
+            }
+            catch (Exception ex)
+            {
+                AppendOutput($"Error saving preview cache to registry: {ex.Message}");
+            }
         }
 
         private void RefreshComPortsMenu()
@@ -267,6 +336,9 @@ namespace SerialComm
                     UpdateConnectionStatus($"Connected: {portName} @ {_serialStack.BaudRate} baud", true);
                     UpdateBaudRateMenuItems();
                     AppendOutput($"Connected successfully at {_serialStack.BaudRate} baud");
+                    
+                    // Load preview cache from registry
+                    LoadPreviewCacheFromRegistryAsync();
                     
                     // Auto-switch to 57600 if enabled and currently at 19200
                     if (_autoSwitchTo57600 && _serialStack.BaudRate == 19200)
@@ -845,7 +917,7 @@ namespace SerialComm
             AppendOutput("Read Embroidery Files: Reading from Embroidery Module Memory");
 
             // Read files from Embroidery Module Memory
-            var files = await _serialStack.ReadEmbroideryFilesAsync(Bernina.SerialStack.StorageLocation.EmbroideryModuleMemory);
+            var files = await _serialStack.ReadEmbroideryFilesAsync(Bernina.SerialStack.StorageLocation.EmbroideryModuleMemory, true);
 
             if (files != null)
             {
@@ -1245,13 +1317,35 @@ namespace SerialComm
 
         private void AppendOutput(string message)
         {
-            if (InvokeRequired)
+            // Ignore calls if form is disposed
+            if (_isDisposed || IsDisposed)
             {
-                Invoke(new Action(() => AppendOutput(message)));
                 return;
             }
 
-            txtOutput.AppendText($"[{DateTime.Now:HH:mm:ss}] {message}\r\n");
+            if (InvokeRequired)
+            {
+                try
+                {
+                    Invoke(new Action(() => AppendOutput(message)));
+                }
+                catch (ObjectDisposedException)
+                {
+                    // Form was disposed during invoke, ignore gracefully
+                    _isDisposed = true;
+                }
+                return;
+            }
+
+            try
+            {
+                txtOutput.AppendText($"[{DateTime.Now:HH:mm:ss}] {message}\r\n");
+            }
+            catch (ObjectDisposedException)
+            {
+                // Output control was disposed, mark as disposed and ignore
+                _isDisposed = true;
+            }
         }
 
         private void UpdateBaudRateMenuItems()
@@ -1324,6 +1418,15 @@ namespace SerialComm
 
         private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
         {
+            // Mark form as disposed to prevent further AppendOutput calls
+            _isDisposed = true;
+
+            // Save preview cache to registry before disconnecting
+            if (_serialStack != null && _isConnected)
+            {
+                SavePreviewCacheToRegistryAsync();
+            }
+
             if (_serialStack != null)
             {
                 _serialStack.Close();

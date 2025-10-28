@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Concurrent;
+using System.IO;
+using System.IO.Compression;
 using System.IO.Ports;
 using System.Text;
 using System.Threading;
@@ -157,6 +159,9 @@ namespace Bernina.SerialStack
         
         // Baud rates to try during connection
         private readonly int[] _baudRatesToTry = { 19200, 57600, 115200, 4800 };
+
+        // Preview cache: key is {ChecksumHex}~{Attributes:X2}~{FileName}
+        private readonly Dictionary<string, byte[]> _previewCache = new();
 
         /// <summary>
         /// Event raised when connection state changes
@@ -2477,12 +2482,14 @@ namespace Bernina.SerialStack
         /// <summary>
         /// Reads embroidery files from the specified storage location (Embroidery Module Memory or PC Card).
         /// Returns a list of EmbroideryFile objects with FileId, FileName, and FileAttributes populated.
-        /// PreviewImageData and FileData are not populated by this method (set to null).
+        /// PreviewImageData is populated if loadPreviews is true, otherwise null.
+        /// FileData is never populated by this method (set to null).
         /// Ensures cleanup (function 0x0101 and session end) occurs even if errors happen.
         /// </summary>
         /// <param name="location">Storage location to read from</param>
+        /// <param name="loadPreviews">If true, also loads preview image data for each file; defaults to false</param>
         /// <returns>List of EmbroideryFile objects, or null if operation fails</returns>
-        public async Task<List<EmbroideryFile>?> ReadEmbroideryFilesAsync(StorageLocation location)
+        public async Task<List<EmbroideryFile>?> ReadEmbroideryFilesAsync(StorageLocation location, bool loadPreviews = false)
         {
             RaiseDebugMessage($"ReadEmbroideryFiles: Starting read from {location}");
             
@@ -2669,6 +2676,61 @@ namespace Bernina.SerialStack
                             }
                         }
                         file.FileName = nameBuilder.ToString().Trim();
+
+                        // Load preview data if requested
+                        if (loadPreviews)
+                        {
+                            int previewAddress = 0x02452E0 + (0x22E * (pageIndex * 27 + i));
+                            const int previewSize = 0x22E; // 558 bytes
+                            
+                            // First, get the sum of the preview data to check cache
+                            RaiseDebugMessage($"ReadEmbroideryFiles: Getting checksum for preview of file {fileIndex} ({file.FileName})");
+                            var sumResult = await SumCommandAsync(previewAddress, previewSize);
+                            
+                            if (sumResult.Success && sumResult.Response != null)
+                            {
+                                // Parse the checksum value
+                                if (long.TryParse(sumResult.Response, System.Globalization.NumberStyles.HexNumber, null, out long checksumValue))
+                                {
+                                    // Build cache key: {ChecksumHex}~{Attributes:X2}~{FileName}
+                                    string cacheKey = $"{checksumValue:X}~{file.FileAttributes:X2}~{file.FileName}";
+                                    
+                                    // Check if preview is in cache
+                                    if (_previewCache.ContainsKey(cacheKey))
+                                    {
+                                        RaiseDebugMessage($"ReadEmbroideryFiles: Preview cache hit for file {fileIndex} ({file.FileName})");
+                                        file.PreviewImageData = _previewCache[cacheKey];
+                                    }
+                                    else
+                                    {
+                                        // Not in cache - load the preview data
+                                        RaiseDebugMessage($"ReadEmbroideryFiles: Loading preview data for file {fileIndex} ({file.FileName}) from 0x{previewAddress:X}");
+                                        var previewResult = await ReadMemoryBlockAsync(previewAddress, previewSize);
+                                        
+                                        if (previewResult.Success && previewResult.BinaryData != null && previewResult.BinaryData.Length == previewSize)
+                                        {
+                                            // Cache the preview data
+                                            _previewCache[cacheKey] = previewResult.BinaryData;
+                                            file.PreviewImageData = previewResult.BinaryData;
+                                            RaiseDebugMessage($"ReadEmbroideryFiles: Preview cached for file {fileIndex} ({file.FileName})");
+                                        }
+                                        else
+                                        {
+                                            RaiseDebugMessage($"ReadEmbroideryFiles: Failed to load preview data for file {fileIndex}: {previewResult.ErrorMessage}");
+                                        }
+                                    }
+                                }
+                                else
+                                {
+                                    RaiseDebugMessage($"ReadEmbroideryFiles: Failed to parse checksum for file {fileIndex}");
+                                }
+                            }
+                            else
+                            {
+                                RaiseDebugMessage($"ReadEmbroideryFiles: Failed to get checksum for file {fileIndex}: {sumResult.ErrorMessage}");
+                            }
+                        }
+
                         RaiseDebugMessage($"ReadEmbroideryFiles: File {fileIndex}: {file.FileName} (attr: 0x{file.FileAttributes:X2})");
 
                         fileList.Add(file);
@@ -2959,6 +3021,132 @@ namespace Bernina.SerialStack
                     RaiseDebugMessage($"ReadEmbroideryFilePreview: Complete - returning {previewData.Length} bytes of preview image data");
                 }
             }
+        }
+
+        /// <summary>
+        /// Serializes the preview cache to a compressed byte array.
+        /// Format: [int: entry count][repeated: int keyLength, string key, byte[] value (558 bytes)]
+        /// The serialized data is then compressed using GZipStream.
+        /// </summary>
+        /// <returns>Compressed byte array containing the serialized cache, or empty array if cache is empty</returns>
+        public async Task<byte[]> SerializeCacheAsync()
+        {
+            return await Task.Run(() =>
+            {
+                try
+                {
+                    // Use MemoryStream to build uncompressed data
+                    using (var uncompressedStream = new MemoryStream())
+                    using (var writer = new BinaryWriter(uncompressedStream, Encoding.UTF8))
+                    {
+                        // Write entry count
+                        writer.Write(_previewCache.Count);
+                        
+                        // Write each cache entry
+                        foreach (var entry in _previewCache)
+                        {
+                            // Write key length and key
+                            byte[] keyBytes = Encoding.UTF8.GetBytes(entry.Key);
+                            writer.Write(keyBytes.Length);
+                            writer.Write(keyBytes);
+                            
+                            // Write value (preview data - should always be 558 bytes)
+                            writer.Write(entry.Value.Length);
+                            writer.Write(entry.Value);
+                        }
+
+                        // Get uncompressed data
+                        byte[] uncompressedData = uncompressedStream.ToArray();
+                        
+                        // Compress the data using GZipStream
+                        using (var compressedStream = new MemoryStream())
+                        {
+                            using (var gzipStream = new GZipStream(compressedStream, CompressionMode.Compress, leaveOpen: true))
+                            {
+                                gzipStream.Write(uncompressedData, 0, uncompressedData.Length);
+                            }
+                            
+                            return compressedStream.ToArray();
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    RaiseDebugMessage($"SerializeCache: Error during serialization: {ex.Message}");
+                    return Array.Empty<byte>();
+                }
+            });
+        }
+
+        /// <summary>
+        /// Deserializes a compressed byte array into the preview cache.
+        /// The byte array is decompressed using GZipStream, then parsed back into the cache dictionary.
+        /// Validates that each preview is exactly 558 bytes (0x22E).
+        /// </summary>
+        /// <param name="compressedData">Compressed byte array containing serialized cache data</param>
+        /// <returns>True if deserialization succeeded, false otherwise</returns>
+        public async Task<bool> DeserializeCacheAsync(byte[] compressedData)
+        {
+            return await Task.Run(() =>
+            {
+                try
+                {
+                    if (compressedData == null || compressedData.Length == 0)
+                    {
+                        RaiseDebugMessage("DeserializeCache: No data to deserialize");
+                        return false;
+                    }
+
+                    // Decompress the data using GZipStream
+                    using (var compressedStream = new MemoryStream(compressedData))
+                    using (var gzipStream = new GZipStream(compressedStream, CompressionMode.Decompress))
+                    using (var uncompressedStream = new MemoryStream())
+                    {
+                        gzipStream.CopyTo(uncompressedStream);
+                        byte[] uncompressedData = uncompressedStream.ToArray();
+
+                        // Parse the uncompressed data
+                        using (var reader = new BinaryReader(new MemoryStream(uncompressedData), Encoding.UTF8))
+                        {
+                            // Read entry count
+                            int entryCount = reader.ReadInt32();
+                            RaiseDebugMessage($"DeserializeCache: Reading {entryCount} cache entries");
+
+                            // Clear existing cache
+                            _previewCache.Clear();
+
+                            // Read each cache entry
+                            for (int i = 0; i < entryCount; i++)
+                            {
+                                // Read key
+                                int keyLength = reader.ReadInt32();
+                                byte[] keyBytes = reader.ReadBytes(keyLength);
+                                string key = Encoding.UTF8.GetString(keyBytes);
+
+                                // Read value
+                                int valueLength = reader.ReadInt32();
+                                if (valueLength != 0x22E) // 558 bytes
+                                {
+                                    RaiseDebugMessage($"DeserializeCache: Warning - Entry {i} has invalid preview size {valueLength}, expected 558");
+                                    continue;
+                                }
+
+                                byte[] value = reader.ReadBytes(valueLength);
+                                _previewCache[key] = value;
+                            }
+
+                            RaiseDebugMessage($"DeserializeCache: Successfully loaded {_previewCache.Count} cache entries");
+                            return true;
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    RaiseDebugMessage($"DeserializeCache: Error during deserialization: {ex.Message}");
+                    _previewCache.Clear();
+                    return false;
+                }
+            });
         }
 
         public void Dispose()
