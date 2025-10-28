@@ -28,11 +28,93 @@ namespace SerialComm
             comboBoxMode.SelectedIndex = 0;
 
             // Set default filename
-            string defaultFilename = $"memory_dump_{DateTime.Now:yyyyMMdd_HHmmss}.bin";
-            textBoxFilename.Text = defaultFilename;
+            string deviceName = (comboBoxMode.SelectedIndex == 0) ? "SewingMachine" : "EmbroideryModule";
+            textBoxFilename.Text = $"MemoryDump-{deviceName}-{DateTime.Now:yyyyMMdd}.bin";
+
+            // Subscribe to connection state changes
+            if (_serialStack != null)
+            {
+                _serialStack.ConnectionStateChanged += SerialStack_ConnectionStateChanged;
+            }
 
             // Initial state
             UpdateUIState();
+        }
+
+        protected override void OnFormClosing(FormClosingEventArgs e)
+        {
+            base.OnFormClosing(e);
+
+            // Unsubscribe from connection state changes
+            if (_serialStack != null)
+            {
+                _serialStack.ConnectionStateChanged -= SerialStack_ConnectionStateChanged;
+            }
+        }
+
+        protected override void OnShown(EventArgs e)
+        {
+            base.OnShown(e);
+
+            // Refresh UI state when form is shown (in case connection state changed while form was closed)
+            UpdateUIState();
+        }
+
+        private void SerialStack_ConnectionStateChanged(object? sender, Bernina.SerialStack.ConnectionStateChangedEventArgs e)
+        {
+            // Update UI whenever connection state changes
+            if (InvokeRequired)
+            {
+                Invoke(new Action(() => UpdateUIState()));
+            }
+            else
+            {
+                UpdateUIState();
+            }
+        }
+
+        private void comboBoxMode_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            // Update filename when mode changes (only the filename portion, not the path)
+            string currentFullPath = textBoxFilename.Text;
+            
+            if (string.IsNullOrWhiteSpace(currentFullPath))
+            {
+                return;
+            }
+
+            string selectedMode = comboBoxMode.SelectedItem?.ToString() ?? "Sewing Machine";
+            bool isEmbroideryModule = selectedMode == "Embroidery Module";
+            
+            // Extract directory and filename separately
+            string directory = Path.GetDirectoryName(currentFullPath) ?? "";
+            string filename = Path.GetFileName(currentFullPath);
+            
+            if (string.IsNullOrWhiteSpace(filename))
+            {
+                return;
+            }
+            
+            string newFilename = filename;
+            
+            // Replace EmbroideryModule with SewingMachine if switching to Sewing Machine mode
+            if (!isEmbroideryModule && filename.Contains("EmbroideryModule"))
+            {
+                newFilename = filename.Replace("EmbroideryModule", "SewingMachine");
+            }
+            
+            // Replace SewingMachine with EmbroideryModule if switching to Embroidery Module mode
+            if (isEmbroideryModule && filename.Contains("SewingMachine"))
+            {
+                newFilename = filename.Replace("SewingMachine", "EmbroideryModule");
+            }
+            
+            // Reconstruct the full path with the new filename
+            string newFullPath = string.IsNullOrEmpty(directory) 
+                ? newFilename 
+                : Path.Combine(directory, newFilename);
+            
+            textBoxFilename.Text = newFullPath;
         }
 
         private void buttonBrowse_Click(object sender, EventArgs e)
@@ -41,7 +123,7 @@ namespace SerialComm
             {
                 saveFileDialog.DefaultExt = "bin";
                 saveFileDialog.Filter = "Binary files (*.bin)|*.bin|All files (*.*)|*.*";
-                
+
                 // If filename is empty, suggest one based on the selected device and date
                 if (string.IsNullOrWhiteSpace(textBoxFilename.Text))
                 {
@@ -55,7 +137,7 @@ namespace SerialComm
                 {
                     saveFileDialog.FileName = textBoxFilename.Text;
                 }
-                
+
                 saveFileDialog.Title = "Save Memory Dump As";
 
                 if (saveFileDialog.ShowDialog() == DialogResult.OK)
@@ -98,7 +180,7 @@ namespace SerialComm
             catch (OperationCanceledException)
             {
                 statusLabel.Text = "Download cancelled";
-                statusLabel.ForeColor = Color.Orange;
+                statusLabel.ForeColor = Color.Black;
             }
             catch (Exception ex)
             {
@@ -244,11 +326,16 @@ namespace SerialComm
 
         private void UpdateUIState()
         {
-            comboBoxMode.Enabled = !_isDownloading;
+            // Check if we're connected
+            bool isConnected = _serialStack != null && _serialStack.IsConnected;
+
+            // Enable/disable controls based on download state and connection state
+            comboBoxMode.Enabled = !_isDownloading && isConnected;
             textBoxFilename.Enabled = !_isDownloading;
             buttonBrowse.Enabled = !_isDownloading;
-            buttonStart.Enabled = !_isDownloading;
+            buttonStart.Enabled = !_isDownloading && isConnected;
             buttonCancel.Text = _isDownloading ? "Cancel" : "Close";
+            buttonCancel.Enabled = true; // Always allow close/cancel
 
             // Adjust colors
             if (_isDownloading)
@@ -262,5 +349,6 @@ namespace SerialComm
                 textBoxFilename.BackColor = SystemColors.Window;
             }
         }
+
     }
 }

@@ -15,6 +15,7 @@ namespace SerialComm
 
         private void InitializeComponent()
         {
+            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(MemoryDumpForm));
             groupBoxSettings = new GroupBox();
             labelMode = new Label();
             comboBoxMode = new ComboBox();
@@ -67,6 +68,7 @@ namespace SerialComm
             comboBoxMode.Name = "comboBoxMode";
             comboBoxMode.Size = new Size(490, 28);
             comboBoxMode.TabIndex = 1;
+            comboBoxMode.SelectedIndexChanged += comboBoxMode_SelectedIndexChanged;
             // 
             // labelFilename
             // 
@@ -149,6 +151,7 @@ namespace SerialComm
             // chipPictureBox
             // 
             chipPictureBox.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            chipPictureBox.Image = (Image)resources.GetObject("chipPictureBox.Image");
             chipPictureBox.Location = new Point(567, 9);
             chipPictureBox.Name = "chipPictureBox";
             chipPictureBox.Size = new Size(69, 68);

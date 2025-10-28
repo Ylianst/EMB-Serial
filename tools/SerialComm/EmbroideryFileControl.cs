@@ -28,9 +28,10 @@ namespace SerialComm
                 return;
             }
 
-            // Update attributes label
-            string attrString = DecodeFileAttributes(_embroideryFile.FileAttributes);
-            lblAttributes.Text = $"ID: {_embroideryFile.FileId}\r\nAttr: 0x{_embroideryFile.FileAttributes:X2} ({attrString})";
+            // Update attributes
+            lockPictureBox.Visible = (_embroideryFile.FileAttributes & 0x20) != 0;
+            alphabetPictureBox.Visible = (_embroideryFile.FileAttributes & 0x08) != 0;
+            userPictureBox.Visible = (_embroideryFile.FileAttributes & 0x02) != 0;
 
             // Update filename label
             lblFileName.Text = _embroideryFile.FileName;
@@ -91,22 +92,6 @@ namespace SerialComm
             }
 
             return bitmap;
-        }
-
-        private string DecodeFileAttributes(byte attributes)
-        {
-            bool isReadonly = (attributes & 0x80) != 0;
-            bool isTwoBlock = (attributes & 0x08) != 0;
-            bool isAlphabet = (attributes & 0x04) != 0;
-
-            if (isReadonly && isTwoBlock && isAlphabet)
-                return "R2A";
-            else if (isReadonly && !isTwoBlock)
-                return "RO";
-            else if (!isReadonly)
-                return "RW";
-            else
-                return "??";
         }
     }
 }
