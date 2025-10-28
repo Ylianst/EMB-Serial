@@ -900,6 +900,8 @@ namespace Bernina.SerialStack
         /// <summary>
         /// Sends the SessionEnd command "TrME" character by character.
         /// Each character is sent and its echo is awaited before sending the next one.
+        /// If SessionEnd fails, attempts protocol reset (RF?) and retries up to 3 times
+        /// with a 100ms pause between each attempt to ensure proper session closure.
         /// </summary>
         public async Task<CommandResult> SessionEndAsync()
         {
@@ -912,44 +914,87 @@ namespace Bernina.SerialStack
                 };
             }
 
-            try
+            const string command = "TrME";
+            const int maxRetries = 3;
+            const int retryDelayMs = 100;
+
+            for (int attempt = 0; attempt < maxRetries; attempt++)
             {
-                const string command = "TrME";
-                
-                // Clear response buffer
-                _responseBuffer.Clear();
-                
-                // Send each character and wait for echo
-                for (int i = 0; i < command.Length; i++)
+                try
                 {
-                    char c = command[i];
-                    if (!await SendAndWaitForEchoAsync(c, 500))
+                    // Clear response buffer
+                    _responseBuffer.Clear();
+                    
+                    // Send each character and wait for echo
+                    for (int i = 0; i < command.Length; i++)
                     {
-                        return new CommandResult
+                        char c = command[i];
+                        if (!await SendAndWaitForEchoAsync(c, 500))
                         {
-                            Success = false,
-                            ErrorMessage = $"SessionEnd failed - no echo for '{c}'"
-                        };
+                            // Character echo failed, break to next retry
+                            break;
+                        }
+                        
+                        // Check if we successfully sent all characters
+                        if (i == command.Length - 1)
+                        {
+                            // All characters echoed successfully
+                            _responseBuffer.Clear();
+                            return new CommandResult
+                            {
+                                Success = true,
+                                Response = "SessionEnd completed successfully"
+                            };
+                        }
+                    }
+
+                    // If we reach here, SessionEnd failed on this attempt
+                    if (attempt < maxRetries - 1)
+                    {
+                        RaiseDebugMessage($"SessionEnd: Attempt {attempt + 1} failed, attempting protocol reset");
+                        
+                        // Try to reset protocol using RF?
+                        try
+                        {
+                            await ProtocolResetAsync();
+                        }
+                        catch (Exception ex)
+                        {
+                            RaiseDebugMessage($"SessionEnd: Protocol reset failed: {ex.Message}");
+                        }
+                        
+                        // Pause before retry
+                        await Task.Delay(retryDelayMs);
                     }
                 }
-
-                // Clear the buffer after successful completion
-                _responseBuffer.Clear();
-
-                return new CommandResult
+                catch (Exception ex)
                 {
-                    Success = true,
-                    Response = "SessionEnd completed successfully"
-                };
+                    RaiseDebugMessage($"SessionEnd: Exception on attempt {attempt + 1}: {ex.Message}");
+                    
+                    if (attempt < maxRetries - 1)
+                    {
+                        // Try to reset protocol and retry
+                        try
+                        {
+                            await ProtocolResetAsync();
+                        }
+                        catch (Exception resetEx)
+                        {
+                            RaiseDebugMessage($"SessionEnd: Protocol reset failed: {resetEx.Message}");
+                        }
+                        
+                        // Pause before retry
+                        await Task.Delay(retryDelayMs);
+                    }
+                }
             }
-            catch (Exception ex)
+
+            // All retries exhausted
+            return new CommandResult
             {
-                return new CommandResult
-                {
-                    Success = false,
-                    ErrorMessage = $"SessionEnd error: {ex.Message}"
-                };
-            }
+                Success = false,
+                ErrorMessage = $"SessionEnd failed after {maxRetries} attempts"
+            };
         }
 
         /// <summary>
@@ -2433,6 +2478,7 @@ namespace Bernina.SerialStack
         /// Reads embroidery files from the specified storage location (Embroidery Module Memory or PC Card).
         /// Returns a list of EmbroideryFile objects with FileId, FileName, and FileAttributes populated.
         /// PreviewImageData and FileData are not populated by this method (set to null).
+        /// Ensures cleanup (function 0x0101 and session end) occurs even if errors happen.
         /// </summary>
         /// <param name="location">Storage location to read from</param>
         /// <returns>List of EmbroideryFile objects, or null if operation fails</returns>
@@ -2446,6 +2492,9 @@ namespace Bernina.SerialStack
                 RaiseDebugMessage("ReadEmbroideryFiles: Not connected");
                 return null;
             }
+
+            List<EmbroideryFile>? fileList = null;
+            bool sessionStarted = false;
 
             try
             {
@@ -2469,11 +2518,13 @@ namespace Bernina.SerialStack
                         RaiseDebugMessage($"ReadEmbroideryFiles: Session start failed: {sessionStartResult.ErrorMessage}");
                         return null;
                     }
+                    sessionStarted = true;
                     RaiseDebugMessage("ReadEmbroideryFiles: Session start successful");
                 }
                 else
                 {
                     RaiseDebugMessage("ReadEmbroideryFiles: Already in Embroidery Module mode");
+                    sessionStarted = true;
                 }
 
                 // Step 3: Check PC Card if reading from PC Card
@@ -2554,7 +2605,7 @@ namespace Bernina.SerialStack
 
                 int totalFileCount = fileCountResult.BinaryData[0];
                 RaiseDebugMessage($"ReadEmbroideryFiles: Total file count: {totalFileCount}");
-                var fileList = new List<EmbroideryFile>(totalFileCount);
+                fileList = new List<EmbroideryFile>(totalFileCount);
 
                 // Step 7: Set initial page
                 RaiseDebugMessage("ReadEmbroideryFiles: Setting initial page to 0");
@@ -2645,36 +2696,60 @@ namespace Bernina.SerialStack
                     }
                 }
 
-                // Step 9: Cleanup
-                RaiseDebugMessage("ReadEmbroideryFiles: Cleaning up - invoking function 0x0101");
-                var invokeFunc101Result = await InvokeFunctionAsync(0x0101);
-                if (!invokeFunc101Result.Success)
-                {
-                    RaiseDebugMessage($"ReadEmbroideryFiles: Failed to invoke cleanup function 0x0101: {invokeFunc101Result.ErrorMessage}");
-                    return null;
-                }
-
-                RaiseDebugMessage("ReadEmbroideryFiles: Ending session");
-                var sessionEndResult = await SessionEndAsync();
-                if (!sessionEndResult.Success)
-                {
-                    RaiseDebugMessage($"ReadEmbroideryFiles: Session end failed: {sessionEndResult.ErrorMessage}");
-                    return null;
-                }
-
-                RaiseDebugMessage($"ReadEmbroideryFiles: Complete - returning {fileList.Count} files");
                 return fileList;
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // Return null on any errors
+                RaiseDebugMessage($"ReadEmbroideryFiles: Exception occurred: {ex.Message}");
                 return null;
+            }
+            finally
+            {
+                // Always attempt cleanup, even if errors occurred
+                if (sessionStarted)
+                {
+                    // Step 9: Invoke function 0x0101 for cleanup
+                    RaiseDebugMessage("ReadEmbroideryFiles: Invoking cleanup function 0x0101");
+                    try
+                    {
+                        var invokeFunc101Result = await InvokeFunctionAsync(0x0101);
+                        if (!invokeFunc101Result.Success)
+                        {
+                            RaiseDebugMessage($"ReadEmbroideryFiles: Warning - Failed to invoke cleanup function 0x0101: {invokeFunc101Result.ErrorMessage}");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        RaiseDebugMessage($"ReadEmbroideryFiles: Warning - Exception during cleanup function 0x0101: {ex.Message}");
+                    }
+
+                    // Step 10: Close embroidery session
+                    RaiseDebugMessage("ReadEmbroideryFiles: Ending session");
+                    try
+                    {
+                        var sessionEndResult = await SessionEndAsync();
+                        if (!sessionEndResult.Success)
+                        {
+                            RaiseDebugMessage($"ReadEmbroideryFiles: Warning - Session end failed: {sessionEndResult.ErrorMessage}");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        RaiseDebugMessage($"ReadEmbroideryFiles: Warning - Exception during session end: {ex.Message}");
+                    }
+                }
+
+                if (fileList != null)
+                {
+                    RaiseDebugMessage($"ReadEmbroideryFiles: Complete - returning {fileList.Count} files");
+                }
             }
         }
 
         /// <summary>
         /// Reads the embroidery file preview image from the specified storage location.
         /// Returns a 72x64 pixel black & white bitmap image (558 bytes, 0x22E bytes).
+        /// Ensures cleanup (function 0x0101 and session end) occurs even if errors happen.
         /// </summary>
         /// <param name="location">Storage location to read from</param>
         /// <param name="FileId">The file ID (0-based) to get the preview for</param>
@@ -2689,6 +2764,9 @@ namespace Bernina.SerialStack
                 RaiseDebugMessage("ReadEmbroideryFilePreview: Not connected");
                 return null;
             }
+
+            byte[]? previewData = null;
+            bool sessionStarted = false;
 
             try
             {
@@ -2712,11 +2790,13 @@ namespace Bernina.SerialStack
                         RaiseDebugMessage($"ReadEmbroideryFilePreview: Session start failed: {sessionStartResult.ErrorMessage}");
                         return null;
                     }
+                    sessionStarted = true;
                     RaiseDebugMessage("ReadEmbroideryFilePreview: Session start successful");
                 }
                 else
                 {
                     RaiseDebugMessage("ReadEmbroideryFilePreview: Already in Embroidery Module mode");
+                    sessionStarted = true;
                 }
 
                 // Step 3: Check PC Card if reading from PC Card
@@ -2755,7 +2835,7 @@ namespace Bernina.SerialStack
 
                 // Step 5: Initialize reading
                 RaiseDebugMessage("ReadEmbroideryFilePreview: Initializing file reading (function 0x0031 with args 0x01, 0x00)");
-                var setArg2Result = await SetArgument2Async(0x01);
+                var setArg2Result = await SetArgument2Async((byte)(FileId + 1));
                 if (!setArg2Result.Success)
                 {
                     RaiseDebugMessage($"ReadEmbroideryFilePreview: Failed to set argument 2: {setArg2Result.ErrorMessage}");
@@ -2769,7 +2849,7 @@ namespace Bernina.SerialStack
                     return null;
                 }
 
-                var invokeFunc31Result = await InvokeFunctionAsync(0x0031);
+                var invokeFunc31Result = await InvokeFunctionAsync((ushort)((FileId < 27) ? 0x0031 : 0x0061));
                 if (!invokeFunc31Result.Success)
                 {
                     RaiseDebugMessage($"ReadEmbroideryFilePreview: Failed to invoke function 0x0031: {invokeFunc31Result.ErrorMessage}");
@@ -2816,7 +2896,7 @@ namespace Bernina.SerialStack
                 }
 
                 // Step 8: Compute preview image location and read preview data
-                int previewAddress = 0x02452E + (0x22E * FileId);
+                int previewAddress = 0x02452E + (0x22E * (FileId % 27));
                 RaiseDebugMessage($"ReadEmbroideryFilePreview: Computing preview address - base: 0x02452E0, offset: 0x{(0x22E * FileId):X}, address: 0x{previewAddress:X}");
 
                 const int previewSize = 0x22E; // 558 bytes
@@ -2830,31 +2910,54 @@ namespace Bernina.SerialStack
                 }
                 RaiseDebugMessage($"ReadEmbroideryFilePreview: Successfully read {previewResult.BinaryData.Length} bytes of preview data");
 
-                // Step 9: Invoke function 0x0101 for cleanup
-                RaiseDebugMessage("ReadEmbroideryFilePreview: Invoking cleanup function 0x0101");
-                var invokeFunc101Result = await InvokeFunctionAsync(0x0101);
-                if (!invokeFunc101Result.Success)
-                {
-                    RaiseDebugMessage($"ReadEmbroideryFilePreview: Failed to invoke cleanup function 0x0101: {invokeFunc101Result.ErrorMessage}");
-                    return null;
-                }
-
-                // Step 10: Close embroidery session
-                RaiseDebugMessage("ReadEmbroideryFilePreview: Ending session");
-                var sessionEndResult = await SessionEndAsync();
-                if (!sessionEndResult.Success)
-                {
-                    RaiseDebugMessage($"ReadEmbroideryFilePreview: Session end failed: {sessionEndResult.ErrorMessage}");
-                    return null;
-                }
-
-                RaiseDebugMessage($"ReadEmbroideryFilePreview: Complete - returning {previewResult.BinaryData.Length} bytes of preview image data");
-                return previewResult.BinaryData;
+                previewData = previewResult.BinaryData;
+                return previewData;
             }
             catch (Exception ex)
             {
                 RaiseDebugMessage($"ReadEmbroideryFilePreview: Exception occurred: {ex.Message}");
                 return null;
+            }
+            finally
+            {
+                // Always attempt cleanup, even if errors occurred
+                if (sessionStarted)
+                {
+                    // Step 9: Invoke function 0x0101 for cleanup
+                    RaiseDebugMessage("ReadEmbroideryFilePreview: Invoking cleanup function 0x0101");
+                    try
+                    {
+                        var invokeFunc101Result = await InvokeFunctionAsync(0x0101);
+                        if (!invokeFunc101Result.Success)
+                        {
+                            RaiseDebugMessage($"ReadEmbroideryFilePreview: Warning - Failed to invoke cleanup function 0x0101: {invokeFunc101Result.ErrorMessage}");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        RaiseDebugMessage($"ReadEmbroideryFilePreview: Warning - Exception during cleanup function 0x0101: {ex.Message}");
+                    }
+
+                    // Step 10: Close embroidery session
+                    RaiseDebugMessage("ReadEmbroideryFilePreview: Ending session");
+                    try
+                    {
+                        var sessionEndResult = await SessionEndAsync();
+                        if (!sessionEndResult.Success)
+                        {
+                            RaiseDebugMessage($"ReadEmbroideryFilePreview: Warning - Session end failed: {sessionEndResult.ErrorMessage}");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        RaiseDebugMessage($"ReadEmbroideryFilePreview: Warning - Exception during session end: {ex.Message}");
+                    }
+                }
+
+                if (previewData != null)
+                {
+                    RaiseDebugMessage($"ReadEmbroideryFilePreview: Complete - returning {previewData.Length} bytes of preview image data");
+                }
             }
         }
 
