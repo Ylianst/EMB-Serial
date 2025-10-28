@@ -9,11 +9,11 @@ namespace SerialComm
         private SerialStack? _serialStack;
         private bool _isConnected = false;
         private string? _selectedComPort = null;
-        private bool _isDisposed = false;
         private static DebugForm? _debugForm = null;
         private const string RegistryKeyPath = @"Software\BerninaSerialComm";
         private const string ComPortValueName = "LastComPort";
         private const string PreviewCacheValueName = "PreviewCache";
+        private List<EmbroideryFileControl>? _embroideryFileControls = null;
 
         public MainForm()
         {
@@ -77,7 +77,7 @@ namespace SerialComm
             }
         }
 
-        private void ComPortMenuItem_Click(object sender, EventArgs e)
+        private void ComPortMenuItem_Click(object? sender, EventArgs e)
         {
             if (sender is ToolStripMenuItem menuItem)
             {
@@ -193,7 +193,42 @@ namespace SerialComm
                     UpdateConnectionStatus($"Connected: {portName} @ {_serialStack.BaudRate} baud", true);
 
                     // Load preview cache from registry
-                    await LoadPreviewCacheFromRegistryAsync();
+                    //await LoadPreviewCacheFromRegistryAsync();
+
+                    // Change baud rate to 57600 for faster file reading
+                    UpdateStatus("Switching to 57600 baud...");
+                    bool baudChangeSuccess = await _serialStack.ChangeTo57600BaudAsync();
+                    if (baudChangeSuccess)
+                    {
+                        UpdateStatus("Baud rate changed to 57600");
+                        UpdateConnectionStatus($"Connected: {portName} @ {_serialStack.BaudRate} baud", true);
+                    }
+                    else
+                    {
+                        UpdateStatus("Failed to change baud rate, continuing at current speed");
+                    }
+
+                    // Load embroidery files with previews
+                    UpdateStatus("Loading embroidery files...");
+                    ShowProgressBar(true, "Loading embroidery files...");
+                    
+                    var embroideryFiles = await _serialStack.ReadEmbroideryFilesAsync(
+                        StorageLocation.EmbroideryModuleMemory, 
+                        true, 
+                        (current, total) => UpdateProgress(current, total)
+                    );
+
+                    ShowProgressBar(false);
+
+                    if (embroideryFiles != null)
+                    {
+                        DisplayEmbroideryFiles(embroideryFiles);
+                        UpdateStatus($"Loaded {embroideryFiles.Count} embroidery files");
+                    }
+                    else
+                    {
+                        UpdateStatus("Failed to load embroidery files");
+                    }
                 }
                 else
                 {
@@ -248,6 +283,9 @@ namespace SerialComm
             disconnectToolStripMenuItem.Enabled = false;
             selectCOMPortToolStripMenuItem.Enabled = true;
             showDeveloperDebugToolStripMenuItem.Enabled = true;
+
+            // Clear displayed embroidery files
+            ClearEmbroideryFiles();
 
             // Update debug form when disconnecting
             if (_debugForm != null && !_debugForm.IsDisposed)
@@ -400,6 +438,86 @@ namespace SerialComm
             }
         }
 
+        private void DisplayEmbroideryFiles(List<EmbroideryFile> files)
+        {
+            if (InvokeRequired)
+            {
+                Invoke(new Action(() => DisplayEmbroideryFiles(files)));
+                return;
+            }
+
+            // Clear previous files
+            ClearEmbroideryFiles();
+
+            // Create and add controls for each file
+            _embroideryFileControls = new List<EmbroideryFileControl>(files.Count);
+
+            foreach (var file in files)
+            {
+                var fileControl = new EmbroideryFileControl();
+                fileControl.SetEmbroideryFile(file);
+                flowLayoutPanelFiles.Controls.Add(fileControl);
+                _embroideryFileControls.Add(fileControl);
+            }
+        }
+
+        private void ClearEmbroideryFiles()
+        {
+            if (InvokeRequired)
+            {
+                Invoke(new Action(() => ClearEmbroideryFiles()));
+                return;
+            }
+
+            flowLayoutPanelFiles.Controls.Clear();
+            if (_embroideryFileControls != null)
+            {
+                foreach (var control in _embroideryFileControls)
+                {
+                    control?.Dispose();
+                }
+                _embroideryFileControls.Clear();
+            }
+        }
+
+        private void ShowProgressBar(bool visible, string message = "")
+        {
+            if (InvokeRequired)
+            {
+                Invoke(new Action(() => ShowProgressBar(visible, message)));
+                return;
+            }
+
+            if (visible)
+            {
+                progressBarLoading.Visible = true;
+                progressBarLoading.Value = 0;
+                progressBarLoading.Maximum = 100;
+                progressBarLoading.BringToFront();
+                UpdateStatus(message);
+            }
+            else
+            {
+                progressBarLoading.Visible = false;
+            }
+        }
+
+        private void UpdateProgress(int current, int total)
+        {
+            if (InvokeRequired)
+            {
+                Invoke(new Action(() => UpdateProgress(current, total)));
+                return;
+            }
+
+            if (total > 0)
+            {
+                int percentage = (int)((current * 100) / total);
+                progressBarLoading.Value = Math.Min(percentage, 100);
+                UpdateStatus($"Loading embroidery files... {current}/{total}");
+            }
+        }
+
         private void connectToolStripMenuItem_Click(object sender, EventArgs e)
         {
             btnConnect_Click(sender, e);
@@ -417,8 +535,6 @@ namespace SerialComm
 
         private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
         {
-            _isDisposed = true;
-
             // Save preview cache to registry before disconnecting
             if (_serialStack != null && _isConnected)
             {

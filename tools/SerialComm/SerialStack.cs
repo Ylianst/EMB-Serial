@@ -2488,8 +2488,9 @@ namespace Bernina.SerialStack
         /// </summary>
         /// <param name="location">Storage location to read from</param>
         /// <param name="loadPreviews">If true, also loads preview image data for each file; defaults to false</param>
+        /// <param name="progress">Optional progress callback (current file count, total file count)</param>
         /// <returns>List of EmbroideryFile objects, or null if operation fails</returns>
-        public async Task<List<EmbroideryFile>?> ReadEmbroideryFilesAsync(StorageLocation location, bool loadPreviews = false)
+        public async Task<List<EmbroideryFile>?> ReadEmbroideryFilesAsync(StorageLocation location, bool loadPreviews = false, Action<int, int>? progress = null)
         {
             RaiseDebugMessage($"ReadEmbroideryFiles: Starting read from {location}");
             
@@ -2680,7 +2681,8 @@ namespace Bernina.SerialStack
                         // Load preview data if requested
                         if (loadPreviews)
                         {
-                            int previewAddress = 0x02452E0 + (0x22E * (pageIndex * 27 + i));
+                            //int previewAddress = 0x02452E + (0x22E * (pageIndex * 27 + i));
+                            int previewAddress = 0x02452E + (0x22E * i);
                             const int previewSize = 0x22E; // 558 bytes
                             
                             // First, get the sum of the preview data to check cache
@@ -2735,6 +2737,9 @@ namespace Bernina.SerialStack
 
                         fileList.Add(file);
                         fileIndex++;
+                        
+                        // Report progress
+                        progress?.Invoke(fileIndex, totalFileCount);
                     }
 
                     // Move to next page if needed

@@ -28,10 +28,13 @@
             toolStripStatusLabel = new ToolStripStatusLabel();
             toolStripStatusLabelConnection = new ToolStripStatusLabel();
             panelMain = new Panel();
+            progressBarLoading = new ProgressBar();
+            flowLayoutPanelFiles = new FlowLayoutPanel();
             mainPanel = new Panel();
             btnConnect = new Button();
             menuStrip.SuspendLayout();
             statusStrip.SuspendLayout();
+            panelMain.SuspendLayout();
             mainPanel.SuspendLayout();
             SuspendLayout();
             // 
@@ -131,16 +134,39 @@
             // panelMain
             // 
             panelMain.BorderStyle = BorderStyle.Fixed3D;
+            panelMain.Controls.Add(progressBarLoading);
+            panelMain.Controls.Add(flowLayoutPanelFiles);
             panelMain.Dock = DockStyle.Fill;
             panelMain.Location = new Point(0, 94);
             panelMain.Margin = new Padding(3, 4, 3, 4);
             panelMain.Name = "panelMain";
-            panelMain.Padding = new Padding(23, 27, 23, 27);
+            panelMain.Padding = new Padding(4);
             panelMain.Size = new Size(759, 409);
             panelMain.TabIndex = 2;
             // 
+            // progressBarLoading
+            // 
+            progressBarLoading.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+            progressBarLoading.Location = new Point(279, 189);
+            progressBarLoading.Name = "progressBarLoading";
+            progressBarLoading.Size = new Size(200, 30);
+            progressBarLoading.TabIndex = 1;
+            progressBarLoading.Visible = false;
+            // 
+            // flowLayoutPanelFiles
+            // 
+            flowLayoutPanelFiles.AutoScroll = true;
+            flowLayoutPanelFiles.BackColor = SystemColors.Control;
+            flowLayoutPanelFiles.Dock = DockStyle.Fill;
+            flowLayoutPanelFiles.Location = new Point(4, 4);
+            flowLayoutPanelFiles.Margin = new Padding(0);
+            flowLayoutPanelFiles.Name = "flowLayoutPanelFiles";
+            flowLayoutPanelFiles.Size = new Size(747, 397);
+            flowLayoutPanelFiles.TabIndex = 0;
+            // 
             // mainPanel
             // 
+            mainPanel.BackColor = SystemColors.ControlDark;
             mainPanel.Controls.Add(btnConnect);
             mainPanel.Dock = DockStyle.Top;
             mainPanel.Location = new Point(0, 30);
@@ -153,7 +179,7 @@
             btnConnect.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             btnConnect.BackColor = SystemColors.Control;
             btnConnect.Font = new Font("Segoe UI", 10F);
-            btnConnect.Location = new Point(633, 4);
+            btnConnect.Location = new Point(634, 6);
             btnConnect.Margin = new Padding(3, 4, 3, 4);
             btnConnect.Name = "btnConnect";
             btnConnect.Size = new Size(114, 53);
@@ -173,14 +199,16 @@
             Controls.Add(statusStrip);
             MainMenuStrip = menuStrip;
             Margin = new Padding(3, 4, 3, 4);
+            MinimumSize = new Size(777, 576);
             Name = "MainForm";
-            Text = "Bernina Serial Communicator";
+            Text = "Embroidery Serial Communicator";
             FormClosing += MainForm_FormClosing;
             Load += MainForm_Load;
             menuStrip.ResumeLayout(false);
             menuStrip.PerformLayout();
             statusStrip.ResumeLayout(false);
             statusStrip.PerformLayout();
+            panelMain.ResumeLayout(false);
             mainPanel.ResumeLayout(false);
             ResumeLayout(false);
             PerformLayout();
@@ -201,5 +229,7 @@
         private Panel panelMain;
         private Panel mainPanel;
         private Button btnConnect;
+        private FlowLayoutPanel flowLayoutPanelFiles;
+        private ProgressBar progressBarLoading;
     }
 }
