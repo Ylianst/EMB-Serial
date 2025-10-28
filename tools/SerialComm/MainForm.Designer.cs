@@ -26,9 +26,9 @@
             showDeveloperDebugToolStripMenuItem = new ToolStripMenuItem();
             statusStrip = new StatusStrip();
             toolStripStatusLabel = new ToolStripStatusLabel();
+            toolStripProgressBar = new ToolStripProgressBar();
             toolStripStatusLabelConnection = new ToolStripStatusLabel();
             panelMain = new Panel();
-            progressBarLoading = new ProgressBar();
             flowLayoutPanelFiles = new FlowLayoutPanel();
             mainPanel = new Panel();
             btnConnect = new Button();
@@ -106,7 +106,7 @@
             // statusStrip
             // 
             statusStrip.ImageScalingSize = new Size(20, 20);
-            statusStrip.Items.AddRange(new ToolStripItem[] { toolStripStatusLabel, toolStripStatusLabelConnection });
+            statusStrip.Items.AddRange(new ToolStripItem[] { toolStripStatusLabel, toolStripProgressBar, toolStripStatusLabelConnection });
             statusStrip.Location = new Point(0, 503);
             statusStrip.Name = "statusStrip";
             statusStrip.Padding = new Padding(1, 0, 16, 0);
@@ -131,10 +131,16 @@
             toolStripStatusLabelConnection.Text = "Disconnected";
             toolStripStatusLabelConnection.TextAlign = ContentAlignment.MiddleRight;
             // 
+            // toolStripProgressBar
+            // 
+            toolStripProgressBar.AutoSize = false;
+            toolStripProgressBar.Name = "toolStripProgressBar";
+            toolStripProgressBar.Size = new Size(100, 20);
+            toolStripProgressBar.Visible = false;
+            // 
             // panelMain
             // 
             panelMain.BorderStyle = BorderStyle.Fixed3D;
-            panelMain.Controls.Add(progressBarLoading);
             panelMain.Controls.Add(flowLayoutPanelFiles);
             panelMain.Dock = DockStyle.Fill;
             panelMain.Location = new Point(0, 94);
@@ -143,15 +149,6 @@
             panelMain.Padding = new Padding(4);
             panelMain.Size = new Size(759, 409);
             panelMain.TabIndex = 2;
-            // 
-            // progressBarLoading
-            // 
-            progressBarLoading.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
-            progressBarLoading.Location = new Point(279, 189);
-            progressBarLoading.Name = "progressBarLoading";
-            progressBarLoading.Size = new Size(200, 30);
-            progressBarLoading.TabIndex = 1;
-            progressBarLoading.Visible = false;
             // 
             // flowLayoutPanelFiles
             // 
@@ -225,11 +222,11 @@
         private ToolStripMenuItem showDeveloperDebugToolStripMenuItem;
         private StatusStrip statusStrip;
         private ToolStripStatusLabel toolStripStatusLabel;
+        private ToolStripProgressBar toolStripProgressBar;
         private ToolStripStatusLabel toolStripStatusLabelConnection;
         private Panel panelMain;
         private Panel mainPanel;
         private Button btnConnect;
         private FlowLayoutPanel flowLayoutPanelFiles;
-        private ProgressBar progressBarLoading;
     }
 }

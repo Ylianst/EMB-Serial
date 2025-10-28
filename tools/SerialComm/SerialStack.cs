@@ -162,6 +162,10 @@ namespace Bernina.SerialStack
 
         // Preview cache: key is {ChecksumHex}~{Attributes:X2}~{FileName}
         private readonly Dictionary<string, byte[]> _previewCache = new();
+        
+        // Fast lookup cache: key is {Attributes:X2}~{FileName}, value is preview data
+        // This allows quick cache hits without needing to compute checksums
+        private readonly Dictionary<string, byte[]> _previewCacheFastLookup = new();
 
         /// <summary>
         /// Event raised when connection state changes
@@ -2489,8 +2493,10 @@ namespace Bernina.SerialStack
         /// <param name="location">Storage location to read from</param>
         /// <param name="loadPreviews">If true, also loads preview image data for each file; defaults to false</param>
         /// <param name="progress">Optional progress callback (current file count, total file count)</param>
+        /// <param name="onFileLoaded">Optional callback invoked for each file as it's fully loaded; useful for real-time UI updates</param>
+        /// <param name="useFastCacheLookup">If true, uses fast cache lookup by filename+attributes instead of checksum validation; faster but skips sum verification</param>
         /// <returns>List of EmbroideryFile objects, or null if operation fails</returns>
-        public async Task<List<EmbroideryFile>?> ReadEmbroideryFilesAsync(StorageLocation location, bool loadPreviews = false, Action<int, int>? progress = null)
+        public async Task<List<EmbroideryFile>?> ReadEmbroideryFilesAsync(StorageLocation location, bool loadPreviews = false, Action<int, int>? progress = null, Action<EmbroideryFile>? onFileLoaded = null, bool useFastCacheLookup = false)
         {
             RaiseDebugMessage($"ReadEmbroideryFiles: Starting read from {location}");
             
@@ -2681,55 +2687,86 @@ namespace Bernina.SerialStack
                         // Load preview data if requested
                         if (loadPreviews)
                         {
-                            //int previewAddress = 0x02452E + (0x22E * (pageIndex * 27 + i));
                             int previewAddress = 0x02452E + (0x22E * i);
                             const int previewSize = 0x22E; // 558 bytes
                             
-                            // First, get the sum of the preview data to check cache
-                            RaiseDebugMessage($"ReadEmbroideryFiles: Getting checksum for preview of file {fileIndex} ({file.FileName})");
-                            var sumResult = await SumCommandAsync(previewAddress, previewSize);
+                            bool previewLoaded = false;
                             
-                            if (sumResult.Success && sumResult.Response != null)
+                            // Check fast lookup cache first if enabled
+                            if (useFastCacheLookup)
                             {
-                                // Parse the checksum value
-                                if (long.TryParse(sumResult.Response, System.Globalization.NumberStyles.HexNumber, null, out long checksumValue))
+                                string fastLookupKey = $"{file.FileAttributes:X2}~{file.FileName}";
+                                if (_previewCacheFastLookup.ContainsKey(fastLookupKey))
                                 {
-                                    // Build cache key: {ChecksumHex}~{Attributes:X2}~{FileName}
-                                    string cacheKey = $"{checksumValue:X}~{file.FileAttributes:X2}~{file.FileName}";
-                                    
-                                    // Check if preview is in cache
-                                    if (_previewCache.ContainsKey(cacheKey))
+                                    RaiseDebugMessage($"ReadEmbroideryFiles: Fast cache hit for file {fileIndex} ({file.FileName})");
+                                    file.PreviewImageData = _previewCacheFastLookup[fastLookupKey];
+                                    previewLoaded = true;
+                                }
+                            }
+                            
+                            if (!previewLoaded)
+                            {
+                                // First, get the sum of the preview data to check cache
+                                RaiseDebugMessage($"ReadEmbroideryFiles: Getting checksum for preview of file {fileIndex} ({file.FileName})");
+                                var sumResult = await SumCommandAsync(previewAddress, previewSize);
+                                
+                                if (sumResult.Success && sumResult.Response != null)
+                                {
+                                    // Parse the checksum value
+                                    if (long.TryParse(sumResult.Response, System.Globalization.NumberStyles.HexNumber, null, out long checksumValue))
                                     {
-                                        RaiseDebugMessage($"ReadEmbroideryFiles: Preview cache hit for file {fileIndex} ({file.FileName})");
-                                        file.PreviewImageData = _previewCache[cacheKey];
+                                        // Build cache key: {ChecksumHex}~{Attributes:X2}~{FileName}
+                                        string cacheKey = $"{checksumValue:X}~{file.FileAttributes:X2}~{file.FileName}";
+                                        
+                                        // Check if preview is in cache
+                                        if (_previewCache.ContainsKey(cacheKey))
+                                        {
+                                            RaiseDebugMessage($"ReadEmbroideryFiles: Preview cache hit for file {fileIndex} ({file.FileName})");
+                                            file.PreviewImageData = _previewCache[cacheKey];
+                                            previewLoaded = true;
+                                        }
                                     }
                                     else
                                     {
-                                        // Not in cache - load the preview data
-                                        RaiseDebugMessage($"ReadEmbroideryFiles: Loading preview data for file {fileIndex} ({file.FileName}) from 0x{previewAddress:X}");
-                                        var previewResult = await ReadMemoryBlockAsync(previewAddress, previewSize);
-                                        
-                                        if (previewResult.Success && previewResult.BinaryData != null && previewResult.BinaryData.Length == previewSize)
-                                        {
-                                            // Cache the preview data
-                                            _previewCache[cacheKey] = previewResult.BinaryData;
-                                            file.PreviewImageData = previewResult.BinaryData;
-                                            RaiseDebugMessage($"ReadEmbroideryFiles: Preview cached for file {fileIndex} ({file.FileName})");
-                                        }
-                                        else
-                                        {
-                                            RaiseDebugMessage($"ReadEmbroideryFiles: Failed to load preview data for file {fileIndex}: {previewResult.ErrorMessage}");
-                                        }
+                                        RaiseDebugMessage($"ReadEmbroideryFiles: Failed to parse checksum for file {fileIndex}");
                                     }
                                 }
                                 else
                                 {
-                                    RaiseDebugMessage($"ReadEmbroideryFiles: Failed to parse checksum for file {fileIndex}");
+                                    RaiseDebugMessage($"ReadEmbroideryFiles: Failed to get checksum for file {fileIndex}: {sumResult.ErrorMessage}");
                                 }
                             }
-                            else
+                            
+                            // If not in cache, load the preview data
+                            if (!previewLoaded)
                             {
-                                RaiseDebugMessage($"ReadEmbroideryFiles: Failed to get checksum for file {fileIndex}: {sumResult.ErrorMessage}");
+                                RaiseDebugMessage($"ReadEmbroideryFiles: Loading preview data for file {fileIndex} ({file.FileName}) from 0x{previewAddress:X}");
+                                var previewResult = await ReadMemoryBlockAsync(previewAddress, previewSize);
+                                
+                                if (previewResult.Success && previewResult.BinaryData != null && previewResult.BinaryData.Length == previewSize)
+                                {
+                                    file.PreviewImageData = previewResult.BinaryData;
+                                    
+                                    // Add to both caches
+                                    string fastLookupKey = $"{file.FileAttributes:X2}~{file.FileName}";
+                                    _previewCacheFastLookup[fastLookupKey] = previewResult.BinaryData;
+                                    
+                                    // Also add to the full cache with checksum key if we have checksumValue
+                                    // We already computed the checksum earlier, now compute it again for the cache key
+                                    long localChecksum = 0;
+                                    foreach (byte b in previewResult.BinaryData)
+                                    {
+                                        localChecksum += b;
+                                    }
+                                    string fullCacheKey = $"{localChecksum:X}~{file.FileAttributes:X2}~{file.FileName}";
+                                    _previewCache[fullCacheKey] = previewResult.BinaryData;
+                                    
+                                    RaiseDebugMessage($"ReadEmbroideryFiles: Preview cached for file {fileIndex} ({file.FileName})");
+                                }
+                                else
+                                {
+                                    RaiseDebugMessage($"ReadEmbroideryFiles: Failed to load preview data for file {fileIndex}: {previewResult.ErrorMessage}");
+                                }
                             }
                         }
 
@@ -2738,8 +2775,9 @@ namespace Bernina.SerialStack
                         fileList.Add(file);
                         fileIndex++;
                         
-                        // Report progress
+                        // Report progress and invoke callback for real-time UI updates
                         progress?.Invoke(fileIndex, totalFileCount);
+                        onFileLoaded?.Invoke(file);
                     }
 
                     // Move to next page if needed
@@ -2964,7 +3002,7 @@ namespace Bernina.SerialStack
 
                 // Step 8: Compute preview image location and read preview data
                 int previewAddress = 0x02452E + (0x22E * (FileId % 27));
-                RaiseDebugMessage($"ReadEmbroideryFilePreview: Computing preview address - base: 0x02452E0, offset: 0x{(0x22E * FileId):X}, address: 0x{previewAddress:X}");
+                RaiseDebugMessage($"ReadEmbroideryFilePreview: Computing preview address - base: 0x02452E, offset: 0x{(0x22E * FileId):X}, address: 0x{previewAddress:X}");
 
                 const int previewSize = 0x22E; // 558 bytes
                 RaiseDebugMessage($"ReadEmbroideryFilePreview: Reading {previewSize} bytes from 0x{previewAddress:X}");
@@ -3138,9 +3176,18 @@ namespace Bernina.SerialStack
 
                                 byte[] value = reader.ReadBytes(valueLength);
                                 _previewCache[key] = value;
+                                
+                                // Also populate fast lookup cache by parsing the key
+                                // Key format: {ChecksumHex}~{Attributes:X2}~{FileName}
+                                string[] parts = key.Split('~');
+                                if (parts.Length == 3)
+                                {
+                                    string fastLookupKey = $"{parts[1]}~{parts[2]}"; // {Attributes:X2}~{FileName}
+                                    _previewCacheFastLookup[fastLookupKey] = value;
+                                }
                             }
 
-                            RaiseDebugMessage($"DeserializeCache: Successfully loaded {_previewCache.Count} cache entries");
+                            RaiseDebugMessage($"DeserializeCache: Successfully loaded {_previewCache.Count} cache entries with fast lookup");
                             return true;
                         }
                     }

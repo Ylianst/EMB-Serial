@@ -193,7 +193,7 @@ namespace SerialComm
                     UpdateConnectionStatus($"Connected: {portName} @ {_serialStack.BaudRate} baud", true);
 
                     // Load preview cache from registry
-                    //await LoadPreviewCacheFromRegistryAsync();
+                    await LoadPreviewCacheFromRegistryAsync();
 
                     // Change baud rate to 57600 for faster file reading
                     UpdateStatus("Switching to 57600 baud...");
@@ -212,18 +212,26 @@ namespace SerialComm
                     UpdateStatus("Loading embroidery files...");
                     ShowProgressBar(true, "Loading embroidery files...");
                     
+                    // Clear any previous files before starting
+                    ClearEmbroideryFiles();
+                    _embroideryFileControls = new List<EmbroideryFileControl>();
+                    
                     var embroideryFiles = await _serialStack.ReadEmbroideryFilesAsync(
                         StorageLocation.EmbroideryModuleMemory, 
                         true, 
-                        (current, total) => UpdateProgress(current, total)
+                        (current, total) => UpdateProgress(current, total),
+                        (file) => AddFileToUIRealTime(file)
                     );
 
                     ShowProgressBar(false);
 
                     if (embroideryFiles != null)
                     {
-                        DisplayEmbroideryFiles(embroideryFiles);
                         UpdateStatus($"Loaded {embroideryFiles.Count} embroidery files");
+                        
+                        // Save the preview cache to registry immediately after loading
+                        UpdateStatus("Saving preview cache...");
+                        await SavePreviewCacheToRegistryAsync();
                     }
                     else
                     {
@@ -351,7 +359,7 @@ namespace SerialComm
             }
         }
 
-        private async void SavePreviewCacheToRegistryAsync()
+        private async Task SavePreviewCacheToRegistryAsync()
         {
             if (_serialStack == null)
             {
@@ -490,15 +498,14 @@ namespace SerialComm
 
             if (visible)
             {
-                progressBarLoading.Visible = true;
-                progressBarLoading.Value = 0;
-                progressBarLoading.Maximum = 100;
-                progressBarLoading.BringToFront();
+                toolStripProgressBar.Visible = true;
+                toolStripProgressBar.Value = 0;
+                toolStripProgressBar.Maximum = 100;
                 UpdateStatus(message);
             }
             else
             {
-                progressBarLoading.Visible = false;
+                toolStripProgressBar.Visible = false;
             }
         }
 
@@ -513,9 +520,34 @@ namespace SerialComm
             if (total > 0)
             {
                 int percentage = (int)((current * 100) / total);
-                progressBarLoading.Value = Math.Min(percentage, 100);
+                toolStripProgressBar.Value = Math.Min(percentage, 100);
                 UpdateStatus($"Loading embroidery files... {current}/{total}");
             }
+        }
+
+        private void AddFileToUIRealTime(EmbroideryFile file)
+        {
+            if (InvokeRequired)
+            {
+                Invoke(new Action(() => AddFileToUIRealTime(file)));
+                return;
+            }
+
+            // Create a new control for this file
+            var fileControl = new EmbroideryFileControl();
+            fileControl.SetEmbroideryFile(file);
+            
+            // Add to flow layout panel (will appear immediately)
+            flowLayoutPanelFiles.Controls.Add(fileControl);
+            
+            // Track the control
+            if (_embroideryFileControls != null)
+            {
+                _embroideryFileControls.Add(fileControl);
+            }
+            
+            // Auto-scroll to the newly added file
+            flowLayoutPanelFiles.ScrollControlIntoView(fileControl);
         }
 
         private void connectToolStripMenuItem_Click(object sender, EventArgs e)
@@ -535,12 +567,6 @@ namespace SerialComm
 
         private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
         {
-            // Save preview cache to registry before disconnecting
-            if (_serialStack != null && _isConnected)
-            {
-                SavePreviewCacheToRegistryAsync();
-            }
-
             // Close debug form if it exists
             if (_debugForm != null && !_debugForm.IsDisposed)
             {
