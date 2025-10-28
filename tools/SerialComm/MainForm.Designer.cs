@@ -24,6 +24,7 @@
             exitToolStripMenuItem = new ToolStripMenuItem();
             debugToolStripMenuItem = new ToolStripMenuItem();
             showDeveloperDebugToolStripMenuItem = new ToolStripMenuItem();
+            downloadMemoryDumpToolStripMenuItem = new ToolStripMenuItem();
             statusStrip = new StatusStrip();
             toolStripStatusLabel = new ToolStripStatusLabel();
             toolStripProgressBar = new ToolStripProgressBar();
@@ -91,7 +92,7 @@
             // 
             // debugToolStripMenuItem
             // 
-            debugToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { showDeveloperDebugToolStripMenuItem });
+            debugToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { showDeveloperDebugToolStripMenuItem, downloadMemoryDumpToolStripMenuItem });
             debugToolStripMenuItem.Name = "debugToolStripMenuItem";
             debugToolStripMenuItem.Size = new Size(68, 24);
             debugToolStripMenuItem.Text = "&Debug";
@@ -99,9 +100,16 @@
             // showDeveloperDebugToolStripMenuItem
             // 
             showDeveloperDebugToolStripMenuItem.Name = "showDeveloperDebugToolStripMenuItem";
-            showDeveloperDebugToolStripMenuItem.Size = new Size(250, 26);
-            showDeveloperDebugToolStripMenuItem.Text = "Show &Developer Debug";
+            showDeveloperDebugToolStripMenuItem.Size = new Size(224, 26);
+            showDeveloperDebugToolStripMenuItem.Text = "&Developer Debug...";
             showDeveloperDebugToolStripMenuItem.Click += showDeveloperDebugToolStripMenuItem_Click;
+            // 
+            // downloadMemoryDumpToolStripMenuItem
+            // 
+            downloadMemoryDumpToolStripMenuItem.Name = "downloadMemoryDumpToolStripMenuItem";
+            downloadMemoryDumpToolStripMenuItem.Size = new Size(224, 26);
+            downloadMemoryDumpToolStripMenuItem.Text = "&Memory Dump...";
+            downloadMemoryDumpToolStripMenuItem.Click += downloadMemoryDumpToolStripMenuItem_Click;
             // 
             // statusStrip
             // 
@@ -122,6 +130,13 @@
             toolStripStatusLabel.Text = "Ready";
             toolStripStatusLabel.TextAlign = ContentAlignment.MiddleLeft;
             // 
+            // toolStripProgressBar
+            // 
+            toolStripProgressBar.AutoSize = false;
+            toolStripProgressBar.Name = "toolStripProgressBar";
+            toolStripProgressBar.Size = new Size(100, 18);
+            toolStripProgressBar.Visible = false;
+            // 
             // toolStripStatusLabelConnection
             // 
             toolStripStatusLabelConnection.AutoSize = false;
@@ -130,13 +145,6 @@
             toolStripStatusLabelConnection.Size = new Size(159, 20);
             toolStripStatusLabelConnection.Text = "Disconnected";
             toolStripStatusLabelConnection.TextAlign = ContentAlignment.MiddleRight;
-            // 
-            // toolStripProgressBar
-            // 
-            toolStripProgressBar.AutoSize = false;
-            toolStripProgressBar.Name = "toolStripProgressBar";
-            toolStripProgressBar.Size = new Size(100, 20);
-            toolStripProgressBar.Visible = false;
             // 
             // panelMain
             // 
@@ -220,6 +228,7 @@
         private ToolStripMenuItem exitToolStripMenuItem;
         private ToolStripMenuItem debugToolStripMenuItem;
         private ToolStripMenuItem showDeveloperDebugToolStripMenuItem;
+        private ToolStripMenuItem downloadMemoryDumpToolStripMenuItem;
         private StatusStrip statusStrip;
         private ToolStripStatusLabel toolStripStatusLabel;
         private ToolStripProgressBar toolStripProgressBar;

@@ -10,10 +10,14 @@ namespace SerialComm
         private bool _isConnected = false;
         private string? _selectedComPort = null;
         private static DebugForm? _debugForm = null;
+        private MemoryDumpForm? _memoryDumpForm = null;
+        private ComPortMonitor? _comPortMonitor = null;
         private const string RegistryKeyPath = @"Software\BerninaSerialComm";
         private const string ComPortValueName = "LastComPort";
         private const string PreviewCacheValueName = "PreviewCache";
         private List<EmbroideryFileControl>? _embroideryFileControls = null;
+        private string[]? _previousPortList = null;
+        private string? _lastAskedAboutPort = null;
 
         public MainForm()
         {
@@ -28,11 +32,76 @@ namespace SerialComm
             // Populate COM port menu
             RefreshComPortsMenu();
 
+            // Initialize previous port list for change detection
+            _previousPortList = SerialPort.GetPortNames();
+
             // Initialize status
             UpdateConnectionStatus("Disconnected", false);
 
             // Enable debug menu (can be opened anytime)
             showDeveloperDebugToolStripMenuItem.Enabled = true;
+
+            // Start monitoring for COM port changes
+            try
+            {
+                _comPortMonitor = new ComPortMonitor();
+                _comPortMonitor.ComPortsChanged += ComPortMonitor_ComPortsChanged;
+                _comPortMonitor.Start();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to start COM port monitor: {ex.Message}");
+                // Continue even if monitor fails - the app can still work with manual refresh
+            }
+        }
+
+        private void ComPortMonitor_ComPortsChanged(object? sender, EventArgs e)
+        {
+            // Refresh the COM port menu when ports are added or removed
+            if (InvokeRequired)
+            {
+                Invoke(new Action(() => ComPortMonitor_ComPortsChanged(sender, e)));
+                return;
+            }
+
+            // Only suggest new ports when disconnected
+            if (!_isConnected)
+            {
+                string[] currentPorts = SerialPort.GetPortNames();
+                
+                // Find new ports that weren't in the previous list
+                if (_previousPortList != null)
+                {
+                    foreach (string port in currentPorts)
+                    {
+                        // Only ask about ports we haven't already asked about
+                        if (!_previousPortList.Contains(port) && port != _selectedComPort && port != _lastAskedAboutPort)
+                        {
+                            // New port detected and it's not the currently selected one
+                            _lastAskedAboutPort = port; // Mark that we've asked about this port
+                            
+                            DialogResult result = MessageBox.Show(
+                                $"A new COM port \"{port}\" has been detected. Would you like to use this port to connect to the sewing machine?",
+                                "New COM Port Detected",
+                                MessageBoxButtons.YesNo,
+                                MessageBoxIcon.Question);
+
+                            if (result == DialogResult.Yes)
+                            {
+                                _selectedComPort = port;
+                                _lastAskedAboutPort = null; // Clear the tracking since we've selected it
+                                UpdateStatus($"Selected COM port: {_selectedComPort}");
+                            }
+                            break; // Only ask about one new port at a time
+                        }
+                    }
+                }
+                
+                // Update the previous port list
+                _previousPortList = currentPorts;
+            }
+
+            RefreshComPortsMenu();
         }
 
         private void RefreshComPortsMenu()
@@ -54,6 +123,20 @@ namespace SerialComm
             
             if (ports.Length > 0)
             {
+                // Sort ports numerically (COM1, COM2, ..., COM9, COM10, COM11, etc.)
+                Array.Sort(ports, (a, b) =>
+                {
+                    // Extract numeric part from port names
+                    string numA = System.Text.RegularExpressions.Regex.Replace(a, @"\D", "");
+                    string numB = System.Text.RegularExpressions.Regex.Replace(b, @"\D", "");
+                    
+                    if (int.TryParse(numA, out int intA) && int.TryParse(numB, out int intB))
+                    {
+                        return intA.CompareTo(intB);
+                    }
+                    return a.CompareTo(b); // Fallback to string comparison
+                });
+
                 foreach (string port in ports)
                 {
                     ToolStripMenuItem portItem = new ToolStripMenuItem(port);
@@ -146,6 +229,16 @@ namespace SerialComm
                         MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
                 }
+
+                // Check if the selected COM port is currently available
+                string[] availablePorts = SerialPort.GetPortNames();
+                if (!availablePorts.Contains(_selectedComPort))
+                {
+                    MessageBox.Show($"The selected COM port \"{_selectedComPort}\" is not currently available on this system.", "Port Not Available",
+                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
                 await ConnectAsync();
             }
         }
@@ -326,6 +419,28 @@ namespace SerialComm
             _debugForm = new DebugForm(_serialStack);
             _debugForm.UpdateConnectionStatus(_isConnected);
             _debugForm.Show();
+        }
+
+        private void downloadMemoryDumpToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            if (_serialStack == null || !_isConnected)
+            {
+                MessageBox.Show("Please connect to the machine first.", "Not Connected",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            // If memory dump form already exists and is not disposed, just focus it
+            if (_memoryDumpForm != null && !_memoryDumpForm.IsDisposed)
+            {
+                _memoryDumpForm.Focus();
+                _memoryDumpForm.BringToFront();
+                return;
+            }
+
+            // Create new memory dump form
+            _memoryDumpForm = new MemoryDumpForm(_serialStack);
+            _memoryDumpForm.Show();
         }
 
         private async Task LoadPreviewCacheFromRegistryAsync()
@@ -567,6 +682,20 @@ namespace SerialComm
 
         private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
         {
+            // Stop COM port monitoring
+            if (_comPortMonitor != null)
+            {
+                _comPortMonitor.ComPortsChanged -= ComPortMonitor_ComPortsChanged;
+                _comPortMonitor.Dispose();
+                _comPortMonitor = null;
+            }
+
+            // Close memory dump form if it exists
+            if (_memoryDumpForm != null && !_memoryDumpForm.IsDisposed)
+            {
+                _memoryDumpForm.Close();
+            }
+
             // Close debug form if it exists
             if (_debugForm != null && !_debugForm.IsDisposed)
             {
