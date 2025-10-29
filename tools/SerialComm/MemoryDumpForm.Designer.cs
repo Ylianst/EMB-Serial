@@ -23,11 +23,11 @@ namespace SerialComm
             textBoxFilename = new TextBox();
             buttonBrowse = new Button();
             progressBar = new ProgressBar();
-            buttonStart = new Button();
-            buttonCancel = new Button();
             infoLabel = new Label();
             chipPictureBox = new PictureBox();
             statusLabel = new Label();
+            buttonCancel = new Button();
+            buttonStart = new Button();
             groupBoxSettings.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)chipPictureBox).BeginInit();
             SuspendLayout();
@@ -109,36 +109,6 @@ namespace SerialComm
             progressBar.Size = new Size(615, 31);
             progressBar.TabIndex = 0;
             // 
-            // buttonStart
-            // 
-            buttonStart.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
-            buttonStart.BackColor = Color.FromArgb(0, 120, 215);
-            buttonStart.FlatStyle = FlatStyle.Flat;
-            buttonStart.Font = new Font("Segoe UI", 10F, FontStyle.Bold);
-            buttonStart.ForeColor = Color.White;
-            buttonStart.Location = new Point(450, 248);
-            buttonStart.Margin = new Padding(3, 4, 3, 4);
-            buttonStart.Name = "buttonStart";
-            buttonStart.Size = new Size(91, 40);
-            buttonStart.TabIndex = 3;
-            buttonStart.Text = "Start";
-            buttonStart.UseVisualStyleBackColor = false;
-            buttonStart.Click += buttonStart_Click;
-            // 
-            // buttonCancel
-            // 
-            buttonCancel.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
-            buttonCancel.FlatStyle = FlatStyle.Flat;
-            buttonCancel.Font = new Font("Segoe UI", 10F, FontStyle.Bold);
-            buttonCancel.Location = new Point(549, 248);
-            buttonCancel.Margin = new Padding(3, 4, 3, 4);
-            buttonCancel.Name = "buttonCancel";
-            buttonCancel.Size = new Size(80, 40);
-            buttonCancel.TabIndex = 4;
-            buttonCancel.Text = "Close";
-            buttonCancel.UseVisualStyleBackColor = true;
-            buttonCancel.Click += buttonCancel_Click;
-            // 
             // infoLabel
             // 
             infoLabel.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
@@ -167,17 +137,39 @@ namespace SerialComm
             statusLabel.Size = new Size(418, 20);
             statusLabel.TabIndex = 7;
             // 
+            // buttonCancel
+            // 
+            buttonCancel.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
+            buttonCancel.Location = new Point(535, 263);
+            buttonCancel.Name = "buttonCancel";
+            buttonCancel.Size = new Size(94, 29);
+            buttonCancel.TabIndex = 8;
+            buttonCancel.Text = "Close";
+            buttonCancel.UseVisualStyleBackColor = true;
+            // 
+            // buttonStart
+            // 
+            buttonStart.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
+            buttonStart.Location = new Point(435, 263);
+            buttonStart.Name = "buttonStart";
+            buttonStart.Size = new Size(94, 29);
+            buttonStart.TabIndex = 9;
+            buttonStart.Text = "Start";
+            buttonStart.UseVisualStyleBackColor = true;
+            // 
             // MemoryDumpForm
             // 
+            AcceptButton = buttonStart;
             AutoScaleDimensions = new SizeF(8F, 20F);
             AutoScaleMode = AutoScaleMode.Font;
+            CancelButton = buttonCancel;
             ClientSize = new Size(642, 304);
+            Controls.Add(buttonStart);
+            Controls.Add(buttonCancel);
             Controls.Add(statusLabel);
             Controls.Add(chipPictureBox);
             Controls.Add(infoLabel);
             Controls.Add(progressBar);
-            Controls.Add(buttonCancel);
-            Controls.Add(buttonStart);
             Controls.Add(groupBoxSettings);
             FormBorderStyle = FormBorderStyle.FixedDialog;
             Margin = new Padding(3, 4, 3, 4);
@@ -201,10 +193,10 @@ namespace SerialComm
         private System.Windows.Forms.TextBox textBoxFilename;
         private System.Windows.Forms.Button buttonBrowse;
         private System.Windows.Forms.ProgressBar progressBar;
-        private System.Windows.Forms.Button buttonStart;
-        private System.Windows.Forms.Button buttonCancel;
         private Label infoLabel;
         private PictureBox chipPictureBox;
         private Label statusLabel;
+        private Button buttonCancel;
+        private Button buttonStart;
     }
 }

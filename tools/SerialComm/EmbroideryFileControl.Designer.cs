@@ -4,19 +4,13 @@ namespace SerialComm
     {
         private System.ComponentModel.IContainer components = null;
 
-        protected override void Dispose(bool disposing)
-        {
-            if (disposing && (components != null))
-            {
-                components.Dispose();
-            }
-            base.Dispose(disposing);
-        }
-
         private void InitializeComponent()
         {
+            components = new System.ComponentModel.Container();
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(EmbroideryFileControl));
             pbPreview = new PictureBox();
+            contextMenuStrip = new ContextMenuStrip(components);
+            detailsToolStripMenuItem = new ToolStripMenuItem();
             lblFileName = new Label();
             attributesPanel = new Panel();
             attributeImagesPanel = new Panel();
@@ -24,6 +18,7 @@ namespace SerialComm
             alphabetPictureBox = new PictureBox();
             lockPictureBox = new PictureBox();
             ((System.ComponentModel.ISupportInitialize)pbPreview).BeginInit();
+            contextMenuStrip.SuspendLayout();
             attributesPanel.SuspendLayout();
             attributeImagesPanel.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)userPictureBox).BeginInit();
@@ -34,6 +29,7 @@ namespace SerialComm
             // pbPreview
             // 
             pbPreview.BackColor = Color.White;
+            pbPreview.ContextMenuStrip = contextMenuStrip;
             pbPreview.Dock = DockStyle.Fill;
             pbPreview.Location = new Point(2, 31);
             pbPreview.Name = "pbPreview";
@@ -42,9 +38,25 @@ namespace SerialComm
             pbPreview.TabIndex = 0;
             pbPreview.TabStop = false;
             // 
+            // contextMenuStrip
+            // 
+            contextMenuStrip.ImageScalingSize = new Size(20, 20);
+            contextMenuStrip.Items.AddRange(new ToolStripItem[] { detailsToolStripMenuItem });
+            contextMenuStrip.Name = "contextMenuStrip";
+            contextMenuStrip.Size = new Size(211, 56);
+            // 
+            // detailsToolStripMenuItem
+            // 
+            detailsToolStripMenuItem.Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
+            detailsToolStripMenuItem.Name = "detailsToolStripMenuItem";
+            detailsToolStripMenuItem.Size = new Size(210, 24);
+            detailsToolStripMenuItem.Text = "&Details...";
+            detailsToolStripMenuItem.Click += detailsToolStripMenuItem_Click;
+            // 
             // lblFileName
             // 
             lblFileName.AutoEllipsis = true;
+            lblFileName.ContextMenuStrip = contextMenuStrip;
             lblFileName.Dock = DockStyle.Bottom;
             lblFileName.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
             lblFileName.Location = new Point(2, 104);
@@ -56,6 +68,7 @@ namespace SerialComm
             // 
             // attributesPanel
             // 
+            attributesPanel.ContextMenuStrip = contextMenuStrip;
             attributesPanel.Controls.Add(attributeImagesPanel);
             attributesPanel.Dock = DockStyle.Top;
             attributesPanel.Location = new Point(2, 2);
@@ -65,6 +78,7 @@ namespace SerialComm
             // 
             // attributeImagesPanel
             // 
+            attributeImagesPanel.ContextMenuStrip = contextMenuStrip;
             attributeImagesPanel.Controls.Add(userPictureBox);
             attributeImagesPanel.Controls.Add(alphabetPictureBox);
             attributeImagesPanel.Controls.Add(lockPictureBox);
@@ -75,6 +89,7 @@ namespace SerialComm
             // 
             // userPictureBox
             // 
+            userPictureBox.ContextMenuStrip = contextMenuStrip;
             userPictureBox.Dock = DockStyle.Right;
             userPictureBox.Image = (Image)resources.GetObject("userPictureBox.Image");
             userPictureBox.Location = new Point(12, 0);
@@ -87,6 +102,7 @@ namespace SerialComm
             // 
             // alphabetPictureBox
             // 
+            alphabetPictureBox.ContextMenuStrip = contextMenuStrip;
             alphabetPictureBox.Dock = DockStyle.Right;
             alphabetPictureBox.Image = (Image)resources.GetObject("alphabetPictureBox.Image");
             alphabetPictureBox.Location = new Point(36, 0);
@@ -99,6 +115,7 @@ namespace SerialComm
             // 
             // lockPictureBox
             // 
+            lockPictureBox.ContextMenuStrip = contextMenuStrip;
             lockPictureBox.Dock = DockStyle.Right;
             lockPictureBox.Image = (Image)resources.GetObject("lockPictureBox.Image");
             lockPictureBox.Location = new Point(60, 0);
@@ -120,6 +137,7 @@ namespace SerialComm
             Padding = new Padding(2);
             Size = new Size(110, 140);
             ((System.ComponentModel.ISupportInitialize)pbPreview).EndInit();
+            contextMenuStrip.ResumeLayout(false);
             attributesPanel.ResumeLayout(false);
             attributeImagesPanel.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)userPictureBox).EndInit();
@@ -134,5 +152,7 @@ namespace SerialComm
         private Panel attributeImagesPanel;
         private PictureBox userPictureBox;
         private PictureBox alphabetPictureBox;
+        private ContextMenuStrip contextMenuStrip;
+        private ToolStripMenuItem detailsToolStripMenuItem;
     }
 }

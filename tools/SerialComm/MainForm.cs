@@ -18,6 +18,14 @@ namespace SerialComm
         private List<EmbroideryFileControl>? _embroideryFileControls = null;
         private string[]? _previousPortList = null;
         private string? _lastAskedAboutPort = null;
+        private IconCacheMode _iconCacheMode = IconCacheMode.Normal;
+
+        private enum IconCacheMode
+        {
+            None,
+            Normal,
+            Fast
+        }
 
         public MainForm()
         {
@@ -28,6 +36,9 @@ namespace SerialComm
         {
             // Load last used COM port from registry
             LoadLastComPort();
+
+            // Load icon cache mode preference from registry
+            LoadIconCacheModeFromRegistry();
 
             // Populate COM port menu
             RefreshComPortsMenu();
@@ -285,8 +296,11 @@ namespace SerialComm
                     UpdateStatus("Connected");
                     UpdateConnectionStatus($"Connected: {portName} @ {_serialStack.BaudRate} baud", true);
 
-                    // Load preview cache from registry
-                    await LoadPreviewCacheFromRegistryAsync();
+                    // Load preview cache from registry based on icon cache mode
+                    if (_iconCacheMode != IconCacheMode.None)
+                    {
+                        await LoadPreviewCacheFromRegistryAsync();
+                    }
 
                     // Change baud rate to 57600 for faster file reading
                     UpdateStatus("Switching to 57600 baud...");
@@ -309,11 +323,15 @@ namespace SerialComm
                     ClearEmbroideryFiles();
                     _embroideryFileControls = new List<EmbroideryFileControl>();
                     
+                    // Determine fast cache lookup based on icon cache mode
+                    bool useFastCacheLookup = (_iconCacheMode == IconCacheMode.Fast);
+
                     var embroideryFiles = await _serialStack.ReadEmbroideryFilesAsync(
-                        StorageLocation.EmbroideryModuleMemory, 
-                        true, 
+                        StorageLocation.EmbroideryModuleMemory,
+                        true,
                         (current, total) => UpdateProgress(current, total),
-                        (file) => AddFileToUIRealTime(file)
+                        (file) => AddFileToUIRealTime(file),
+                        useFastCacheLookup
                     );
 
                     ShowProgressBar(false);
@@ -323,7 +341,6 @@ namespace SerialComm
                         UpdateStatus($"Loaded {embroideryFiles.Count} embroidery files");
                         
                         // Save the preview cache to registry immediately after loading
-                        UpdateStatus("Saving preview cache...");
                         await SavePreviewCacheToRegistryAsync();
                     }
                     else
@@ -673,6 +690,73 @@ namespace SerialComm
         private void disconnectToolStripMenuItem_Click(object sender, EventArgs e)
         {
             Disconnect();
+        }
+
+        private void IconCacheNone_Click(object sender, EventArgs e)
+        {
+            SetIconCacheMode(IconCacheMode.None);
+        }
+
+        private void IconCacheNormal_Click(object sender, EventArgs e)
+        {
+            SetIconCacheMode(IconCacheMode.Normal);
+        }
+
+        private void IconCacheFast_Click(object sender, EventArgs e)
+        {
+            SetIconCacheMode(IconCacheMode.Fast);
+        }
+
+        private void SetIconCacheMode(IconCacheMode mode)
+        {
+            _iconCacheMode = mode;
+
+            // Update menu item checks
+            iconCacheNoneToolStripMenuItem.Checked = (mode == IconCacheMode.None);
+            iconCacheNormalToolStripMenuItem.Checked = (mode == IconCacheMode.Normal);
+            iconCacheFastToolStripMenuItem.Checked = (mode == IconCacheMode.Fast);
+
+            // Save preference to registry
+            try
+            {
+                using (RegistryKey key = Registry.CurrentUser.CreateSubKey(RegistryKeyPath))
+                {
+                    key.SetValue("IconCacheMode", mode.ToString());
+                }
+            }
+            catch
+            {
+                // If registry write fails, continue
+            }
+
+            UpdateStatus($"Icon cache mode changed to: {mode}");
+        }
+
+        private void LoadIconCacheModeFromRegistry()
+        {
+            try
+            {
+                using (RegistryKey? key = Registry.CurrentUser.OpenSubKey(RegistryKeyPath))
+                {
+                    if (key != null)
+                    {
+                        string? modeStr = key.GetValue("IconCacheMode") as string;
+                        if (!string.IsNullOrEmpty(modeStr) && Enum.TryParse<IconCacheMode>(modeStr, out var mode))
+                        {
+                            _iconCacheMode = mode;
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                // If registry read fails, use default
+            }
+
+            // Update menu item checks
+            iconCacheNoneToolStripMenuItem.Checked = (_iconCacheMode == IconCacheMode.None);
+            iconCacheNormalToolStripMenuItem.Checked = (_iconCacheMode == IconCacheMode.Normal);
+            iconCacheFastToolStripMenuItem.Checked = (_iconCacheMode == IconCacheMode.Fast);
         }
 
         private void exitToolStripMenuItem_Click(object sender, EventArgs e)
