@@ -52,6 +52,7 @@
             flowLayoutPanelFiles = new FlowLayoutPanel();
             mainPanel = new Panel();
             btnConnect = new Button();
+            bannerPictureBox = new PictureBox();
             menuStrip.SuspendLayout();
             statusStrip.SuspendLayout();
             panelMain.SuspendLayout();
@@ -61,6 +62,7 @@
             ((System.ComponentModel.ISupportInitialize)pictureBox1).BeginInit();
             embroideryTabPage.SuspendLayout();
             mainPanel.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)bannerPictureBox).BeginInit();
             SuspendLayout();
             // 
             // menuStrip
@@ -335,8 +337,9 @@
             // 
             // mainPanel
             // 
-            mainPanel.BackColor = SystemColors.ControlDark;
+            mainPanel.BackColor = Color.FromArgb(61, 61, 61);
             mainPanel.Controls.Add(btnConnect);
+            mainPanel.Controls.Add(bannerPictureBox);
             mainPanel.Dock = DockStyle.Top;
             mainPanel.Location = new Point(0, 30);
             mainPanel.Name = "mainPanel";
@@ -357,6 +360,16 @@
             btnConnect.UseVisualStyleBackColor = true;
             btnConnect.Click += btnConnect_Click;
             // 
+            // bannerPictureBox
+            // 
+            bannerPictureBox.Image = (Image)resources.GetObject("bannerPictureBox.Image");
+            bannerPictureBox.Location = new Point(-3, -22);
+            bannerPictureBox.Name = "bannerPictureBox";
+            bannerPictureBox.Size = new Size(1000, 105);
+            bannerPictureBox.SizeMode = PictureBoxSizeMode.AutoSize;
+            bannerPictureBox.TabIndex = 3;
+            bannerPictureBox.TabStop = false;
+            // 
             // MainForm
             // 
             AutoScaleDimensions = new SizeF(8F, 20F);
@@ -370,7 +383,7 @@
             Margin = new Padding(3, 4, 3, 4);
             MinimumSize = new Size(880, 675);
             Name = "MainForm";
-            Text = "Embroidery Serial Communicator";
+            Text = "Embroidery Communicator";
             FormClosing += MainForm_FormClosing;
             Load += MainForm_Load;
             menuStrip.ResumeLayout(false);
@@ -384,6 +397,8 @@
             ((System.ComponentModel.ISupportInitialize)pictureBox1).EndInit();
             embroideryTabPage.ResumeLayout(false);
             mainPanel.ResumeLayout(false);
+            mainPanel.PerformLayout();
+            ((System.ComponentModel.ISupportInitialize)bannerPictureBox).EndInit();
             ResumeLayout(false);
             PerformLayout();
         }
@@ -420,5 +435,6 @@
         private ColumnHeader nameColumnHeader;
         private ColumnHeader valueColumnHeader;
         private Label notConnectedLabel;
+        private PictureBox bannerPictureBox;
     }
 }
