@@ -42,6 +42,7 @@
             panelMain = new Panel();
             mainTabControl = new TabControl();
             generalTabPage = new TabPage();
+            notConnectedLabel = new Label();
             machineInfoListView = new ListView();
             nameColumnHeader = new ColumnHeader();
             valueColumnHeader = new ColumnHeader();
@@ -224,6 +225,7 @@
             mainTabControl.Controls.Add(embroideryTabPage);
             mainTabControl.Dock = DockStyle.Fill;
             mainTabControl.Location = new Point(4, 4);
+            mainTabControl.Margin = new Padding(0);
             mainTabControl.Name = "mainTabControl";
             mainTabControl.SelectedIndex = 0;
             mainTabControl.Size = new Size(850, 496);
@@ -231,15 +233,28 @@
             // 
             // generalTabPage
             // 
+            generalTabPage.Controls.Add(notConnectedLabel);
             generalTabPage.Controls.Add(machineInfoListView);
             generalTabPage.Controls.Add(machineImageStatePanel);
             generalTabPage.Location = new Point(4, 29);
+            generalTabPage.Margin = new Padding(0);
             generalTabPage.Name = "generalTabPage";
-            generalTabPage.Padding = new Padding(3);
             generalTabPage.Size = new Size(842, 463);
             generalTabPage.TabIndex = 0;
             generalTabPage.Text = "General";
             generalTabPage.UseVisualStyleBackColor = true;
+            // 
+            // notConnectedLabel
+            // 
+            notConnectedLabel.Dock = DockStyle.Fill;
+            notConnectedLabel.Font = new Font("Segoe UI", 28.2F, FontStyle.Bold, GraphicsUnit.Point, 0);
+            notConnectedLabel.ForeColor = SystemColors.ButtonShadow;
+            notConnectedLabel.Location = new Point(289, 0);
+            notConnectedLabel.Name = "notConnectedLabel";
+            notConnectedLabel.Size = new Size(553, 463);
+            notConnectedLabel.TabIndex = 2;
+            notConnectedLabel.Text = "Not Connected";
+            notConnectedLabel.TextAlign = ContentAlignment.MiddleCenter;
             // 
             // machineInfoListView
             // 
@@ -257,12 +272,13 @@
             listViewGroup4.Name = "serialCommListViewGroup";
             machineInfoListView.Groups.AddRange(new ListViewGroup[] { listViewGroup1, listViewGroup2, listViewGroup3, listViewGroup4 });
             machineInfoListView.HeaderStyle = ColumnHeaderStyle.None;
-            machineInfoListView.Location = new Point(292, 3);
+            machineInfoListView.Location = new Point(289, 0);
             machineInfoListView.Name = "machineInfoListView";
-            machineInfoListView.Size = new Size(547, 457);
+            machineInfoListView.Size = new Size(553, 463);
             machineInfoListView.TabIndex = 1;
             machineInfoListView.UseCompatibleStateImageBehavior = false;
             machineInfoListView.View = View.Details;
+            machineInfoListView.Visible = false;
             // 
             // nameColumnHeader
             // 
@@ -272,24 +288,25 @@
             // valueColumnHeader
             // 
             valueColumnHeader.Text = "Value";
-            valueColumnHeader.Width = 300;
+            valueColumnHeader.Width = 343;
             // 
             // machineImageStatePanel
             // 
             machineImageStatePanel.Controls.Add(pictureBox1);
             machineImageStatePanel.Dock = DockStyle.Left;
-            machineImageStatePanel.Location = new Point(3, 3);
+            machineImageStatePanel.Location = new Point(0, 0);
             machineImageStatePanel.Margin = new Padding(0);
             machineImageStatePanel.Name = "machineImageStatePanel";
-            machineImageStatePanel.Size = new Size(289, 457);
+            machineImageStatePanel.Size = new Size(289, 463);
             machineImageStatePanel.TabIndex = 0;
             // 
             // pictureBox1
             // 
+            pictureBox1.Dock = DockStyle.Top;
             pictureBox1.Image = (Image)resources.GetObject("pictureBox1.Image");
-            pictureBox1.Location = new Point(-4, -3);
+            pictureBox1.Location = new Point(0, 0);
             pictureBox1.Name = "pictureBox1";
-            pictureBox1.Size = new Size(293, 353);
+            pictureBox1.Size = new Size(289, 349);
             pictureBox1.SizeMode = PictureBoxSizeMode.Zoom;
             pictureBox1.TabIndex = 0;
             pictureBox1.TabStop = false;
@@ -298,8 +315,8 @@
             // 
             embroideryTabPage.Controls.Add(flowLayoutPanelFiles);
             embroideryTabPage.Location = new Point(4, 29);
+            embroideryTabPage.Margin = new Padding(0);
             embroideryTabPage.Name = "embroideryTabPage";
-            embroideryTabPage.Padding = new Padding(3);
             embroideryTabPage.Size = new Size(842, 463);
             embroideryTabPage.TabIndex = 1;
             embroideryTabPage.Text = "Embroidery Module";
@@ -310,10 +327,10 @@
             flowLayoutPanelFiles.AutoScroll = true;
             flowLayoutPanelFiles.BackColor = SystemColors.Control;
             flowLayoutPanelFiles.Dock = DockStyle.Fill;
-            flowLayoutPanelFiles.Location = new Point(3, 3);
+            flowLayoutPanelFiles.Location = new Point(0, 0);
             flowLayoutPanelFiles.Margin = new Padding(0);
             flowLayoutPanelFiles.Name = "flowLayoutPanelFiles";
-            flowLayoutPanelFiles.Size = new Size(836, 457);
+            flowLayoutPanelFiles.Size = new Size(842, 463);
             flowLayoutPanelFiles.TabIndex = 0;
             // 
             // mainPanel
@@ -402,5 +419,6 @@
         private PictureBox pictureBox1;
         private ColumnHeader nameColumnHeader;
         private ColumnHeader valueColumnHeader;
+        private Label notConnectedLabel;
     }
 }

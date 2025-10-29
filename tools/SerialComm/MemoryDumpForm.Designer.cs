@@ -116,7 +116,7 @@ namespace SerialComm
             infoLabel.Name = "infoLabel";
             infoLabel.Size = new Size(546, 68);
             infoLabel.TabIndex = 5;
-            infoLabel.Text = "Download entire memory from either the sewing machine or embroidery module to a .bin file. This creates a complete backup of the device memory.";
+            infoLabel.Text = "Download entire memory from either the sewing machine or embroidery module to a .bin file. This creates a complete backup of the device memory and will take about an hour.";
             // 
             // chipPictureBox
             // 

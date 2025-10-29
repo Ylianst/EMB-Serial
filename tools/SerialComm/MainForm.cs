@@ -56,6 +56,12 @@ namespace SerialComm
             // Enable double buffering on the form to prevent blinking during ListView updates
             this.DoubleBuffered = true;
 
+            // Remove embroidery tab from tab control on application startup
+            if (embroideryTabPage != null && mainTabControl.TabPages.Contains(embroideryTabPage))
+            {
+                mainTabControl.TabPages.Remove(embroideryTabPage);
+            }
+
             // Start monitoring for COM port changes
             try
             {
@@ -306,6 +312,16 @@ namespace SerialComm
                         await LoadPreviewCacheFromRegistryAsync();
                     }
 
+                    // Hide notConnectedLabel and show machineInfoListView
+                    if (notConnectedLabel != null)
+                    {
+                        notConnectedLabel.Visible = false;
+                    }
+                    if (machineInfoListView != null)
+                    {
+                        machineInfoListView.Visible = true;
+                    }
+
                     // Get and display machine information
                     UpdateStatus("Retrieving machine information...");
                     await PopulateMachineInfoAsync();
@@ -429,6 +445,26 @@ namespace SerialComm
 
             // Clear displayed embroidery files
             ClearEmbroideryFiles();
+
+            // Clear machine info ListView and hide it
+            if (machineInfoListView != null)
+            {
+                machineInfoListView.Items.Clear();
+                machineInfoListView.Groups.Clear();
+                machineInfoListView.Visible = false;
+            }
+
+            // Show notConnectedLabel
+            if (notConnectedLabel != null)
+            {
+                notConnectedLabel.Visible = true;
+            }
+
+            // Remove embroidery tab when disconnecting
+            if (embroideryTabPage != null && mainTabControl.TabPages.Contains(embroideryTabPage))
+            {
+                mainTabControl.TabPages.Remove(embroideryTabPage);
+            }
 
             // Update debug form when disconnecting
             if (_debugForm != null && !_debugForm.IsDisposed)
@@ -690,6 +726,12 @@ namespace SerialComm
                 return;
             }
 
+            // Add embroidery tab as soon as the first file appears
+            if (embroideryTabPage != null && !mainTabControl.TabPages.Contains(embroideryTabPage))
+            {
+                mainTabControl.TabPages.Add(embroideryTabPage);
+            }
+
             // Create a new control for this file
             var fileControl = new EmbroideryFileControl();
             fileControl.SetEmbroideryFile(file);
@@ -703,8 +745,8 @@ namespace SerialComm
                 _embroideryFileControls.Add(fileControl);
             }
             
-            // Auto-scroll to the newly added file
-            flowLayoutPanelFiles.ScrollControlIntoView(fileControl);
+            // Don't auto-scroll - let user control the scroll position
+            // flowLayoutPanelFiles.ScrollControlIntoView(fileControl);
         }
 
         private void connectToolStripMenuItem_Click(object sender, EventArgs e)
@@ -945,7 +987,10 @@ namespace SerialComm
                 }
 
                 // Update or add the stat items
-                UpdateOrAddListViewItem("Session", _serialStack.CurrentSessionState.ToString(), group);
+                string sessionDisplayText = _serialStack.CurrentSessionState == SessionState.Sewing ? "Sewing Machine" : 
+                                           _serialStack.CurrentSessionState == SessionState.Embroidery ? "Embroidery Module" : 
+                                           _serialStack.CurrentSessionState.ToString();
+                UpdateOrAddListViewItem("Session", sessionDisplayText, group);
                 UpdateOrAddListViewItem("Bytes Sent", bytesSent.ToString(), group);
                 UpdateOrAddListViewItem("Bytes Received", bytesReceived.ToString(), group);
                 UpdateOrAddListViewItem("Commands Sent", commandsSent.ToString(), group);
