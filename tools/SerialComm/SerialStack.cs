@@ -20,27 +20,25 @@ namespace Bernina.SerialStack
         Error
     }
 
-    /// <summary>
-    /// Session mode of the machine
-    /// </summary>
     public enum SessionMode
     {
         SewingMachine,
         EmbroideryModule
     }
 
-    /// <summary>
-    /// Storage location for embroidery files
-    /// </summary>
     public enum StorageLocation
     {
         EmbroideryModuleMemory,
         PCCard
     }
 
-    /// <summary>
-    /// Event arguments for connection state changes
-    /// </summary>
+    public enum SessionState
+    {
+        Unknown,
+        Sewing,
+        Embroidery
+    }
+
     public class ConnectionStateChangedEventArgs : EventArgs
     {
         public ConnectionState OldState { get; set; }
@@ -48,9 +46,6 @@ namespace Bernina.SerialStack
         public string? Message { get; set; }
     }
 
-    /// <summary>
-    /// Event arguments for command completion
-    /// </summary>
     public class CommandCompletedEventArgs : EventArgs
     {
         public string Command { get; set; } = "";
@@ -59,18 +54,12 @@ namespace Bernina.SerialStack
         public string? ErrorMessage { get; set; }
     }
 
-    /// <summary>
-    /// Event arguments for serial traffic debug
-    /// </summary>
     public class SerialTrafficEventArgs : EventArgs
     {
         public bool IsSent { get; set; }
         public byte[] Data { get; set; } = Array.Empty<byte>();
     }
 
-    /// <summary>
-    /// Event arguments for debug messages
-    /// </summary>
     public class DebugMessageEventArgs : EventArgs
     {
         public string Message { get; set; } = "";
@@ -167,6 +156,15 @@ namespace Bernina.SerialStack
         // This allows quick cache hits without needing to compute checksums
         private readonly Dictionary<string, byte[]> _previewCacheFastLookup = new();
 
+        // Serial communication counters
+        private long _bytesSent = 0;
+        private long _bytesReceived = 0;
+        private long _commandsSent = 0;
+        private long _commandsReceived = 0;
+
+        // Session state tracking
+        private SessionState _currentSessionState = SessionState.Unknown;
+
         /// <summary>
         /// Event raised when connection state changes
         /// </summary>
@@ -210,6 +208,31 @@ namespace Bernina.SerialStack
         /// Gets whether the stack is currently connected
         /// </summary>
         public bool IsConnected => State == ConnectionState.Connected;
+
+        /// <summary>
+        /// Gets the number of bytes sent
+        /// </summary>
+        public long BytesSent => _bytesSent;
+
+        /// <summary>
+        /// Gets the number of bytes received
+        /// </summary>
+        public long BytesReceived => _bytesReceived;
+
+        /// <summary>
+        /// Gets the number of commands sent
+        /// </summary>
+        public long CommandsSent => _commandsSent;
+
+        /// <summary>
+        /// Gets the number of commands received
+        /// </summary>
+        public long CommandsReceived => _commandsReceived;
+
+        /// <summary>
+        /// Gets the current session state (Sewing, Embroidery, or Unknown)
+        /// </summary>
+        public SessionState CurrentSessionState => _currentSessionState;
 
         /// <summary>
         /// Creates a new SerialStack instance
@@ -840,7 +863,7 @@ namespace Bernina.SerialStack
         }
 
         /// <summary>
-        /// Sends the SessionStart command "TrMEYQ" character by character.
+        /// Sends the SessionStart command "TrMEYQ" character by character. This will start the embroidery session.
         /// Each character is sent and its echo is awaited before sending the next one.
         /// After all characters are echoed, waits for an additional "O" confirmation from the machine.
         /// </summary>
@@ -889,6 +912,9 @@ namespace Bernina.SerialStack
 
                 // Clear the buffer after successful completion
                 _responseBuffer.Clear();
+
+                // Update session state to Embroidery
+                _currentSessionState = SessionState.Embroidery;
 
                 return new CommandResult
                 {
@@ -947,6 +973,9 @@ namespace Bernina.SerialStack
                         // Check if we successfully sent all characters
                         if (i == command.Length - 1)
                         {
+                            // Update session state to sewing
+                            _currentSessionState = SessionState.Sewing;
+
                             // All characters echoed successfully
                             _responseBuffer.Clear();
                             return new CommandResult
@@ -1306,6 +1335,9 @@ namespace Bernina.SerialStack
                         Array.Copy(_readBuffer, actualData, bytesRead);
                         
                         SerialTraffic?.Invoke(this, new SerialTrafficEventArgs { IsSent = false, Data = actualData });
+                        
+                        // Track bytes received
+                        Interlocked.Add(ref _bytesReceived, bytesRead);
 
                         // Process received data
                         for (int i = 0; i < bytesRead; i++)
@@ -1560,6 +1592,9 @@ namespace Bernina.SerialStack
                 var result = ParseResponse(command, response);
 
                 _currentCommand.CompletionSource.TrySetResult(result);
+                
+                // Increment commands received counter
+                Interlocked.Increment(ref _commandsReceived);
                 
                 // Raise event
                 CommandCompleted?.Invoke(this, new CommandCompletedEventArgs
@@ -1819,6 +1854,9 @@ namespace Bernina.SerialStack
                 _serialPort.Write(data, 0, data.Length);
                 _serialPort.BaseStream.Flush();
                 SerialTraffic?.Invoke(this, new SerialTrafficEventArgs { IsSent = true, Data = data });
+                
+                // Track bytes sent
+                Interlocked.Add(ref _bytesSent, data.Length);
 
                 // Wait for "O" confirmation
                 var waitStart = DateTime.Now;
@@ -1953,6 +1991,9 @@ namespace Bernina.SerialStack
                     // Raise event for sent data
                     SerialTraffic?.Invoke(this, new SerialTrafficEventArgs { IsSent = true, Data = data });
                     
+                    // Track bytes sent
+                    Interlocked.Add(ref _bytesSent, data.Length);
+                    
                     // Small delay between characters
                     await Task.Delay(10, cancellationToken);
                 }
@@ -1961,6 +2002,9 @@ namespace Bernina.SerialStack
                 // This ensures that any data received while we're setting up the wait
                 // can be processed by IsResponseComplete
                 _transmissionComplete = true;
+                
+                // Increment commands sent counter
+                Interlocked.Increment(ref _commandsSent);
                 
                 // Give a tiny moment for any buffered data to be processed
                 await Task.Delay(5, cancellationToken);
@@ -2208,10 +2252,12 @@ namespace Bernina.SerialStack
                 // Check if first two bytes are 0xB4A5 (Sewing Machine mode)
                 if (readResult.BinaryData[0] == 0xB4 && readResult.BinaryData[1] == 0xA5)
                 {
+                    _currentSessionState = SessionState.Sewing;
                     return SessionMode.SewingMachine;
                 }
                 else
                 {
+                    _currentSessionState = SessionState.Embroidery;
                     return SessionMode.EmbroideryModule;
                 }
             }

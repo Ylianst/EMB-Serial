@@ -18,6 +18,7 @@
             ListViewGroup listViewGroup1 = new ListViewGroup("Sewing Machine", HorizontalAlignment.Left);
             ListViewGroup listViewGroup2 = new ListViewGroup("Embroidery Module", HorizontalAlignment.Left);
             ListViewGroup listViewGroup3 = new ListViewGroup("PC Card", HorizontalAlignment.Left);
+            ListViewGroup listViewGroup4 = new ListViewGroup("Serial Communication", HorizontalAlignment.Left);
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(MainForm));
             menuStrip = new MenuStrip();
             connectionToolStripMenuItem = new ToolStripMenuItem();
@@ -68,7 +69,7 @@
             menuStrip.Location = new Point(0, 0);
             menuStrip.Name = "menuStrip";
             menuStrip.Padding = new Padding(7, 3, 0, 3);
-            menuStrip.Size = new Size(843, 30);
+            menuStrip.Size = new Size(862, 30);
             menuStrip.TabIndex = 0;
             menuStrip.Text = "menuStrip1";
             // 
@@ -177,14 +178,14 @@
             statusStrip.Location = new Point(0, 602);
             statusStrip.Name = "statusStrip";
             statusStrip.Padding = new Padding(1, 0, 16, 0);
-            statusStrip.Size = new Size(843, 26);
+            statusStrip.Size = new Size(862, 26);
             statusStrip.TabIndex = 1;
             statusStrip.Text = "statusStrip1";
             // 
             // toolStripStatusLabel
             // 
             toolStripStatusLabel.Name = "toolStripStatusLabel";
-            toolStripStatusLabel.Size = new Size(667, 20);
+            toolStripStatusLabel.Size = new Size(686, 20);
             toolStripStatusLabel.Spring = true;
             toolStripStatusLabel.Text = "Ready";
             toolStripStatusLabel.TextAlign = ContentAlignment.MiddleLeft;
@@ -214,7 +215,7 @@
             panelMain.Margin = new Padding(3, 4, 3, 4);
             panelMain.Name = "panelMain";
             panelMain.Padding = new Padding(4);
-            panelMain.Size = new Size(843, 508);
+            panelMain.Size = new Size(862, 508);
             panelMain.TabIndex = 2;
             // 
             // mainTabControl
@@ -225,7 +226,7 @@
             mainTabControl.Location = new Point(4, 4);
             mainTabControl.Name = "mainTabControl";
             mainTabControl.SelectedIndex = 0;
-            mainTabControl.Size = new Size(831, 496);
+            mainTabControl.Size = new Size(850, 496);
             mainTabControl.TabIndex = 1;
             // 
             // generalTabPage
@@ -235,7 +236,7 @@
             generalTabPage.Location = new Point(4, 29);
             generalTabPage.Name = "generalTabPage";
             generalTabPage.Padding = new Padding(3);
-            generalTabPage.Size = new Size(823, 463);
+            generalTabPage.Size = new Size(842, 463);
             generalTabPage.TabIndex = 0;
             generalTabPage.Text = "General";
             generalTabPage.UseVisualStyleBackColor = true;
@@ -252,11 +253,13 @@
             listViewGroup2.Name = "embroideryModuleListViewGroup1";
             listViewGroup3.Header = "PC Card";
             listViewGroup3.Name = "pcCardListViewGroup";
-            machineInfoListView.Groups.AddRange(new ListViewGroup[] { listViewGroup1, listViewGroup2, listViewGroup3 });
-            machineInfoListView.HeaderStyle = ColumnHeaderStyle.Nonclickable;
+            listViewGroup4.Header = "Serial Communication";
+            listViewGroup4.Name = "serialCommListViewGroup";
+            machineInfoListView.Groups.AddRange(new ListViewGroup[] { listViewGroup1, listViewGroup2, listViewGroup3, listViewGroup4 });
+            machineInfoListView.HeaderStyle = ColumnHeaderStyle.None;
             machineInfoListView.Location = new Point(292, 3);
             machineInfoListView.Name = "machineInfoListView";
-            machineInfoListView.Size = new Size(528, 457);
+            machineInfoListView.Size = new Size(547, 457);
             machineInfoListView.TabIndex = 1;
             machineInfoListView.UseCompatibleStateImageBehavior = false;
             machineInfoListView.View = View.Details;
@@ -297,7 +300,7 @@
             embroideryTabPage.Location = new Point(4, 29);
             embroideryTabPage.Name = "embroideryTabPage";
             embroideryTabPage.Padding = new Padding(3);
-            embroideryTabPage.Size = new Size(823, 463);
+            embroideryTabPage.Size = new Size(842, 463);
             embroideryTabPage.TabIndex = 1;
             embroideryTabPage.Text = "Embroidery Module";
             embroideryTabPage.UseVisualStyleBackColor = true;
@@ -310,7 +313,7 @@
             flowLayoutPanelFiles.Location = new Point(3, 3);
             flowLayoutPanelFiles.Margin = new Padding(0);
             flowLayoutPanelFiles.Name = "flowLayoutPanelFiles";
-            flowLayoutPanelFiles.Size = new Size(817, 457);
+            flowLayoutPanelFiles.Size = new Size(836, 457);
             flowLayoutPanelFiles.TabIndex = 0;
             // 
             // mainPanel
@@ -320,7 +323,7 @@
             mainPanel.Dock = DockStyle.Top;
             mainPanel.Location = new Point(0, 30);
             mainPanel.Name = "mainPanel";
-            mainPanel.Size = new Size(843, 64);
+            mainPanel.Size = new Size(862, 64);
             mainPanel.TabIndex = 3;
             // 
             // btnConnect
@@ -328,7 +331,7 @@
             btnConnect.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             btnConnect.BackColor = SystemColors.Control;
             btnConnect.Font = new Font("Segoe UI", 10F);
-            btnConnect.Location = new Point(718, 6);
+            btnConnect.Location = new Point(737, 6);
             btnConnect.Margin = new Padding(3, 4, 3, 4);
             btnConnect.Name = "btnConnect";
             btnConnect.Size = new Size(114, 53);
@@ -341,14 +344,14 @@
             // 
             AutoScaleDimensions = new SizeF(8F, 20F);
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(843, 628);
+            ClientSize = new Size(862, 628);
             Controls.Add(panelMain);
             Controls.Add(mainPanel);
             Controls.Add(menuStrip);
             Controls.Add(statusStrip);
             MainMenuStrip = menuStrip;
             Margin = new Padding(3, 4, 3, 4);
-            MinimumSize = new Size(777, 576);
+            MinimumSize = new Size(880, 675);
             Name = "MainForm";
             Text = "Embroidery Serial Communicator";
             FormClosing += MainForm_FormClosing;

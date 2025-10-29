@@ -19,6 +19,7 @@ namespace SerialComm
         private string[]? _previousPortList = null;
         private string? _lastAskedAboutPort = null;
         private IconCacheMode _iconCacheMode = IconCacheMode.Normal;
+        private System.Windows.Forms.Timer? _serialStatsTimer = null;
 
         private enum IconCacheMode
         {
@@ -51,6 +52,9 @@ namespace SerialComm
 
             // Enable debug menu (can be opened anytime)
             showDeveloperDebugToolStripMenuItem.Enabled = true;
+
+            // Enable double buffering on the form to prevent blinking during ListView updates
+            this.DoubleBuffered = true;
 
             // Start monitoring for COM port changes
             try
@@ -302,6 +306,16 @@ namespace SerialComm
                         await LoadPreviewCacheFromRegistryAsync();
                     }
 
+                    // Get and display machine information
+                    UpdateStatus("Retrieving machine information...");
+                    await PopulateMachineInfoAsync();
+
+                    // Start timer to poll serial stats every 5 seconds
+                    _serialStatsTimer = new System.Windows.Forms.Timer();
+                    _serialStatsTimer.Interval = 1000; // 1 second
+                    _serialStatsTimer.Tick += UpdateSerialStats;
+                    _serialStatsTimer.Start();
+
                     // Change baud rate to 57600 for faster file reading
                     UpdateStatus("Switching to 57600 baud...");
                     bool baudChangeSuccess = await _serialStack.ChangeTo57600BaudAsync();
@@ -339,6 +353,9 @@ namespace SerialComm
                     if (embroideryFiles != null)
                     {
                         UpdateStatus($"Loaded {embroideryFiles.Count} embroidery files");
+                        
+                        // Update machine info with file count
+                        UpdateMachineInfoFileCount(embroideryFiles.Count);
                         
                         // Save the preview cache to registry immediately after loading
                         await SavePreviewCacheToRegistryAsync();
@@ -385,6 +402,14 @@ namespace SerialComm
 
         private void Disconnect()
         {
+            // Stop the serial stats timer
+            if (_serialStatsTimer != null)
+            {
+                _serialStatsTimer.Stop();
+                _serialStatsTimer.Dispose();
+                _serialStatsTimer = null;
+            }
+
             if (_serialStack != null)
             {
                 _serialStack.Close();
@@ -762,6 +787,208 @@ namespace SerialComm
         private void exitToolStripMenuItem_Click(object sender, EventArgs e)
         {
             Close();
+        }
+
+        private async Task PopulateMachineInfoAsync()
+        {
+            if (_serialStack == null || machineInfoListView == null)
+            {
+                return;
+            }
+
+            try
+            {
+                // Clear existing items
+                machineInfoListView.Items.Clear();
+
+                // Get firmware information from sewing machine
+                var firmwareInfo = await _serialStack.ReadFirmwareInfoAsync();
+
+                if (firmwareInfo != null)
+                {
+                    // Sewing Machine group
+                    AddListViewItem("Firmware Version", firmwareInfo.Version ?? "Unknown", "Sewing Machine");
+                    AddListViewItem("Language", firmwareInfo.Language ?? "Unknown", "Sewing Machine");
+                    AddListViewItem("Manufacturer", firmwareInfo.Manufacturer ?? "Unknown", "Sewing Machine");
+                    AddListViewItem("Firmware Date", firmwareInfo.Date ?? "Unknown", "Sewing Machine");
+                    
+                    // Check if embroidery module is attached based on mode
+                    string embroideryStatus = firmwareInfo.Mode.ToString().Contains("Embroidery") ? "Attached" : "Not Attached";
+                }
+
+                // Start embroidery session to get embroidery firmware information
+                CommandResult sessionResult = await _serialStack.SessionStartAsync();
+
+                if (sessionResult.Success)
+                {
+                    // Get firmware information from embroidery module
+                    var embroideryFirmwareInfo = await _serialStack.ReadFirmwareInfoAsync();
+
+                    if (embroideryFirmwareInfo != null)
+                    {
+                        // Embroidery Module group
+                        AddListViewItem("Firmware Version", embroideryFirmwareInfo.Version ?? "Unknown", "Embroidery Module");
+                        AddListViewItem("Manufacturer", embroideryFirmwareInfo.Manufacturer ?? "Unknown", "Embroidery Module");
+                        AddListViewItem("Firmware Date", embroideryFirmwareInfo.Date ?? "Unknown", "Embroidery Module");
+                        AddListViewItem("Embroidery Module", "Attached", "Sewing Machine");
+
+                        // Check if PC Card is attached
+                        string pcCardStatus = embroideryFirmwareInfo.Mode.ToString().Contains("PCCard") ? "Attached" : "Not Attached";
+                        AddListViewItem("PC Card", pcCardStatus, "Embroidery Module");
+                    }
+                    else
+                    {
+                        AddListViewItem("Embroidery Module", "Not Attached", "Sewing Machine");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                UpdateStatus($"Error retrieving machine info: {ex.Message}");
+            }
+        }
+
+        private void AddListViewItem(string label, string value, string groupName)
+        {
+            if (machineInfoListView == null)
+            {
+                return;
+            }
+
+            // Find or create the group
+            ListViewGroup? group = null;
+            foreach (ListViewGroup g in machineInfoListView.Groups)
+            {
+                if (g.Header == groupName)
+                {
+                    group = g;
+                    break;
+                }
+            }
+
+            if (group == null)
+            {
+                group = new ListViewGroup(groupName, groupName);
+                machineInfoListView.Groups.Add(group);
+            }
+
+            // Create the item
+            ListViewItem item = new ListViewItem(new[] { label, value }, group);
+            machineInfoListView.Items.Add(item);
+        }
+
+        private void UpdateMachineInfoFileCount(int fileCount)
+        {
+            if (machineInfoListView == null)
+            {
+                return;
+            }
+
+            try
+            {
+                // Update Embroidery Module file count
+                foreach (ListViewItem item in machineInfoListView.Items)
+                {
+                    if (item.Text == "Number of files" && item.Group?.Header == "Embroidery Module")
+                    {
+                        item.SubItems[1].Text = fileCount.ToString();
+                        break;
+                    }
+                }
+
+                // Update PC Card file count (same as Embroidery Module for now)
+                foreach (ListViewItem item in machineInfoListView.Items)
+                {
+                    if (item.Text == "Number of files" && item.Group?.Header == "PC Card")
+                    {
+                        item.SubItems[1].Text = fileCount.ToString();
+                        break;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                UpdateStatus($"Error updating file count: {ex.Message}");
+            }
+        }
+
+        private void UpdateSerialStats(object? sender, EventArgs e)
+        {
+            if (_serialStack == null || machineInfoListView == null)
+            {
+                return;
+            }
+
+            try
+            {
+                // Read the current counter values from the serial stack
+                long bytesSent = _serialStack.BytesSent;
+                long bytesReceived = _serialStack.BytesReceived;
+                long commandsSent = _serialStack.CommandsSent;
+                long commandsReceived = _serialStack.CommandsReceived;
+
+                // Find or create the "Serial Communication" group
+                ListViewGroup? group = null;
+                foreach (ListViewGroup g in machineInfoListView.Groups)
+                {
+                    if (g.Header == "Serial Communication")
+                    {
+                        group = g;
+                        break;
+                    }
+                }
+
+                if (group == null)
+                {
+                    group = new ListViewGroup("Serial Communication", "Serial Communication");
+                    machineInfoListView.Groups.Add(group);
+                }
+
+                // Update or add the stat items
+                UpdateOrAddListViewItem("Session", _serialStack.CurrentSessionState.ToString(), group);
+                UpdateOrAddListViewItem("Bytes Sent", bytesSent.ToString(), group);
+                UpdateOrAddListViewItem("Bytes Received", bytesReceived.ToString(), group);
+                UpdateOrAddListViewItem("Commands Sent", commandsSent.ToString(), group);
+                UpdateOrAddListViewItem("Commands Received", commandsReceived.ToString(), group);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error updating serial stats: {ex.Message}");
+            }
+        }
+
+        private void UpdateOrAddListViewItem(string label, string value, ListViewGroup group)
+        {
+            if (machineInfoListView == null)
+            {
+                return;
+            }
+
+            // Find existing item
+            ListViewItem? existingItem = null;
+            foreach (ListViewItem item in machineInfoListView.Items)
+            {
+                if (item.Text == label && item.Group == group)
+                {
+                    existingItem = item;
+                    break;
+                }
+            }
+
+            if (existingItem != null)
+            {
+                // Only update if the value has changed - this prevents unnecessary redraws and blinking
+                if (existingItem.SubItems[1].Text != value)
+                {
+                    existingItem.SubItems[1].Text = value;
+                }
+            }
+            else
+            {
+                // Add new item
+                ListViewItem newItem = new ListViewItem(new[] { label, value }, group);
+                machineInfoListView.Items.Add(newItem);
+            }
         }
 
         private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
