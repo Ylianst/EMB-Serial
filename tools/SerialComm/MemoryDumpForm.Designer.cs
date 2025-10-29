@@ -146,6 +146,7 @@ namespace SerialComm
             buttonCancel.TabIndex = 8;
             buttonCancel.Text = "Close";
             buttonCancel.UseVisualStyleBackColor = true;
+            buttonCancel.Click += buttonCancel_Click;
             // 
             // buttonStart
             // 
@@ -156,6 +157,7 @@ namespace SerialComm
             buttonStart.TabIndex = 9;
             buttonStart.Text = "Start";
             buttonStart.UseVisualStyleBackColor = true;
+            buttonStart.Click += buttonStart_Click;
             // 
             // MemoryDumpForm
             // 
