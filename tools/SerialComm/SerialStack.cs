@@ -365,51 +365,6 @@ namespace Bernina.SerialStack
             return await EnqueueCommandAsync(command);
         }
 
-        /*
-        /// <summary>
-        /// Sends a Large Read command (N + 6 hex chars) and returns 256 bytes of data.
-        /// Automatically retries up to 100 times with protocol reset if the read fails.
-        /// </summary>
-        /// <param name="address">The address to read from (will be formatted as 6 hex digits)</param>
-        public async Task<CommandResult> LargeReadAsync(int address)
-        {
-            // Try up to 100 protocol resets if read fails
-            for (int resetAttempt = 0; resetAttempt <= 100; resetAttempt++)
-            {
-                // Attempt the read
-                var readResult = await LargeReadOnceAsync(address);
-
-                if (readResult.Success && readResult.BinaryData != null)
-                {
-                    return readResult;
-                }
-
-                // Read failed, try protocol reset (but not after the 100th attempt)
-                if (resetAttempt < 100)
-                {
-                    RaiseDebugMessage($"LargeReadAsync: Read failed at 0x{address:X6}, attempting protocol reset {resetAttempt + 1}/100");
-                    var resetResult = await ProtocolResetAsync();
-                    
-                    if (resetResult.Success)
-                    {
-                        RaiseDebugMessage($"LargeReadAsync: Protocol reset successful, retrying read");
-                    }
-                    else
-                    {
-                        RaiseDebugMessage($"LargeReadAsync: Protocol reset failed: {resetResult.ErrorMessage}");
-                    }
-                }
-            }
-
-            // All retries exhausted
-            return new CommandResult
-            {
-                Success = false,
-                ErrorMessage = $"Failed to read memory at 0x{address:X6} after 100 protocol reset attempts"
-            };
-        }
-        */
-
         /// <summary>
         /// Sends a Large Read command (N + 6 hex chars) and returns 256 bytes of data.
         /// This is a single attempt without retries - use LargeReadAsync() for automatic retry with protocol reset.
@@ -963,7 +918,10 @@ namespace Bernina.SerialStack
                 
                 // Clear response buffer
                 _responseBuffer.Clear();
-                
+
+                // Reset the protocol
+                await ProtocolResetAsync();
+
                 // Send each character and wait for echo
                 for (int i = 0; i < command.Length; i++)
                 {
@@ -2486,6 +2444,9 @@ namespace Bernina.SerialStack
                 }
                 
                 RaiseDebugMessage("ReadAllFirmwareInfoAsync: Embroidery session started");
+
+                // Reset the protocol
+                await ProtocolResetAsync();
 
                 // Step 3: Read firmware info from embroidery module
                 RaiseDebugMessage("ReadAllFirmwareInfoAsync: Reading embroidery module firmware info");

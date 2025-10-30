@@ -19,6 +19,10 @@ namespace SerialComm
             InitializeComponent();
             _allControls.Add(this);
 
+            // Make the control focusable and selectable
+            this.SetStyle(ControlStyles.Selectable, true);
+            this.TabStop = true;
+
             // Wire up click events for selection
             this.Click += EmbroideryFileControl_Click;
             pbPreview.Click += EmbroideryFileControl_Click;
@@ -28,16 +32,14 @@ namespace SerialComm
             alphabetPictureBox.Click += EmbroideryFileControl_Click;
             userPictureBox.Click += EmbroideryFileControl_Click;
 
-            // Wire up mouse events for context menu and double-click
-            /*
-            this.MouseUp += EmbroideryFileControl_MouseUp;
-            pbPreview.MouseUp += EmbroideryFileControl_MouseUp;
-            lblFileName.MouseUp += EmbroideryFileControl_MouseUp;
-            attributesPanel.MouseUp += EmbroideryFileControl_MouseUp;
-            lockPictureBox.MouseUp += EmbroideryFileControl_MouseUp;
-            alphabetPictureBox.MouseUp += EmbroideryFileControl_MouseUp;
-            userPictureBox.MouseUp += EmbroideryFileControl_MouseUp;
-            */
+            // Wire up mouse down events for right-click selection
+            this.MouseDown += EmbroideryFileControl_MouseDown;
+            pbPreview.MouseDown += EmbroideryFileControl_MouseDown;
+            lblFileName.MouseDown += EmbroideryFileControl_MouseDown;
+            attributesPanel.MouseDown += EmbroideryFileControl_MouseDown;
+            lockPictureBox.MouseDown += EmbroideryFileControl_MouseDown;
+            alphabetPictureBox.MouseDown += EmbroideryFileControl_MouseDown;
+            userPictureBox.MouseDown += EmbroideryFileControl_MouseDown;
 
             this.DoubleClick += EmbroideryFileControl_DoubleClick;
             pbPreview.DoubleClick += EmbroideryFileControl_DoubleClick;
@@ -74,19 +76,29 @@ namespace SerialComm
             UpdateUI();
         }
 
+        private void EmbroideryFileControl_MouseDown(object? sender, MouseEventArgs e)
+        {
+            // On right-click, select the control before showing context menu
+            if (e.Button == MouseButtons.Right)
+            {
+                // Deselect all other controls and select this one
+                foreach (var control in _allControls)
+                {
+                    if (control != this && control.Selected)
+                    {
+                        control.Selected = false;
+                    }
+                }
+
+                // Select this control and give it focus
+                this.Selected = true;
+                this.Focus();
+            }
+        }
+
         private void EmbroideryFileControl_Click(object? sender, EventArgs e)
         {
-            // Deselect all other controls and select this one
-            foreach (var control in _allControls)
-            {
-                if (control != this && control.Selected)
-                {
-                    control.Selected = false;
-                }
-            }
-
-            // Select this control
-            this.Selected = true;
+            this.Focus();
         }
 
         /*
@@ -214,6 +226,30 @@ namespace SerialComm
             }
 
             return bitmap;
+        }
+
+        protected override void OnGotFocus(EventArgs e)
+        {
+            base.OnGotFocus(e);
+            this.Selected = true;
+        }
+
+        protected override void OnLostFocus(EventArgs e)
+        {
+            base.OnLostFocus(e);
+            this.Selected = false;
+        }
+
+        protected override void OnKeyDown(KeyEventArgs e)
+        {
+            base.OnKeyDown(e);
+            
+            // Handle Enter or Space to show details
+            if (e.KeyCode == Keys.Enter || e.KeyCode == Keys.Space)
+            {
+                ShowDetails();
+                e.Handled = true;
+            }
         }
 
         protected override void Dispose(bool disposing)
