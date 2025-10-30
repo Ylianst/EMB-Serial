@@ -20,6 +20,10 @@ namespace SerialComm
         private string? _lastAskedAboutPort = null;
         private IconCacheMode _iconCacheMode = IconCacheMode.Normal;
         private System.Windows.Forms.Timer? _serialStatsTimer = null;
+        
+        // Cached firmware information
+        private FirmwareInfo? _sewingMachineFirmwareInfo = null;
+        private FirmwareInfo? _embroideryModuleFirmwareInfo = null;
 
         private enum IconCacheMode
         {
@@ -332,16 +336,6 @@ namespace SerialComm
                         machineInfoListView.Visible = true;
                     }
 
-                    // Get and display machine information
-                    UpdateStatus("Retrieving machine information...");
-                    await PopulateMachineInfoAsync();
-
-                    // Start timer to poll serial stats every 5 seconds
-                    _serialStatsTimer = new System.Windows.Forms.Timer();
-                    _serialStatsTimer.Interval = 1000; // 1 second
-                    _serialStatsTimer.Tick += UpdateSerialStats;
-                    _serialStatsTimer.Start();
-
                     // Change baud rate to 57600 for faster file reading
                     UpdateStatus("Switching to 57600 baud...");
                     bool baudChangeSuccess = await _serialStack.ChangeTo57600BaudAsync();
@@ -355,40 +349,57 @@ namespace SerialComm
                         UpdateStatus("Failed to change baud rate, continuing at current speed");
                     }
 
-                    // Load embroidery files with previews
-                    UpdateStatus("Loading embroidery files...");
-                    ShowProgressBar(true, "Loading embroidery files...");
-                    
-                    // Clear any previous files before starting
-                    ClearEmbroideryFiles();
-                    _embroideryFileControls = new List<EmbroideryFileControl>();
-                    
-                    // Determine fast cache lookup based on icon cache mode
-                    bool useFastCacheLookup = (_iconCacheMode == IconCacheMode.Fast);
+                    // Get and display machine information
+                    UpdateStatus("Retrieving machine information...");
+                    await PopulateMachineInfoAsync();
 
-                    var embroideryFiles = await _serialStack.ReadEmbroideryFilesAsync(
-                        StorageLocation.EmbroideryModuleMemory,
-                        true,
-                        (current, total) => UpdateProgress(current, total),
-                        (file) => AddFileToUIRealTime(file),
-                        useFastCacheLookup
-                    );
+                    // Start timer to poll serial stats every 5 seconds
+                    _serialStatsTimer = new System.Windows.Forms.Timer();
+                    _serialStatsTimer.Interval = 1000; // 1 second
+                    _serialStatsTimer.Tick += UpdateSerialStats;
+                    _serialStatsTimer.Start();
 
-                    ShowProgressBar(false);
-
-                    if (embroideryFiles != null)
+                    if (_embroideryModuleFirmwareInfo != null)
                     {
-                        UpdateStatus($"Loaded {embroideryFiles.Count} embroidery files");
-                        
-                        // Update machine info with file count
-                        UpdateMachineInfoFileCount(embroideryFiles.Count);
-                        
-                        // Save the preview cache to registry immediately after loading
-                        await SavePreviewCacheToRegistryAsync();
+                        // Load embroidery files with previews
+                        UpdateStatus("Loading embroidery files...");
+                        ShowProgressBar(true, "Loading embroidery files...");
+
+                        // Clear any previous files before starting
+                        ClearEmbroideryFiles();
+                        _embroideryFileControls = new List<EmbroideryFileControl>();
+
+                        // Determine fast cache lookup based on icon cache mode
+                        bool useFastCacheLookup = (_iconCacheMode == IconCacheMode.Fast);
+
+                        var embroideryFiles = await _serialStack.ReadEmbroideryFilesAsync(
+                            StorageLocation.EmbroideryModuleMemory,
+                            true,
+                            (current, total) => UpdateProgress(current, total),
+                            (file) => AddFileToUIRealTime(file),
+                            useFastCacheLookup
+                        );
+
+                        ShowProgressBar(false);
+
+                        if (embroideryFiles != null)
+                        {
+                            UpdateStatus($"Loaded {embroideryFiles.Count} embroidery files");
+
+                            // Update machine info with file count
+                            UpdateMachineInfoFileCount(embroideryFiles.Count);
+
+                            // Save the preview cache to registry immediately after loading
+                            await SavePreviewCacheToRegistryAsync();
+                        }
+                        else
+                        {
+                            UpdateStatus("Failed to load embroidery files");
+                        }
                     }
                     else
                     {
-                        UpdateStatus("Failed to load embroidery files");
+                        UpdateStatus("No embroidery module detected");
                     }
                 }
                 else
@@ -856,45 +867,43 @@ namespace SerialComm
                 // Clear existing items
                 machineInfoListView.Items.Clear();
 
-                // Get firmware information from sewing machine
-                var firmwareInfo = await _serialStack.ReadFirmwareInfoAsync();
+                // Get firmware information from both sewing machine and embroidery module
+                var firmwareInfoTuple = await _serialStack.ReadAllFirmwareInfoAsync();
 
-                if (firmwareInfo != null)
+                if (firmwareInfoTuple == null)
                 {
-                    // Sewing Machine group
-                    AddListViewItem("Firmware Version", firmwareInfo.Version ?? "Unknown", "Sewing Machine");
-                    AddListViewItem("Language", firmwareInfo.Language ?? "Unknown", "Sewing Machine");
-                    AddListViewItem("Manufacturer", firmwareInfo.Manufacturer ?? "Unknown", "Sewing Machine");
-                    AddListViewItem("Firmware Date", firmwareInfo.Date ?? "Unknown", "Sewing Machine");
-                    
-                    // Check if embroidery module is attached based on mode
-                    string embroideryStatus = firmwareInfo.Mode.ToString().Contains("Embroidery") ? "Attached" : "Not Attached";
+                    UpdateStatus("Failed to retrieve firmware information");
+                    return;
                 }
 
-                // Start embroidery session to get embroidery firmware information
-                CommandResult sessionResult = await _serialStack.SessionStartAsync();
+                // Store firmware information for later reference
+                _sewingMachineFirmwareInfo = firmwareInfoTuple.Value.SewingMachine;
+                _embroideryModuleFirmwareInfo = firmwareInfoTuple.Value.EmbroideryModule;
 
-                if (sessionResult.Success)
+                // Display Sewing Machine firmware info
+                if (_sewingMachineFirmwareInfo != null)
                 {
-                    // Get firmware information from embroidery module
-                    var embroideryFirmwareInfo = await _serialStack.ReadFirmwareInfoAsync();
+                    AddListViewItem("Firmware Version", _sewingMachineFirmwareInfo.Version ?? "Unknown", "Sewing Machine");
+                    AddListViewItem("Language", _sewingMachineFirmwareInfo.Language ?? "Unknown", "Sewing Machine");
+                    AddListViewItem("Manufacturer", _sewingMachineFirmwareInfo.Manufacturer ?? "Unknown", "Sewing Machine");
+                    AddListViewItem("Firmware Date", _sewingMachineFirmwareInfo.Date ?? "Unknown", "Sewing Machine");
+                }
 
-                    if (embroideryFirmwareInfo != null)
-                    {
-                        // Embroidery Module group
-                        AddListViewItem("Firmware Version", embroideryFirmwareInfo.Version ?? "Unknown", "Embroidery Module");
-                        AddListViewItem("Manufacturer", embroideryFirmwareInfo.Manufacturer ?? "Unknown", "Embroidery Module");
-                        AddListViewItem("Firmware Date", embroideryFirmwareInfo.Date ?? "Unknown", "Embroidery Module");
-                        AddListViewItem("Embroidery Module", "Attached", "Sewing Machine");
-
-                        // Check if PC Card is attached
-                        string pcCardStatus = embroideryFirmwareInfo.Mode.ToString().Contains("PCCard") ? "Attached" : "Not Attached";
-                        AddListViewItem("PC Card", pcCardStatus, "Embroidery Module");
-                    }
-                    else
-                    {
-                        AddListViewItem("Embroidery Module", "Not Attached", "Sewing Machine");
-                    }
+                // Display Embroidery Module firmware info
+                if (_embroideryModuleFirmwareInfo != null)
+                {
+                    AddListViewItem("Embroidery Module", "Attached", "Sewing Machine");
+                    AddListViewItem("Firmware Version", _embroideryModuleFirmwareInfo.Version ?? "Unknown", "Embroidery Module");
+                    AddListViewItem("Manufacturer", _embroideryModuleFirmwareInfo.Manufacturer ?? "Unknown", "Embroidery Module");
+                    AddListViewItem("Firmware Date", _embroideryModuleFirmwareInfo.Date ?? "Unknown", "Embroidery Module");
+                    
+                    // Check if PC Card is attached
+                    string pcCardStatus = _embroideryModuleFirmwareInfo.PcCardInserted ? "Inserted" : "Not Inserted";
+                    AddListViewItem("PC Card", pcCardStatus, "Embroidery Module");
+                }
+                else
+                {
+                    AddListViewItem("Embroidery Module", "Not Attached", "Sewing Machine");
                 }
             }
             catch (Exception ex)

@@ -2460,6 +2460,8 @@ namespace Bernina.SerialStack
                     RaiseDebugMessage($"ReadAllFirmwareInfoAsync: Warning - Session end failed (may already be in sewing mode): {sessionEndResult.ErrorMessage}");
                     // Continue anyway - we may already be in sewing machine mode
                 }
+
+                await ProtocolResetAsync();
                 
                 // Step 2: Read firmware info from sewing machine mode
                 RaiseDebugMessage("ReadAllFirmwareInfoAsync: Reading sewing machine firmware info");
@@ -2480,7 +2482,7 @@ namespace Bernina.SerialStack
                 if (!sessionStartResult.Success)
                 {
                     RaiseDebugMessage($"ReadAllFirmwareInfoAsync: Failed to start embroidery session: {sessionStartResult.ErrorMessage}");
-                    return null;
+                    return (sewingMachineFirmware, null);
                 }
                 
                 RaiseDebugMessage("ReadAllFirmwareInfoAsync: Embroidery session started");
@@ -2501,7 +2503,7 @@ namespace Bernina.SerialStack
                     {
                         RaiseDebugMessage($"ReadAllFirmwareInfoAsync: Warning - Failed to close session after error: {ex.Message}");
                     }
-                    return null;
+                    return (sewingMachineFirmware, null);
                 }
                 
                 RaiseDebugMessage($"ReadAllFirmwareInfoAsync: Embroidery module firmware read - Version: {embroideryModuleFirmware.Version}");
