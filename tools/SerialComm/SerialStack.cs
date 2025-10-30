@@ -66,6 +66,12 @@ namespace Bernina.SerialStack
         public DateTime Timestamp { get; set; } = DateTime.Now;
     }
 
+    public class BusyStateChangedEventArgs : EventArgs
+    {
+        public bool IsBusy { get; set; }
+        public string? Operation { get; set; }
+    }
+
     /// <summary>
     /// Represents a queued command
     /// </summary>
@@ -165,6 +171,10 @@ namespace Bernina.SerialStack
         // Session state tracking
         private SessionState _currentSessionState = SessionState.Unknown;
 
+        // Busy state tracking
+        private bool _isBusy = false;
+        private readonly object _busyLock = new();
+
         /// <summary>
         /// Event raised when connection state changes
         /// </summary>
@@ -184,6 +194,11 @@ namespace Bernina.SerialStack
         /// Event raised when debug messages are generated
         /// </summary>
         public event EventHandler<DebugMessageEventArgs>? DebugMessage;
+
+        /// <summary>
+        /// Event raised when busy state changes
+        /// </summary>
+        public event EventHandler<BusyStateChangedEventArgs>? BusyStateChanged;
 
         /// <summary>
         /// Gets the current connection state
@@ -235,6 +250,20 @@ namespace Bernina.SerialStack
         public SessionState CurrentSessionState => _currentSessionState;
 
         /// <summary>
+        /// Gets whether the stack is currently busy performing an operation
+        /// </summary>
+        public bool IsBusy
+        {
+            get
+            {
+                lock (_busyLock)
+                {
+                    return _isBusy;
+                }
+            }
+        }
+
+        /// <summary>
         /// Creates a new SerialStack instance
         /// </summary>
         /// <param name="portName">The COM port name (e.g., "COM3")</param>
@@ -258,6 +287,7 @@ namespace Bernina.SerialStack
                 return false;
             }
 
+            SetBusyState(true, "Connecting");
             SetConnectionState(ConnectionState.Connecting, "Starting connection...");
 
             try
@@ -274,16 +304,19 @@ namespace Bernina.SerialStack
                         _processingCts = new CancellationTokenSource();
                         _processingTask = Task.Run(() => ProcessCommandQueueAsync(_processingCts.Token));
                         
+                        SetBusyState(false);
                         return true;
                     }
                 }
 
                 SetConnectionState(ConnectionState.Error, "Failed to connect at any baud rate");
+                SetBusyState(false);
                 return false;
             }
             catch (Exception ex)
             {
                 SetConnectionState(ConnectionState.Error, $"Connection error: {ex.Message}");
+                SetBusyState(false);
                 return false;
             }
         }
@@ -332,8 +365,54 @@ namespace Bernina.SerialStack
             return await EnqueueCommandAsync(command);
         }
 
+        /*
         /// <summary>
-        /// Sends a Large Read command (N + 6 hex chars) and returns 256 bytes of data
+        /// Sends a Large Read command (N + 6 hex chars) and returns 256 bytes of data.
+        /// Automatically retries up to 100 times with protocol reset if the read fails.
+        /// </summary>
+        /// <param name="address">The address to read from (will be formatted as 6 hex digits)</param>
+        public async Task<CommandResult> LargeReadAsync(int address)
+        {
+            // Try up to 100 protocol resets if read fails
+            for (int resetAttempt = 0; resetAttempt <= 100; resetAttempt++)
+            {
+                // Attempt the read
+                var readResult = await LargeReadOnceAsync(address);
+
+                if (readResult.Success && readResult.BinaryData != null)
+                {
+                    return readResult;
+                }
+
+                // Read failed, try protocol reset (but not after the 100th attempt)
+                if (resetAttempt < 100)
+                {
+                    RaiseDebugMessage($"LargeReadAsync: Read failed at 0x{address:X6}, attempting protocol reset {resetAttempt + 1}/100");
+                    var resetResult = await ProtocolResetAsync();
+                    
+                    if (resetResult.Success)
+                    {
+                        RaiseDebugMessage($"LargeReadAsync: Protocol reset successful, retrying read");
+                    }
+                    else
+                    {
+                        RaiseDebugMessage($"LargeReadAsync: Protocol reset failed: {resetResult.ErrorMessage}");
+                    }
+                }
+            }
+
+            // All retries exhausted
+            return new CommandResult
+            {
+                Success = false,
+                ErrorMessage = $"Failed to read memory at 0x{address:X6} after 100 protocol reset attempts"
+            };
+        }
+        */
+
+        /// <summary>
+        /// Sends a Large Read command (N + 6 hex chars) and returns 256 bytes of data.
+        /// This is a single attempt without retries - use LargeReadAsync() for automatic retry with protocol reset.
         /// </summary>
         /// <param name="address">The address to read from (will be formatted as 6 hex digits)</param>
         public async Task<CommandResult> LargeReadAsync(int address)
@@ -1647,12 +1726,50 @@ namespace Bernina.SerialStack
             else if (command.StartsWith("N") && command.Length == 7)
             {
                 // Large Read command - extract raw binary data (256 bytes sent as raw bytes, not hex)
-                if (response.Length > command.Length)
+                try
                 {
-                    string data = response.Substring(command.Length);
-                    if (data.EndsWith("O"))
+                    // Validate response length (should be exactly 7 + 256 + 1 = 264 bytes)
+                    int expectedLength = command.Length + 256 + 1;
+                    
+                    if (response.Length < command.Length + 1)
                     {
-                        data = data.Substring(0, data.Length - 1);
+                        return new CommandResult
+                        {
+                            Success = false,
+                            ErrorMessage = $"Large Read response too short: {response.Length} bytes (expected {expectedLength})"
+                        };
+                    }
+                    
+                    if (response.Length != expectedLength)
+                    {
+                        RaiseDebugMessage($"ParseResponse: Warning - Large Read response length {response.Length} != expected {expectedLength}");
+                    }
+                    
+                    // Extract data portion (everything after command echo)
+                    string data = response.Substring(command.Length);
+                    
+                    // Check for and remove trailing 'O' if present
+                    if (data.Length > 0 && data.EndsWith("O"))
+                    {
+                        if (data.Length > 1)
+                        {
+                            data = data.Substring(0, data.Length - 1);
+                        }
+                        else
+                        {
+                            // Only 'O' in data, no actual data bytes
+                            return new CommandResult
+                            {
+                                Success = false,
+                                ErrorMessage = "Large Read response contains no data bytes, only terminator"
+                            };
+                        }
+                    }
+                    
+                    // Validate we have exactly 256 bytes of data
+                    if (data.Length != 256)
+                    {
+                        RaiseDebugMessage($"ParseResponse: Warning - Large Read data length {data.Length} != expected 256");
                     }
                     
                     // Convert the string (which contains raw bytes) to byte array
@@ -1667,6 +1784,24 @@ namespace Bernina.SerialStack
                         Success = true,
                         Response = BitConverter.ToString(binaryData).Replace("-", ""),
                         BinaryData = binaryData
+                    };
+                }
+                catch (ArgumentOutOfRangeException ex)
+                {
+                    RaiseDebugMessage($"ParseResponse: ArgumentOutOfRangeException parsing Large Read response - Response length: {response.Length}, Exception: {ex.Message}");
+                    return new CommandResult
+                    {
+                        Success = false,
+                        ErrorMessage = $"Failed to parse Large Read response: {ex.Message}"
+                    };
+                }
+                catch (Exception ex)
+                {
+                    RaiseDebugMessage($"ParseResponse: Exception parsing Large Read response - {ex.GetType().Name}: {ex.Message}");
+                    return new CommandResult
+                    {
+                        Success = false,
+                        ErrorMessage = $"Failed to parse Large Read response: {ex.Message}"
                     };
                 }
             }
@@ -2013,7 +2148,8 @@ namespace Bernina.SerialStack
                 string currentResponse = _responseBuffer.ToString();
                 if (!string.IsNullOrEmpty(currentResponse) && IsResponseComplete(queuedCommand.Command, currentResponse))
                 {
-                    RaiseDebugMessage($"ExecuteCommand: Response already complete after transmission: '{currentResponse}'");
+                    // This is normal behavior when the machine responds quickly - just process the response
+                    // RaiseDebugMessage($"ExecuteCommand: Response already complete after transmission: '{currentResponse}'");
                     CompleteCurrentCommand(currentResponse);
                     _responseBuffer.Clear();
                     return;
@@ -2130,6 +2266,31 @@ namespace Bernina.SerialStack
                 Message = message,
                 Timestamp = DateTime.Now
             });
+        }
+
+        /// <summary>
+        /// Sets the busy state and raises the BusyStateChanged event if the state changes
+        /// </summary>
+        private void SetBusyState(bool isBusy, string? operation = null)
+        {
+            bool stateChanged = false;
+            lock (_busyLock)
+            {
+                if (_isBusy != isBusy)
+                {
+                    _isBusy = isBusy;
+                    stateChanged = true;
+                }
+            }
+            
+            if (stateChanged)
+            {
+                BusyStateChanged?.Invoke(this, new BusyStateChangedEventArgs
+                {
+                    IsBusy = isBusy,
+                    Operation = operation
+                });
+            }
         }
 
         /// <summary>
@@ -2264,6 +2425,110 @@ namespace Bernina.SerialStack
             catch (Exception)
             {
                 return null;
+            }
+        }
+
+        /// <summary>
+        /// Reads firmware information from both the sewing machine and embroidery module.
+        /// Closes the current session, reads embroidery module firmware info, then opens the session back.
+        /// </summary>
+        /// <returns>Tuple containing (SewingMachineFirmwareInfo, EmbroideryModuleFirmwareInfo), or null if operation fails</returns>
+        public async Task<(FirmwareInfo? SewingMachine, FirmwareInfo? EmbroideryModule)?> ReadAllFirmwareInfoAsync()
+        {
+            // Check connection status
+            if (State != ConnectionState.Connected)
+            {
+                return null;
+            }
+
+            // Check if already busy
+            if (IsBusy)
+            {
+                RaiseDebugMessage("ReadAllFirmwareInfoAsync: Already busy with another operation");
+                return null;
+            }
+
+            SetBusyState(true, "Reading firmware information");
+
+            try
+            {
+                // Step 1: Ensure we're in sewing machine mode by closing any embroidery session
+                RaiseDebugMessage("ReadAllFirmwareInfoAsync: Ensuring sewing machine mode");
+                var sessionEndResult = await SessionEndAsync();
+                if (!sessionEndResult.Success)
+                {
+                    RaiseDebugMessage($"ReadAllFirmwareInfoAsync: Warning - Session end failed (may already be in sewing mode): {sessionEndResult.ErrorMessage}");
+                    // Continue anyway - we may already be in sewing machine mode
+                }
+                
+                // Step 2: Read firmware info from sewing machine mode
+                RaiseDebugMessage("ReadAllFirmwareInfoAsync: Reading sewing machine firmware info");
+                var sewingMachineFirmware = await ReadFirmwareInfoAsync();
+                
+                if (sewingMachineFirmware == null)
+                {
+                    RaiseDebugMessage("ReadAllFirmwareInfoAsync: Failed to read sewing machine firmware info");
+                    return null;
+                }
+                
+                RaiseDebugMessage($"ReadAllFirmwareInfoAsync: Sewing machine firmware read - Version: {sewingMachineFirmware.Version}");
+
+                // Step 2: Start embroidery session to access embroidery module
+                RaiseDebugMessage("ReadAllFirmwareInfoAsync: Starting embroidery session");
+                var sessionStartResult = await SessionStartAsync();
+                
+                if (!sessionStartResult.Success)
+                {
+                    RaiseDebugMessage($"ReadAllFirmwareInfoAsync: Failed to start embroidery session: {sessionStartResult.ErrorMessage}");
+                    return null;
+                }
+                
+                RaiseDebugMessage("ReadAllFirmwareInfoAsync: Embroidery session started");
+
+                // Step 3: Read firmware info from embroidery module
+                RaiseDebugMessage("ReadAllFirmwareInfoAsync: Reading embroidery module firmware info");
+                var embroideryModuleFirmware = await ReadFirmwareInfoAsync();
+                
+                if (embroideryModuleFirmware == null)
+                {
+                    RaiseDebugMessage("ReadAllFirmwareInfoAsync: Failed to read embroidery module firmware info");
+                    // Try to close session before returning
+                    try
+                    {
+                        await SessionEndAsync();
+                    }
+                    catch (Exception ex)
+                    {
+                        RaiseDebugMessage($"ReadAllFirmwareInfoAsync: Warning - Failed to close session after error: {ex.Message}");
+                    }
+                    return null;
+                }
+                
+                RaiseDebugMessage($"ReadAllFirmwareInfoAsync: Embroidery module firmware read - Version: {embroideryModuleFirmware.Version}");
+
+                // Step 4: Close embroidery session to return to sewing machine mode
+                RaiseDebugMessage("ReadAllFirmwareInfoAsync: Closing embroidery session");
+                var finalSessionEndResult = await SessionEndAsync();
+                
+                if (!finalSessionEndResult.Success)
+                {
+                    RaiseDebugMessage($"ReadAllFirmwareInfoAsync: Warning - Failed to close embroidery session: {finalSessionEndResult.ErrorMessage}");
+                    // Continue anyway - we have both firmware infos
+                }
+                
+                RaiseDebugMessage("ReadAllFirmwareInfoAsync: Successfully read both firmware info sets");
+                
+                // Return both firmware info objects
+                return (sewingMachineFirmware, embroideryModuleFirmware);
+            }
+            catch (Exception ex)
+            {
+                RaiseDebugMessage($"ReadAllFirmwareInfoAsync: Exception occurred: {ex.Message}");
+                return null;
+            }
+            finally
+            {
+                SetBusyState(false);
             }
         }
 
@@ -2552,6 +2817,15 @@ namespace Bernina.SerialStack
                 RaiseDebugMessage("ReadEmbroideryFiles: Not connected");
                 return null;
             }
+
+            // Check if already busy
+            if (IsBusy)
+            {
+                RaiseDebugMessage("ReadEmbroideryFiles: Already busy with another operation");
+                return null;
+            }
+
+            SetBusyState(true, "Reading embroidery files");
 
             List<EmbroideryFile>? fileList = null;
             bool sessionStarted = false;
@@ -2894,6 +3168,8 @@ namespace Bernina.SerialStack
                 {
                     RaiseDebugMessage($"ReadEmbroideryFiles: Complete - returning {fileList.Count} files");
                 }
+
+                SetBusyState(false);
             }
         }
 
@@ -2915,6 +3191,15 @@ namespace Bernina.SerialStack
                 RaiseDebugMessage("ReadEmbroideryFilePreview: Not connected");
                 return null;
             }
+
+            // Check if already busy
+            if (IsBusy)
+            {
+                RaiseDebugMessage("ReadEmbroideryFilePreview: Already busy with another operation");
+                return null;
+            }
+
+            SetBusyState(true, "Reading embroidery file preview");
 
             byte[]? previewData = null;
             bool sessionStarted = false;
@@ -3109,6 +3394,161 @@ namespace Bernina.SerialStack
                 {
                     RaiseDebugMessage($"ReadEmbroideryFilePreview: Complete - returning {previewData.Length} bytes of preview image data");
                 }
+
+                SetBusyState(false);
+            }
+        }
+
+        /// <summary>
+        /// Downloads the entire memory (16MB) from the specified session mode and writes it to a file.
+        /// Automatically switches to the correct session mode, performs the download, and restores the previous state.
+        /// </summary>
+        /// <param name="sessionMode">The session mode to download memory from (SewingMachine or EmbroideryModule)</param>
+        /// <param name="filePath">The file path to write the memory dump to</param>
+        /// <param name="progress">Optional progress callback (current address, total size)</param>
+        /// <param name="cancellationToken">Optional cancellation token to cancel the operation</param>
+        /// <returns>True if successful, false otherwise</returns>
+        public async Task<bool> DownloadMemoryAsync(SessionMode sessionMode, string filePath, Action<int, int>? progress = null, CancellationToken cancellationToken = default)
+        {
+            // Check connection
+            if (State != ConnectionState.Connected)
+            {
+                RaiseDebugMessage("DownloadMemory: Not connected");
+                return false;
+            }
+
+            // Check if already busy
+            if (IsBusy)
+            {
+                RaiseDebugMessage("DownloadMemory: Already busy with another operation");
+                return false;
+            }
+
+            const int totalMemorySize = 0x1000000; // 16 MB (0x000000 to 0xFFFFFF)
+            const int chunkSize = 256; // Read 256 bytes at a time using LargeRead
+
+            SetBusyState(true, "Downloading memory");
+
+            try
+            {
+                RaiseDebugMessage($"DownloadMemory: Starting memory download to {filePath}");
+                
+                // Step 1: Get current mode and switch if needed
+                var currentMode = await GetCurrentSessionModeAsync();
+                if (currentMode == null)
+                {
+                    RaiseDebugMessage("DownloadMemory: Failed to get current session mode");
+                    return false;
+                }
+
+                bool needsSessionEnd = false;
+                bool needsSessionStart = false;
+
+                // Switch to the target session mode
+                if (sessionMode == SessionMode.EmbroideryModule && currentMode == SessionMode.SewingMachine)
+                {
+                    RaiseDebugMessage("DownloadMemory: Switching to Embroidery Module mode");
+                    var sessionStartResult = await SessionStartAsync();
+                    if (!sessionStartResult.Success)
+                    {
+                        RaiseDebugMessage($"DownloadMemory: Failed to start session: {sessionStartResult.ErrorMessage}");
+                        return false;
+                    }
+                    needsSessionEnd = true;
+                }
+                else if (sessionMode == SessionMode.SewingMachine && currentMode == SessionMode.EmbroideryModule)
+                {
+                    RaiseDebugMessage("DownloadMemory: Switching to Sewing Machine mode");
+                    var sessionEndResult = await SessionEndAsync();
+                    if (!sessionEndResult.Success)
+                    {
+                        RaiseDebugMessage($"DownloadMemory: Failed to end session: {sessionEndResult.ErrorMessage}");
+                        return false;
+                    }
+                    needsSessionStart = true;
+                }
+
+                // Step 2: Create/overwrite the file and download memory
+                RaiseDebugMessage($"DownloadMemory: Creating output file: {filePath}");
+                using (FileStream fileStream = new FileStream(filePath, FileMode.Create, FileAccess.Write))
+                {
+                    // Download memory in chunks
+                    for (int address = 0; address < totalMemorySize; address += chunkSize)
+                    {
+                        // Check for cancellation
+                        cancellationToken.ThrowIfCancellationRequested();
+
+                        // Read chunk (LargeReadAsync now handles retries with protocol reset automatically)
+                        var readResult = await LargeReadAsync(address);
+
+                        if (!readResult.Success || readResult.BinaryData == null)
+                        {
+                            RaiseDebugMessage($"DownloadMemory: Failed to read memory at 0x{address:X6}: {readResult.ErrorMessage}");
+                            return false;
+                        }
+
+                        // Write to file
+                        fileStream.Write(readResult.BinaryData, 0, readResult.BinaryData.Length);
+
+                        // Report progress
+                        progress?.Invoke(address + chunkSize, totalMemorySize);
+                    }
+
+                    fileStream.Close();
+                }
+
+                RaiseDebugMessage($"DownloadMemory: Successfully wrote {totalMemorySize} bytes to {filePath}");
+
+                // Step 3: Restore session state if needed
+                if (needsSessionEnd)
+                {
+                    RaiseDebugMessage("DownloadMemory: Restoring previous session state (ending session)");
+                    await SessionEndAsync();
+                }
+                else if (needsSessionStart)
+                {
+                    RaiseDebugMessage("DownloadMemory: Restoring previous session state (starting session)");
+                    await SessionStartAsync();
+                }
+
+                RaiseDebugMessage("DownloadMemory: Download complete");
+                return true;
+            }
+            catch (OperationCanceledException)
+            {
+                RaiseDebugMessage("DownloadMemory: Operation cancelled by user");
+                
+                // Clean up partially written file
+                try
+                {
+                    if (File.Exists(filePath))
+                    {
+                        File.Delete(filePath);
+                    }
+                }
+                catch { }
+
+                throw; // Re-throw to let caller handle the cancellation
+            }
+            catch (Exception ex)
+            {
+                RaiseDebugMessage($"DownloadMemory: Exception occurred: {ex.Message}");
+                
+                // Clean up partially written file
+                try
+                {
+                    if (File.Exists(filePath))
+                    {
+                        File.Delete(filePath);
+                    }
+                }
+                catch { }
+
+                return false;
+            }
+            finally
+            {
+                SetBusyState(false);
             }
         }
 

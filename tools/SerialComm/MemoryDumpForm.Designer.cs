@@ -178,8 +178,6 @@ namespace SerialComm
             MaximizeBox = false;
             MinimizeBox = false;
             Name = "MemoryDumpForm";
-            ShowIcon = false;
-            ShowInTaskbar = false;
             StartPosition = FormStartPosition.CenterParent;
             Text = "Memory Download";
             Load += MemoryDumpForm_Load;

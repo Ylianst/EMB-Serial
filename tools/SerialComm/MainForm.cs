@@ -56,6 +56,15 @@ namespace SerialComm
             // Enable double buffering on the form to prevent blinking during ListView updates
             this.DoubleBuffered = true;
 
+            // Enable double buffering on the ListView to prevent blinking
+            if (machineInfoListView != null)
+            {
+                // Use reflection to enable double buffering on the ListView
+                typeof(ListView).InvokeMember("DoubleBuffered",
+                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.SetProperty,
+                    null, machineInfoListView, new object[] { true });
+            }
+
             // Remove embroidery tab from tab control on application startup
             if (embroideryTabPage != null && mainTabControl.TabPages.Contains(embroideryTabPage))
             {
@@ -287,6 +296,7 @@ namespace SerialComm
                 _serialStack = new SerialStack(portName);
                 _serialStack.ConnectionStateChanged += OnConnectionStateChanged;
                 _serialStack.DebugMessage += OnDebugMessage;
+                _serialStack.BusyStateChanged += OnBusyStateChanged;
 
                 bool connected = await _serialStack.OpenAsync();
 
@@ -608,6 +618,18 @@ namespace SerialComm
             }
         }
 
+        private void OnBusyStateChanged(object? sender, BusyStateChangedEventArgs e)
+        {
+            if (InvokeRequired)
+            {
+                Invoke(new Action(() => OnBusyStateChanged(sender, e)));
+                return;
+            }
+
+            // Show/hide the busy status label based on the busy state
+            toolStripStatusLabelBusy.Visible = e.IsBusy;
+        }
+
         private void UpdateStatus(string message)
         {
             if (InvokeRequired)
@@ -628,15 +650,6 @@ namespace SerialComm
             }
 
             toolStripStatusLabelConnection.Text = message;
-
-            if (connected)
-            {
-                toolStripStatusLabelConnection.ForeColor = Color.Black;
-            }
-            else
-            {
-                toolStripStatusLabelConnection.ForeColor = Color.Red;
-            }
         }
 
         private void DisplayEmbroideryFiles(List<EmbroideryFile> files)
@@ -969,32 +982,42 @@ namespace SerialComm
                 long commandsSent = _serialStack.CommandsSent;
                 long commandsReceived = _serialStack.CommandsReceived;
 
-                // Find or create the "Serial Communication" group
-                ListViewGroup? group = null;
-                foreach (ListViewGroup g in machineInfoListView.Groups)
+                // Use BeginUpdate to prevent flickering while updating multiple items
+                machineInfoListView.BeginUpdate();
+                try
                 {
-                    if (g.Header == "Serial Communication")
+                    // Find or create the "Serial Communication" group
+                    ListViewGroup? group = null;
+                    foreach (ListViewGroup g in machineInfoListView.Groups)
                     {
-                        group = g;
-                        break;
+                        if (g.Header == "Serial Communication")
+                        {
+                            group = g;
+                            break;
+                        }
                     }
-                }
 
-                if (group == null)
+                    if (group == null)
+                    {
+                        group = new ListViewGroup("Serial Communication", "Serial Communication");
+                        machineInfoListView.Groups.Add(group);
+                    }
+
+                    // Update or add the stat items
+                    string sessionDisplayText = _serialStack.CurrentSessionState == SessionState.Sewing ? "Sewing Machine" : 
+                                               _serialStack.CurrentSessionState == SessionState.Embroidery ? "Embroidery Module" : 
+                                               _serialStack.CurrentSessionState.ToString();
+                    UpdateOrAddListViewItem("Session", sessionDisplayText, group);
+                    UpdateOrAddListViewItem("Bytes Sent", bytesSent.ToString(), group);
+                    UpdateOrAddListViewItem("Bytes Received", bytesReceived.ToString(), group);
+                    UpdateOrAddListViewItem("Commands Sent", commandsSent.ToString(), group);
+                    UpdateOrAddListViewItem("Commands Received", commandsReceived.ToString(), group);
+                }
+                finally
                 {
-                    group = new ListViewGroup("Serial Communication", "Serial Communication");
-                    machineInfoListView.Groups.Add(group);
+                    // Always call EndUpdate to resume drawing
+                    machineInfoListView.EndUpdate();
                 }
-
-                // Update or add the stat items
-                string sessionDisplayText = _serialStack.CurrentSessionState == SessionState.Sewing ? "Sewing Machine" : 
-                                           _serialStack.CurrentSessionState == SessionState.Embroidery ? "Embroidery Module" : 
-                                           _serialStack.CurrentSessionState.ToString();
-                UpdateOrAddListViewItem("Session", sessionDisplayText, group);
-                UpdateOrAddListViewItem("Bytes Sent", bytesSent.ToString(), group);
-                UpdateOrAddListViewItem("Bytes Received", bytesReceived.ToString(), group);
-                UpdateOrAddListViewItem("Commands Sent", commandsSent.ToString(), group);
-                UpdateOrAddListViewItem("Commands Received", commandsReceived.ToString(), group);
             }
             catch (Exception ex)
             {

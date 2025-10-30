@@ -169,6 +169,14 @@ namespace SerialComm
                 return;
             }
 
+            // Check if the device is busy with another operation
+            if (_serialStack.IsBusy)
+            {
+                MessageBox.Show("The device is currently busy with another operation. Please wait for it to complete before starting a memory download.", "Device Busy",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
             _isDownloading = true;
             _cancellationTokenSource = new CancellationTokenSource();
 
@@ -214,7 +222,7 @@ namespace SerialComm
         private async Task DownloadMemoryAsync(CancellationToken cancellationToken)
         {
             const int totalMemorySize = 0x1000000; // 16 MB (0x000000 to 0xFFFFFF)
-            const int chunkSize = 256; // Read 256 bytes at a time using LargeRead
+            const int chunkSize = 256; // Read 256 bytes at a time
 
             string selectedMode = comboBoxMode.SelectedItem?.ToString() ?? "Sewing Machine";
             bool isEmbroideryModule = selectedMode == "Embroidery Module";
@@ -222,104 +230,64 @@ namespace SerialComm
 
             try
             {
-                // Step 1: Prepare the machine state
-                statusLabel.Text = "Preparing machine...";
+                // Prepare UI
+                statusLabel.Text = "Starting download...";
                 statusLabel.ForeColor = Color.Black;
+                progressBar.Maximum = totalMemorySize / chunkSize;
+                progressBar.Value = 0;
 
-                var currentMode = await _serialStack!.GetCurrentSessionModeAsync();
-                bool needsSessionStart = false;
-                bool needsSessionEnd = false;
+                // Determine session mode
+                SessionMode targetMode = isEmbroideryModule ? SessionMode.EmbroideryModule : SessionMode.SewingMachine;
 
-                if (isEmbroideryModule && currentMode == SessionMode.SewingMachine)
-                {
-                    statusLabel.Text = "Starting embroidery session...";
-                    var sessionStartResult = await _serialStack.SessionStartAsync();
-                    if (!sessionStartResult.Success)
+                // Call the SerialStack method with progress callback and cancellation token
+                bool success = await _serialStack!.DownloadMemoryAsync(
+                    targetMode,
+                    filePath,
+                    (currentAddress, totalSize) =>
                     {
-                        throw new Exception($"Failed to start session: {sessionStartResult.ErrorMessage}");
-                    }
-                    needsSessionEnd = true;
-                }
-                else if (!isEmbroideryModule && currentMode == SessionMode.EmbroideryModule)
-                {
-                    statusLabel.Text = "Ending embroidery session...";
-                    var sessionEndResult = await _serialStack.SessionEndAsync();
-                    if (!sessionEndResult.Success)
-                    {
-                        throw new Exception($"Failed to end session: {sessionEndResult.ErrorMessage}");
-                    }
-                    needsSessionStart = true;
-                }
-
-                // Step 2: Create/overwrite the file
-                statusLabel.Text = "Creating output file...";
-                using (FileStream fileStream = new FileStream(filePath, FileMode.Create, FileAccess.Write))
-                {
-                    progressBar.Maximum = totalMemorySize / chunkSize;
-                    progressBar.Value = 0;
-
-                    // Step 3: Download memory in chunks
-                    for (int address = 0; address < totalMemorySize; address += chunkSize)
-                    {
-                        cancellationToken.ThrowIfCancellationRequested();
-
-                        // Read chunk
-                        var readResult = await _serialStack.LargeReadAsync(address);
-
-                        if (!readResult.Success || readResult.BinaryData == null)
+                        try
                         {
-                            throw new Exception($"Failed to read memory at 0x{address:X6}: {readResult.ErrorMessage}");
+                            // Update progress bar and status
+                            int progress = currentAddress / chunkSize;
+                            progressBar.Value = Math.Min(progress, progressBar.Maximum);
+
+                            double percentComplete = (currentAddress * 100.0) / totalSize;
+                            statusLabel.Text = $"{percentComplete:F1}% - 0x{currentAddress:X6}";
+
+                            // Allow UI to update
+                            Application.DoEvents();
                         }
+                        catch (Exception)
+                        {
+                            int i = 5;
+                        }
+                    },
+                    cancellationToken
+                );
 
-                        // Write to file
-                        fileStream.Write(readResult.BinaryData, 0, readResult.BinaryData.Length);
-
-                        // Update progress with short, compact information
-                        int progress = address / chunkSize;
-                        progressBar.Value = Math.Min(progress, progressBar.Maximum);
-
-                        double percentComplete = (address * 100.0) / totalMemorySize;
-                        statusLabel.Text = $"{percentComplete:F1}% - 0x{address:X6}";
-
-                        // Allow UI to update
-                        Application.DoEvents();
-                    }
-
-                    fileStream.Close();
-                }
-
-                // Step 4: Recovery - restore session state if needed
-                if (needsSessionEnd)
+                if (success)
                 {
-                    statusLabel.Text = "Restoring session state...";
-                    await _serialStack.SessionStartAsync();
+                    // Success
+                    progressBar.Value = progressBar.Maximum;
+                    statusLabel.Text = "Download complete!";
+                    statusLabel.ForeColor = Color.Green;
+
+                    MessageBox.Show($"Memory dump successfully saved to:\n{filePath}", "Download Complete",
+                        MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
-                else if (needsSessionStart)
+                else
                 {
-                    statusLabel.Text = "Restoring session state...";
-                    await _serialStack.SessionEndAsync();
+                    // Failed
+                    statusLabel.Text = "Download failed";
+                    statusLabel.ForeColor = Color.Red;
+                    MessageBox.Show("Memory download failed. Check the connection and try again.", "Download Failed",
+                        MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
-
-                // Step 5: Success
-                progressBar.Value = progressBar.Maximum;
-                statusLabel.Text = "Download complete!";
-                statusLabel.ForeColor = Color.Green;
-
-                MessageBox.Show($"Memory dump successfully saved to:\n{filePath}", "Download Complete",
-                    MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (OperationCanceledException)
             {
-                // Clean up partially written file
-                try
-                {
-                    if (File.Exists(filePath))
-                    {
-                        File.Delete(filePath);
-                    }
-                }
-                catch { }
-
+                statusLabel.Text = "Download cancelled";
+                statusLabel.ForeColor = Color.Black;
                 throw;
             }
         }

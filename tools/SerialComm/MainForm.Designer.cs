@@ -39,6 +39,7 @@
             toolStripStatusLabel = new ToolStripStatusLabel();
             toolStripProgressBar = new ToolStripProgressBar();
             toolStripStatusLabelConnection = new ToolStripStatusLabel();
+            toolStripStatusLabelBusy = new ToolStripStatusLabel();
             panelMain = new Panel();
             mainTabControl = new TabControl();
             generalTabPage = new TabPage();
@@ -177,7 +178,7 @@
             // statusStrip
             // 
             statusStrip.ImageScalingSize = new Size(20, 20);
-            statusStrip.Items.AddRange(new ToolStripItem[] { toolStripStatusLabel, toolStripProgressBar, toolStripStatusLabelConnection });
+            statusStrip.Items.AddRange(new ToolStripItem[] { toolStripStatusLabel, toolStripProgressBar, toolStripStatusLabelConnection, toolStripStatusLabelBusy });
             statusStrip.Location = new Point(0, 602);
             statusStrip.Name = "statusStrip";
             statusStrip.Padding = new Padding(1, 0, 16, 0);
@@ -188,7 +189,7 @@
             // toolStripStatusLabel
             // 
             toolStripStatusLabel.Name = "toolStripStatusLabel";
-            toolStripStatusLabel.Size = new Size(686, 20);
+            toolStripStatusLabel.Size = new Size(527, 20);
             toolStripStatusLabel.Spring = true;
             toolStripStatusLabel.Text = "Ready";
             toolStripStatusLabel.TextAlign = ContentAlignment.MiddleLeft;
@@ -203,11 +204,19 @@
             // toolStripStatusLabelConnection
             // 
             toolStripStatusLabelConnection.AutoSize = false;
-            toolStripStatusLabelConnection.ForeColor = Color.Red;
+            toolStripStatusLabelConnection.ForeColor = SystemColors.ControlText;
             toolStripStatusLabelConnection.Name = "toolStripStatusLabelConnection";
             toolStripStatusLabelConnection.Size = new Size(159, 20);
             toolStripStatusLabelConnection.Text = "Disconnected";
             toolStripStatusLabelConnection.TextAlign = ContentAlignment.MiddleRight;
+            // 
+            // toolStripStatusLabelBusy
+            // 
+            toolStripStatusLabelBusy.ForeColor = Color.Red;
+            toolStripStatusLabelBusy.Name = "toolStripStatusLabelBusy";
+            toolStripStatusLabelBusy.Size = new Size(18, 20);
+            toolStripStatusLabelBusy.Text = "●";
+            toolStripStatusLabelBusy.Visible = false;
             // 
             // panelMain
             // 
@@ -436,5 +445,6 @@
         private ColumnHeader valueColumnHeader;
         private Label notConnectedLabel;
         private PictureBox bannerPictureBox;
+        private ToolStripStatusLabel toolStripStatusLabelBusy;
     }
 }
