@@ -354,6 +354,9 @@ RFFFED0 -->
 The following 6 reads, read a bunch of data before the main file. It could be searching for "40 8A 00 00 01 3C 80 02 0F 4D" which marks the start of the file. The file is 16838 bytes long or 0x41C6 in length.
 
 Interesting: 0x408A + 0x013C = 0x41C6, the exact length of the file. The file could have multiple parts!
+
+It looks like the first 0x408A bytes are the exact .EXP file format that is compatible with InkScape. This is great news as we can import and export right into a modern open source software. The remaining 0x013C bytes looks like extracted instructions that the machine will follow, this part has to be figured out.
+
 This address 0x028E98 looks fixed, hard coded.
 
 R028E98 -->
