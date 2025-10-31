@@ -16,6 +16,7 @@ namespace SerialComm
         private const string ComPortValueName = "LastComPort";
         private const string PreviewCacheValueName = "PreviewCache";
         private List<EmbroideryFileControl>? _embroideryFileControls = null;
+        private List<EmbroideryFileControl>? _pcCardFileControls = null;
         private string[]? _previousPortList = null;
         private string? _lastAskedAboutPort = null;
         private IconCacheMode _iconCacheMode = IconCacheMode.Normal;
@@ -69,10 +70,14 @@ namespace SerialComm
                     null, machineInfoListView, new object[] { true });
             }
 
-            // Remove embroidery tab from tab control on application startup
+            // Remove embroidery and PC Card tabs from tab control on application startup
             if (embroideryTabPage != null && mainTabControl.TabPages.Contains(embroideryTabPage))
             {
                 mainTabControl.TabPages.Remove(embroideryTabPage);
+            }
+            if (pcCardTabPage != null && mainTabControl.TabPages.Contains(pcCardTabPage))
+            {
+                mainTabControl.TabPages.Remove(pcCardTabPage);
             }
 
             // Start monitoring for COM port changes
@@ -372,12 +377,16 @@ namespace SerialComm
                         // Determine fast cache lookup based on icon cache mode
                         bool useFastCacheLookup = (_iconCacheMode == IconCacheMode.Fast);
 
+                        // Don't close session if PC Card is inserted (we'll load PC Card files next)
+                        bool closeSession = true;// !_embroideryModuleFirmwareInfo.PcCardInserted;
+
                         var embroideryFiles = await _serialStack.ReadEmbroideryFilesAsync(
                             StorageLocation.EmbroideryModuleMemory,
                             true,
-                            (current, total) => UpdateProgress(current, total),
+                            (current, total) => UpdateProgress(current, total, false),
                             (file) => AddFileToUIRealTime(file),
-                            useFastCacheLookup
+                            useFastCacheLookup,
+                            closeSession
                         );
 
                         ShowProgressBar(false);
@@ -395,6 +404,39 @@ namespace SerialComm
                         else
                         {
                             UpdateStatus("Failed to load embroidery files");
+                        }
+
+                        if (_embroideryModuleFirmwareInfo.PcCardInserted)
+                        {
+                            // Load files from PC Card
+                            UpdateStatus("Loading PC Card files...");
+                            ShowProgressBar(true, "Loading PC Card files...");
+
+                            // Clear any previous PC Card files
+                            ClearPcCardFiles();
+                            _pcCardFileControls = new List<EmbroideryFileControl>();
+
+                            var pcCardFiles = await _serialStack.ReadEmbroideryFilesAsync(
+                                StorageLocation.PCCard,
+                                true,
+                                (current, total) => UpdateProgress(current, total, true),
+                                (file) => AddPcCardFileToUIRealTime(file),
+                                useFastCacheLookup
+                            );
+
+                            ShowProgressBar(false);
+
+                            if (pcCardFiles != null)
+                            {
+                                UpdateStatus($"Loaded {pcCardFiles.Count} PC Card files");
+                            }
+                            else
+                            {
+                                UpdateStatus("Failed to load PC Card files");
+                            }
+
+                            // Save the preview cache to registry after loading PC Card files
+                            await SavePreviewCacheToRegistryAsync();
                         }
                     }
                     else
@@ -466,6 +508,7 @@ namespace SerialComm
 
             // Clear displayed embroidery files
             ClearEmbroideryFiles();
+            ClearPcCardFiles();
 
             // Clear machine info ListView and hide it
             if (machineInfoListView != null)
@@ -481,10 +524,14 @@ namespace SerialComm
                 notConnectedLabel.Visible = true;
             }
 
-            // Remove embroidery tab when disconnecting
+            // Remove embroidery and PC Card tabs when disconnecting
             if (embroideryTabPage != null && mainTabControl.TabPages.Contains(embroideryTabPage))
             {
                 mainTabControl.TabPages.Remove(embroideryTabPage);
+            }
+            if (pcCardTabPage != null && mainTabControl.TabPages.Contains(pcCardTabPage))
+            {
+                mainTabControl.TabPages.Remove(pcCardTabPage);
             }
 
             // Update debug form when disconnecting
@@ -705,6 +752,53 @@ namespace SerialComm
             }
         }
 
+        private void ClearPcCardFiles()
+        {
+            if (InvokeRequired)
+            {
+                Invoke(new Action(() => ClearPcCardFiles()));
+                return;
+            }
+
+            flowLayoutPanelPcCards.Controls.Clear();
+            if (_pcCardFileControls != null)
+            {
+                foreach (var control in _pcCardFileControls)
+                {
+                    control?.Dispose();
+                }
+                _pcCardFileControls.Clear();
+            }
+        }
+
+        private void AddPcCardFileToUIRealTime(EmbroideryFile file)
+        {
+            if (InvokeRequired)
+            {
+                Invoke(new Action(() => AddPcCardFileToUIRealTime(file)));
+                return;
+            }
+
+            // Add PC Card tab as soon as the first file appears
+            if (pcCardTabPage != null && !mainTabControl.TabPages.Contains(pcCardTabPage))
+            {
+                mainTabControl.TabPages.Add(pcCardTabPage);
+            }
+
+            // Create a new control for this file
+            var fileControl = new EmbroideryFileControl();
+            fileControl.SetEmbroideryFile(file);
+            
+            // Add to PC Card flow layout panel (will appear immediately)
+            flowLayoutPanelPcCards.Controls.Add(fileControl);
+            
+            // Track the control
+            if (_pcCardFileControls != null)
+            {
+                _pcCardFileControls.Add(fileControl);
+            }
+        }
+
         private void ShowProgressBar(bool visible, string message = "")
         {
             if (InvokeRequired)
@@ -726,11 +820,11 @@ namespace SerialComm
             }
         }
 
-        private void UpdateProgress(int current, int total)
+        private void UpdateProgress(int current, int total, bool pccard)
         {
             if (InvokeRequired)
             {
-                Invoke(new Action(() => UpdateProgress(current, total)));
+                Invoke(new Action(() => UpdateProgress(current, total, pccard)));
                 return;
             }
 
@@ -738,7 +832,13 @@ namespace SerialComm
             {
                 int percentage = (int)((current * 100) / total);
                 toolStripProgressBar.Value = Math.Min(percentage, 100);
-                UpdateStatus($"Loading embroidery files... {current}/{total}");
+                if (pccard) {
+                    UpdateStatus($"Loading PC Card files...");
+                }
+                else
+                {
+                    UpdateStatus($"Loading embroidery files...");
+                }
             }
         }
 

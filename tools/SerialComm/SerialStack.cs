@@ -2762,15 +2762,16 @@ namespace Bernina.SerialStack
         /// Returns a list of EmbroideryFile objects with FileId, FileName, and FileAttributes populated.
         /// PreviewImageData is populated if loadPreviews is true, otherwise null.
         /// FileData is never populated by this method (set to null).
-        /// Ensures cleanup (function 0x0101 and session end) occurs even if errors happen.
+        /// Ensures cleanup (function 0x0101 and optionally session end) occurs even if errors happen.
         /// </summary>
         /// <param name="location">Storage location to read from</param>
         /// <param name="loadPreviews">If true, also loads preview image data for each file; defaults to false</param>
         /// <param name="progress">Optional progress callback (current file count, total file count)</param>
         /// <param name="onFileLoaded">Optional callback invoked for each file as it's fully loaded; useful for real-time UI updates</param>
         /// <param name="useFastCacheLookup">If true, uses fast cache lookup by filename+attributes instead of checksum validation; faster but skips sum verification</param>
+        /// <param name="closeSession">If true, closes the embroidery session at the end; defaults to true. Set to false if you plan to call this method again immediately.</param>
         /// <returns>List of EmbroideryFile objects, or null if operation fails</returns>
-        public async Task<List<EmbroideryFile>?> ReadEmbroideryFilesAsync(StorageLocation location, bool loadPreviews = false, Action<int, int>? progress = null, Action<EmbroideryFile>? onFileLoaded = null, bool useFastCacheLookup = false)
+        public async Task<List<EmbroideryFile>?> ReadEmbroideryFilesAsync(StorageLocation location, bool loadPreviews = false, Action<int, int>? progress = null, Action<EmbroideryFile>? onFileLoaded = null, bool useFastCacheLookup = false, bool closeSession = true)
         {
             RaiseDebugMessage($"ReadEmbroideryFiles: Starting read from {location}");
             
@@ -2827,6 +2828,9 @@ namespace Bernina.SerialStack
                 // Step 3: Check PC Card if reading from PC Card
                 if (location == StorageLocation.PCCard)
                 {
+                    // Reset the protocol, this is required otherwise the next call fails.
+                    await ProtocolResetAsync();
+
                     RaiseDebugMessage("ReadEmbroideryFiles: Checking PC card status");
                     var pcCardReadResult = await ReadAsync(0xFFFED9);
                     
@@ -3111,19 +3115,26 @@ namespace Bernina.SerialStack
                         RaiseDebugMessage($"ReadEmbroideryFiles: Warning - Exception during cleanup function 0x0101: {ex.Message}");
                     }
 
-                    // Step 10: Close embroidery session
-                    RaiseDebugMessage("ReadEmbroideryFiles: Ending session");
-                    try
+                    // Step 10: Close embroidery session if requested
+                    if (closeSession)
                     {
-                        var sessionEndResult = await SessionEndAsync();
-                        if (!sessionEndResult.Success)
+                        RaiseDebugMessage("ReadEmbroideryFiles: Ending session");
+                        try
                         {
-                            RaiseDebugMessage($"ReadEmbroideryFiles: Warning - Session end failed: {sessionEndResult.ErrorMessage}");
+                            var sessionEndResult = await SessionEndAsync();
+                            if (!sessionEndResult.Success)
+                            {
+                                RaiseDebugMessage($"ReadEmbroideryFiles: Warning - Session end failed: {sessionEndResult.ErrorMessage}");
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            RaiseDebugMessage($"ReadEmbroideryFiles: Warning - Exception during session end: {ex.Message}");
                         }
                     }
-                    catch (Exception ex)
+                    else
                     {
-                        RaiseDebugMessage($"ReadEmbroideryFiles: Warning - Exception during session end: {ex.Message}");
+                        RaiseDebugMessage("ReadEmbroideryFiles: Keeping session open as requested");
                     }
                 }
 

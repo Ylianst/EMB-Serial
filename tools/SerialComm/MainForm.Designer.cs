@@ -15,10 +15,10 @@
 
         private void InitializeComponent()
         {
-            ListViewGroup listViewGroup5 = new ListViewGroup("Sewing Machine", HorizontalAlignment.Left);
-            ListViewGroup listViewGroup6 = new ListViewGroup("Embroidery Module", HorizontalAlignment.Left);
-            ListViewGroup listViewGroup7 = new ListViewGroup("PC Card", HorizontalAlignment.Left);
-            ListViewGroup listViewGroup8 = new ListViewGroup("Serial Communication", HorizontalAlignment.Left);
+            ListViewGroup listViewGroup1 = new ListViewGroup("Sewing Machine", HorizontalAlignment.Left);
+            ListViewGroup listViewGroup2 = new ListViewGroup("Embroidery Module", HorizontalAlignment.Left);
+            ListViewGroup listViewGroup3 = new ListViewGroup("PC Card", HorizontalAlignment.Left);
+            ListViewGroup listViewGroup4 = new ListViewGroup("Serial Communication", HorizontalAlignment.Left);
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(MainForm));
             menuStrip = new MenuStrip();
             connectionToolStripMenuItem = new ToolStripMenuItem();
@@ -54,6 +54,8 @@
             mainPanel = new Panel();
             btnConnect = new Button();
             bannerPictureBox = new PictureBox();
+            pcCardTabPage = new TabPage();
+            flowLayoutPanelPcCards = new FlowLayoutPanel();
             menuStrip.SuspendLayout();
             statusStrip.SuspendLayout();
             panelMain.SuspendLayout();
@@ -64,6 +66,7 @@
             embroideryTabPage.SuspendLayout();
             mainPanel.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)bannerPictureBox).BeginInit();
+            pcCardTabPage.SuspendLayout();
             SuspendLayout();
             // 
             // menuStrip
@@ -234,6 +237,7 @@
             // 
             mainTabControl.Controls.Add(generalTabPage);
             mainTabControl.Controls.Add(embroideryTabPage);
+            mainTabControl.Controls.Add(pcCardTabPage);
             mainTabControl.Dock = DockStyle.Fill;
             mainTabControl.Location = new Point(4, 4);
             mainTabControl.Margin = new Padding(0);
@@ -273,15 +277,15 @@
             machineInfoListView.Dock = DockStyle.Fill;
             machineInfoListView.FullRowSelect = true;
             machineInfoListView.GridLines = true;
-            listViewGroup5.Header = "Sewing Machine";
-            listViewGroup5.Name = "sewingMachineListViewGroup";
-            listViewGroup6.Header = "Embroidery Module";
-            listViewGroup6.Name = "embroideryModuleListViewGroup1";
-            listViewGroup7.Header = "PC Card";
-            listViewGroup7.Name = "pcCardListViewGroup";
-            listViewGroup8.Header = "Serial Communication";
-            listViewGroup8.Name = "serialCommListViewGroup";
-            machineInfoListView.Groups.AddRange(new ListViewGroup[] { listViewGroup5, listViewGroup6, listViewGroup7, listViewGroup8 });
+            listViewGroup1.Header = "Sewing Machine";
+            listViewGroup1.Name = "sewingMachineListViewGroup";
+            listViewGroup2.Header = "Embroidery Module";
+            listViewGroup2.Name = "embroideryModuleListViewGroup1";
+            listViewGroup3.Header = "PC Card";
+            listViewGroup3.Name = "pcCardListViewGroup";
+            listViewGroup4.Header = "Serial Communication";
+            listViewGroup4.Name = "serialCommListViewGroup";
+            machineInfoListView.Groups.AddRange(new ListViewGroup[] { listViewGroup1, listViewGroup2, listViewGroup3, listViewGroup4 });
             machineInfoListView.HeaderStyle = ColumnHeaderStyle.None;
             machineInfoListView.Location = new Point(289, 0);
             machineInfoListView.Name = "machineInfoListView";
@@ -380,6 +384,27 @@
             bannerPictureBox.TabIndex = 3;
             bannerPictureBox.TabStop = false;
             // 
+            // pcCardTabPage
+            // 
+            pcCardTabPage.Controls.Add(flowLayoutPanelPcCards);
+            pcCardTabPage.Location = new Point(4, 29);
+            pcCardTabPage.Name = "pcCardTabPage";
+            pcCardTabPage.Size = new Size(842, 463);
+            pcCardTabPage.TabIndex = 2;
+            pcCardTabPage.Text = "PC Card";
+            pcCardTabPage.UseVisualStyleBackColor = true;
+            // 
+            // flowLayoutPanelPcCards
+            // 
+            flowLayoutPanelPcCards.AutoScroll = true;
+            flowLayoutPanelPcCards.BackColor = SystemColors.Control;
+            flowLayoutPanelPcCards.Dock = DockStyle.Fill;
+            flowLayoutPanelPcCards.Location = new Point(0, 0);
+            flowLayoutPanelPcCards.Margin = new Padding(0);
+            flowLayoutPanelPcCards.Name = "flowLayoutPanelPcCards";
+            flowLayoutPanelPcCards.Size = new Size(842, 463);
+            flowLayoutPanelPcCards.TabIndex = 1;
+            // 
             // MainForm
             // 
             AutoScaleDimensions = new SizeF(8F, 20F);
@@ -409,6 +434,7 @@
             mainPanel.ResumeLayout(false);
             mainPanel.PerformLayout();
             ((System.ComponentModel.ISupportInitialize)bannerPictureBox).EndInit();
+            pcCardTabPage.ResumeLayout(false);
             ResumeLayout(false);
             PerformLayout();
         }
@@ -447,5 +473,7 @@
         private Label notConnectedLabel;
         private PictureBox bannerPictureBox;
         private ToolStripStatusLabel toolStripStatusLabelBusy;
+        private TabPage pcCardTabPage;
+        private FlowLayoutPanel flowLayoutPanelPcCards;
     }
 }
