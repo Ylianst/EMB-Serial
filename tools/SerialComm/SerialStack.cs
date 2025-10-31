@@ -2841,7 +2841,7 @@ namespace Bernina.SerialStack
                         if (!pcCardInserted)
                         {
                             RaiseDebugMessage("ReadEmbroideryFiles: No PC card present, returning empty list");
-                            return new List<EmbroideryFile>();
+                            return null;
                         }
                     }
                     else

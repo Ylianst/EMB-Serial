@@ -32,6 +32,7 @@
             iconCacheNoneToolStripMenuItem = new ToolStripMenuItem();
             iconCacheNormalToolStripMenuItem = new ToolStripMenuItem();
             iconCacheFastToolStripMenuItem = new ToolStripMenuItem();
+            pcCardRefreshToolStripMenuItem = new ToolStripMenuItem();
             debugToolStripMenuItem = new ToolStripMenuItem();
             showDeveloperDebugToolStripMenuItem = new ToolStripMenuItem();
             downloadMemoryDumpToolStripMenuItem = new ToolStripMenuItem();
@@ -122,7 +123,7 @@
             // 
             // optionsToolStripMenuItem
             // 
-            optionsToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { iconCacheToolStripMenuItem });
+            optionsToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { iconCacheToolStripMenuItem, pcCardRefreshToolStripMenuItem });
             optionsToolStripMenuItem.Name = "optionsToolStripMenuItem";
             optionsToolStripMenuItem.Size = new Size(75, 24);
             optionsToolStripMenuItem.Text = "&Options";
@@ -156,6 +157,14 @@
             iconCacheFastToolStripMenuItem.Size = new Size(142, 26);
             iconCacheFastToolStripMenuItem.Text = "Fast";
             iconCacheFastToolStripMenuItem.Click += IconCacheFast_Click;
+            // 
+            // pcCardRefreshToolStripMenuItem
+            // 
+            pcCardRefreshToolStripMenuItem.Enabled = false;
+            pcCardRefreshToolStripMenuItem.Name = "pcCardRefreshToolStripMenuItem";
+            pcCardRefreshToolStripMenuItem.Size = new Size(184, 26);
+            pcCardRefreshToolStripMenuItem.Text = "&PC Card Refresh";
+            pcCardRefreshToolStripMenuItem.Click += pcCardRefreshToolStripMenuItem_Click;
             // 
             // debugToolStripMenuItem
             // 
@@ -454,6 +463,7 @@
         private ToolStripMenuItem iconCacheNoneToolStripMenuItem;
         private ToolStripMenuItem iconCacheNormalToolStripMenuItem;
         private ToolStripMenuItem iconCacheFastToolStripMenuItem;
+        private ToolStripMenuItem pcCardRefreshToolStripMenuItem;
         private StatusStrip statusStrip;
         private ToolStripStatusLabel toolStripStatusLabel;
         private ToolStripProgressBar toolStripProgressBar;

@@ -364,6 +364,9 @@ namespace SerialComm
                     _serialStatsTimer.Tick += UpdateSerialStats;
                     _serialStatsTimer.Start();
 
+                    // Enable PC Card Refresh menu item if embroidery module is present
+                    pcCardRefreshToolStripMenuItem.Enabled = (_embroideryModuleFirmwareInfo != null);
+
                     if (_embroideryModuleFirmwareInfo != null)
                     {
                         // Load embroidery files with previews
@@ -377,16 +380,13 @@ namespace SerialComm
                         // Determine fast cache lookup based on icon cache mode
                         bool useFastCacheLookup = (_iconCacheMode == IconCacheMode.Fast);
 
-                        // Don't close session if PC Card is inserted (we'll load PC Card files next)
-                        bool closeSession = true;// !_embroideryModuleFirmwareInfo.PcCardInserted;
-
                         var embroideryFiles = await _serialStack.ReadEmbroideryFilesAsync(
                             StorageLocation.EmbroideryModuleMemory,
                             true,
                             (current, total) => UpdateProgress(current, total, false),
                             (file) => AddFileToUIRealTime(file),
                             useFastCacheLookup,
-                            closeSession
+                            true
                         );
 
                         ShowProgressBar(false);
@@ -415,6 +415,12 @@ namespace SerialComm
                             // Clear any previous PC Card files
                             ClearPcCardFiles();
                             _pcCardFileControls = new List<EmbroideryFileControl>();
+
+                            // Add PC Card tab immediately since PC Card is inserted
+                            if (pcCardTabPage != null && !mainTabControl.TabPages.Contains(pcCardTabPage))
+                            {
+                                mainTabControl.TabPages.Add(pcCardTabPage);
+                            }
 
                             var pcCardFiles = await _serialStack.ReadEmbroideryFilesAsync(
                                 StorageLocation.PCCard,
@@ -505,6 +511,7 @@ namespace SerialComm
             disconnectToolStripMenuItem.Enabled = false;
             selectCOMPortToolStripMenuItem.Enabled = true;
             showDeveloperDebugToolStripMenuItem.Enabled = true;
+            pcCardRefreshToolStripMenuItem.Enabled = false;
 
             // Clear displayed embroidery files
             ClearEmbroideryFiles();
@@ -953,6 +960,75 @@ namespace SerialComm
         private void exitToolStripMenuItem_Click(object sender, EventArgs e)
         {
             Close();
+        }
+
+        private async void pcCardRefreshToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            if (_serialStack == null || !_isConnected || _embroideryModuleFirmwareInfo == null)
+            {
+                return;
+            }
+
+            try
+            {
+                // Refresh PC Card files
+                UpdateStatus("Refreshing PC Card files...");
+                ShowProgressBar(true, "Refreshing PC Card files...");
+
+                // Clear existing PC Card files
+                ClearPcCardFiles();
+                _pcCardFileControls = new List<EmbroideryFileControl>();
+
+                // Determine fast cache lookup based on icon cache mode
+                bool useFastCacheLookup = (_iconCacheMode == IconCacheMode.Fast);
+
+                var pcCardFiles = await _serialStack.ReadEmbroideryFilesAsync(
+                    StorageLocation.PCCard,
+                    true,
+                    (current, total) => UpdateProgress(current, total, true),
+                    (file) => AddPcCardFileToUIRealTime(file),
+                    useFastCacheLookup
+                );
+
+                ShowProgressBar(false);
+
+                if (pcCardFiles != null)
+                {
+                    // Add PC Card tab at the start since we're refreshing (PC Card must be present to click this menu item)
+                    if (pcCardTabPage != null && !mainTabControl.TabPages.Contains(pcCardTabPage))
+                    {
+                        mainTabControl.TabPages.Add(pcCardTabPage);
+                    }
+
+                    if (pcCardFiles.Count > 0)
+                    {
+                        UpdateStatus($"Loaded {pcCardFiles.Count} PC Card files");
+                    }
+                    else
+                    {
+                        UpdateStatus("No files found on PC Card");
+                        // Keep the PC Card tab visible even with no files
+                    }
+                }
+                else
+                {
+                    UpdateStatus("PC Card not detected");
+                    
+                    // Remove PC Card tab only if PC Card is not detected
+                    if (pcCardTabPage != null && mainTabControl.TabPages.Contains(pcCardTabPage))
+                    {
+                        mainTabControl.TabPages.Remove(pcCardTabPage);
+                    }
+                }
+
+                // Save the preview cache to registry after refreshing
+                await SavePreviewCacheToRegistryAsync();
+            }
+            catch (Exception ex)
+            {
+                UpdateStatus($"Error refreshing PC Card: {ex.Message}");
+                ShowProgressBar(false);
+            }
         }
 
         private async Task PopulateMachineInfoAsync()
