@@ -37,6 +37,7 @@
             showDeveloperDebugToolStripMenuItem = new ToolStripMenuItem();
             downloadMemoryDumpToolStripMenuItem = new ToolStripMenuItem();
             serialCaptureToolStripMenuItem = new ToolStripMenuItem();
+            embroideryViewerToolStripMenuItem = new ToolStripMenuItem();
             statusStrip = new StatusStrip();
             toolStripStatusLabel = new ToolStripStatusLabel();
             toolStripProgressBar = new ToolStripProgressBar();
@@ -169,7 +170,7 @@
             // 
             // debugToolStripMenuItem
             // 
-            debugToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { showDeveloperDebugToolStripMenuItem, downloadMemoryDumpToolStripMenuItem, serialCaptureToolStripMenuItem });
+            debugToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { showDeveloperDebugToolStripMenuItem, downloadMemoryDumpToolStripMenuItem, serialCaptureToolStripMenuItem, embroideryViewerToolStripMenuItem });
             debugToolStripMenuItem.Name = "debugToolStripMenuItem";
             debugToolStripMenuItem.Size = new Size(68, 24);
             debugToolStripMenuItem.Text = "&Debug";
@@ -194,6 +195,13 @@
             serialCaptureToolStripMenuItem.Size = new Size(219, 26);
             serialCaptureToolStripMenuItem.Text = "&Serial Capture...";
             serialCaptureToolStripMenuItem.Click += serialCaptureToolStripMenuItem_Click;
+            // 
+            // embroideryViewerToolStripMenuItem
+            // 
+            embroideryViewerToolStripMenuItem.Name = "embroideryViewerToolStripMenuItem";
+            embroideryViewerToolStripMenuItem.Size = new Size(219, 26);
+            embroideryViewerToolStripMenuItem.Text = "E&mbroidery Viewer...";
+            embroideryViewerToolStripMenuItem.Click += embroideryViewerToolStripMenuItem_Click;
             // 
             // statusStrip
             // 
@@ -495,5 +503,6 @@
         private TabPage pcCardTabPage;
         private FlowLayoutPanel flowLayoutPanelPcCards;
         private ToolStripMenuItem serialCaptureToolStripMenuItem;
+        private ToolStripMenuItem embroideryViewerToolStripMenuItem;
     }
 }

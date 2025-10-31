@@ -1,6 +1,10 @@
 # High Level Protocol
 
-Now that we have the basics of the serial protocol understood, we can build code that reads an area of memory, writes at a location and we have this load (?) operation. You can build a low-level stack in code that will do all that and we now need to figure out the high level workings of the machine.
+Now that we have the basics of the serial protocol understood, we can build code that reads an area of memory, writes at a location. You can build a low-level stack in code that will do all that and we now need to figure out the high level workings of the machine.
+
+The machine uses the EXP format internally:
+https://www.appropedia.org/EXP_Embroidery_File_Format
+https://edutechwiki.unige.ch/en/Embroidery_format_EXP
 
 ## List Files in Internal Memory
 

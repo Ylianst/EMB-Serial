@@ -12,6 +12,7 @@ namespace EmbroideryCommunicator
         private static DebugForm? _debugForm = null;
         private static SerialCaptureForm? _serialCaptureForm = null;
         private MemoryDumpForm? _memoryDumpForm = null;
+        private EmbroideryViewerForm? _embroideryViewerForm = null;
         private ComPortMonitor? _comPortMonitor = null;
         private const string RegistryKeyPath = @"Software\BerninaSerialComm";
         private const string ComPortValueName = "LastComPort";
@@ -1311,6 +1312,28 @@ namespace EmbroideryCommunicator
             };
             
             _serialCaptureForm.Show();
+        }
+
+        private void embroideryViewerToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            // If embroidery viewer form already exists and is not disposed, just focus it
+            if (_embroideryViewerForm != null && !_embroideryViewerForm.IsDisposed)
+            {
+                _embroideryViewerForm.Focus();
+                _embroideryViewerForm.BringToFront();
+                return;
+            }
+
+            // Create new embroidery viewer form
+            _embroideryViewerForm = new EmbroideryViewerForm();
+            
+            // Subscribe to FormClosed event to reset the reference when the form is closed
+            _embroideryViewerForm.FormClosed += (s, args) =>
+            {
+                _embroideryViewerForm = null;
+            };
+            
+            _embroideryViewerForm.Show();
         }
     }
 }
