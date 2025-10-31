@@ -52,11 +52,12 @@
             pictureBox1 = new PictureBox();
             embroideryTabPage = new TabPage();
             flowLayoutPanelFiles = new FlowLayoutPanel();
+            pcCardTabPage = new TabPage();
+            flowLayoutPanelPcCards = new FlowLayoutPanel();
             mainPanel = new Panel();
             btnConnect = new Button();
             bannerPictureBox = new PictureBox();
-            pcCardTabPage = new TabPage();
-            flowLayoutPanelPcCards = new FlowLayoutPanel();
+            serialCaptureToolStripMenuItem = new ToolStripMenuItem();
             menuStrip.SuspendLayout();
             statusStrip.SuspendLayout();
             panelMain.SuspendLayout();
@@ -65,9 +66,9 @@
             machineImageStatePanel.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)pictureBox1).BeginInit();
             embroideryTabPage.SuspendLayout();
+            pcCardTabPage.SuspendLayout();
             mainPanel.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)bannerPictureBox).BeginInit();
-            pcCardTabPage.SuspendLayout();
             SuspendLayout();
             // 
             // menuStrip
@@ -132,7 +133,7 @@
             // 
             iconCacheToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { iconCacheNoneToolStripMenuItem, iconCacheNormalToolStripMenuItem, iconCacheFastToolStripMenuItem });
             iconCacheToolStripMenuItem.Name = "iconCacheToolStripMenuItem";
-            iconCacheToolStripMenuItem.Size = new Size(164, 26);
+            iconCacheToolStripMenuItem.Size = new Size(197, 26);
             iconCacheToolStripMenuItem.Text = "Icon Cache";
             // 
             // iconCacheNoneToolStripMenuItem
@@ -162,13 +163,13 @@
             // 
             pcCardRefreshToolStripMenuItem.Enabled = false;
             pcCardRefreshToolStripMenuItem.Name = "pcCardRefreshToolStripMenuItem";
-            pcCardRefreshToolStripMenuItem.Size = new Size(184, 26);
+            pcCardRefreshToolStripMenuItem.Size = new Size(197, 26);
             pcCardRefreshToolStripMenuItem.Text = "&PC Card Refresh";
             pcCardRefreshToolStripMenuItem.Click += pcCardRefreshToolStripMenuItem_Click;
             // 
             // debugToolStripMenuItem
             // 
-            debugToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { showDeveloperDebugToolStripMenuItem, downloadMemoryDumpToolStripMenuItem });
+            debugToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { showDeveloperDebugToolStripMenuItem, downloadMemoryDumpToolStripMenuItem, serialCaptureToolStripMenuItem });
             debugToolStripMenuItem.Name = "debugToolStripMenuItem";
             debugToolStripMenuItem.Size = new Size(68, 24);
             debugToolStripMenuItem.Text = "&Debug";
@@ -176,14 +177,14 @@
             // showDeveloperDebugToolStripMenuItem
             // 
             showDeveloperDebugToolStripMenuItem.Name = "showDeveloperDebugToolStripMenuItem";
-            showDeveloperDebugToolStripMenuItem.Size = new Size(219, 26);
+            showDeveloperDebugToolStripMenuItem.Size = new Size(224, 26);
             showDeveloperDebugToolStripMenuItem.Text = "&Developer Debug...";
             showDeveloperDebugToolStripMenuItem.Click += showDeveloperDebugToolStripMenuItem_Click;
             // 
             // downloadMemoryDumpToolStripMenuItem
             // 
             downloadMemoryDumpToolStripMenuItem.Name = "downloadMemoryDumpToolStripMenuItem";
-            downloadMemoryDumpToolStripMenuItem.Size = new Size(219, 26);
+            downloadMemoryDumpToolStripMenuItem.Size = new Size(224, 26);
             downloadMemoryDumpToolStripMenuItem.Text = "&Memory Dump...";
             downloadMemoryDumpToolStripMenuItem.Click += downloadMemoryDumpToolStripMenuItem_Click;
             // 
@@ -357,6 +358,27 @@
             flowLayoutPanelFiles.Size = new Size(842, 463);
             flowLayoutPanelFiles.TabIndex = 0;
             // 
+            // pcCardTabPage
+            // 
+            pcCardTabPage.Controls.Add(flowLayoutPanelPcCards);
+            pcCardTabPage.Location = new Point(4, 29);
+            pcCardTabPage.Name = "pcCardTabPage";
+            pcCardTabPage.Size = new Size(842, 463);
+            pcCardTabPage.TabIndex = 2;
+            pcCardTabPage.Text = "PC Card";
+            pcCardTabPage.UseVisualStyleBackColor = true;
+            // 
+            // flowLayoutPanelPcCards
+            // 
+            flowLayoutPanelPcCards.AutoScroll = true;
+            flowLayoutPanelPcCards.BackColor = SystemColors.Control;
+            flowLayoutPanelPcCards.Dock = DockStyle.Fill;
+            flowLayoutPanelPcCards.Location = new Point(0, 0);
+            flowLayoutPanelPcCards.Margin = new Padding(0);
+            flowLayoutPanelPcCards.Name = "flowLayoutPanelPcCards";
+            flowLayoutPanelPcCards.Size = new Size(842, 463);
+            flowLayoutPanelPcCards.TabIndex = 1;
+            // 
             // mainPanel
             // 
             mainPanel.BackColor = Color.FromArgb(61, 61, 61);
@@ -393,26 +415,12 @@
             bannerPictureBox.TabIndex = 3;
             bannerPictureBox.TabStop = false;
             // 
-            // pcCardTabPage
+            // serialCaptureToolStripMenuItem
             // 
-            pcCardTabPage.Controls.Add(flowLayoutPanelPcCards);
-            pcCardTabPage.Location = new Point(4, 29);
-            pcCardTabPage.Name = "pcCardTabPage";
-            pcCardTabPage.Size = new Size(842, 463);
-            pcCardTabPage.TabIndex = 2;
-            pcCardTabPage.Text = "PC Card";
-            pcCardTabPage.UseVisualStyleBackColor = true;
-            // 
-            // flowLayoutPanelPcCards
-            // 
-            flowLayoutPanelPcCards.AutoScroll = true;
-            flowLayoutPanelPcCards.BackColor = SystemColors.Control;
-            flowLayoutPanelPcCards.Dock = DockStyle.Fill;
-            flowLayoutPanelPcCards.Location = new Point(0, 0);
-            flowLayoutPanelPcCards.Margin = new Padding(0);
-            flowLayoutPanelPcCards.Name = "flowLayoutPanelPcCards";
-            flowLayoutPanelPcCards.Size = new Size(842, 463);
-            flowLayoutPanelPcCards.TabIndex = 1;
+            serialCaptureToolStripMenuItem.Name = "serialCaptureToolStripMenuItem";
+            serialCaptureToolStripMenuItem.Size = new Size(224, 26);
+            serialCaptureToolStripMenuItem.Text = "&Serial Capture...";
+            serialCaptureToolStripMenuItem.Click += serialCaptureToolStripMenuItem_Click;
             // 
             // MainForm
             // 
@@ -440,10 +448,10 @@
             machineImageStatePanel.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)pictureBox1).EndInit();
             embroideryTabPage.ResumeLayout(false);
+            pcCardTabPage.ResumeLayout(false);
             mainPanel.ResumeLayout(false);
             mainPanel.PerformLayout();
             ((System.ComponentModel.ISupportInitialize)bannerPictureBox).EndInit();
-            pcCardTabPage.ResumeLayout(false);
             ResumeLayout(false);
             PerformLayout();
         }
@@ -485,5 +493,6 @@
         private ToolStripStatusLabel toolStripStatusLabelBusy;
         private TabPage pcCardTabPage;
         private FlowLayoutPanel flowLayoutPanelPcCards;
+        private ToolStripMenuItem serialCaptureToolStripMenuItem;
     }
 }

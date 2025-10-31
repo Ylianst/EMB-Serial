@@ -257,10 +257,7 @@ namespace SerialComm
                             // Allow UI to update
                             Application.DoEvents();
                         }
-                        catch (Exception)
-                        {
-                            int i = 5;
-                        }
+                        catch (Exception) { }
                     },
                     cancellationToken
                 );

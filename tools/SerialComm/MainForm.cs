@@ -10,6 +10,7 @@ namespace SerialComm
         private bool _isConnected = false;
         private string? _selectedComPort = null;
         private static DebugForm? _debugForm = null;
+        private static SerialCaptureForm? _serialCaptureForm = null;
         private MemoryDumpForm? _memoryDumpForm = null;
         private ComPortMonitor? _comPortMonitor = null;
         private const string RegistryKeyPath = @"Software\BerninaSerialComm";
@@ -21,7 +22,7 @@ namespace SerialComm
         private string? _lastAskedAboutPort = null;
         private IconCacheMode _iconCacheMode = IconCacheMode.Normal;
         private System.Windows.Forms.Timer? _serialStatsTimer = null;
-        
+
         // Cached firmware information
         private FirmwareInfo? _sewingMachineFirmwareInfo = null;
         private FirmwareInfo? _embroideryModuleFirmwareInfo = null;
@@ -107,7 +108,7 @@ namespace SerialComm
             if (!_isConnected)
             {
                 string[] currentPorts = SerialPort.GetPortNames();
-                
+
                 // Find new ports that weren't in the previous list
                 if (_previousPortList != null)
                 {
@@ -118,7 +119,7 @@ namespace SerialComm
                         {
                             // New port detected and it's not the currently selected one
                             _lastAskedAboutPort = port; // Mark that we've asked about this port
-                            
+
                             DialogResult result = MessageBox.Show(
                                 $"A new COM port \"{port}\" has been detected. Would you like to use this port to connect to the sewing machine?",
                                 "New COM Port Detected",
@@ -135,7 +136,7 @@ namespace SerialComm
                         }
                     }
                 }
-                
+
                 // Update the previous port list
                 _previousPortList = currentPorts;
             }
@@ -159,7 +160,7 @@ namespace SerialComm
             }
 
             string[] ports = SerialPort.GetPortNames();
-            
+
             if (ports.Length > 0)
             {
                 // Sort ports numerically (COM1, COM2, ..., COM9, COM10, COM11, etc.)
@@ -168,7 +169,7 @@ namespace SerialComm
                     // Extract numeric part from port names
                     string numA = System.Text.RegularExpressions.Regex.Replace(a, @"\D", "");
                     string numB = System.Text.RegularExpressions.Regex.Replace(b, @"\D", "");
-                    
+
                     if (int.TryParse(numA, out int intA) && int.TryParse(numB, out int intB))
                     {
                         return intA.CompareTo(intB);
@@ -181,12 +182,12 @@ namespace SerialComm
                     ToolStripMenuItem portItem = new ToolStripMenuItem(port);
                     portItem.Tag = "comport";
                     portItem.Click += ComPortMenuItem_Click;
-                    
+
                     if (port == _selectedComPort)
                     {
                         portItem.Checked = true;
                     }
-                    
+
                     selectCOMPortToolStripMenuItem.DropDownItems.Add(portItem);
                 }
             }
@@ -210,7 +211,7 @@ namespace SerialComm
                         mi.Checked = false;
                     }
                 }
-                
+
                 menuItem.Checked = true;
                 _selectedComPort = menuItem.Text;
                 UpdateStatus($"Selected COM port: {_selectedComPort}");
@@ -284,6 +285,15 @@ namespace SerialComm
 
         private async Task ConnectAsync()
         {
+            // Check if serial capture form is open
+            if (_serialCaptureForm != null && !_serialCaptureForm.IsDisposed)
+            {
+                MessageBox.Show("Cannot connect to the machine while the Serial Capture tool is running. Please close the Serial Capture window first.", 
+                    "Connection Error",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
             if (string.IsNullOrEmpty(_selectedComPort))
             {
                 MessageBox.Show("Please select a COM port from the Connection menu first.", "Connection Error",
@@ -321,6 +331,7 @@ namespace SerialComm
                     disconnectToolStripMenuItem.Enabled = true;
                     selectCOMPortToolStripMenuItem.Enabled = false;
                     showDeveloperDebugToolStripMenuItem.Enabled = true;
+                    serialCaptureToolStripMenuItem.Enabled = false;
 
                     UpdateStatus("Connected");
                     UpdateConnectionStatus($"Connected: {portName} @ {_serialStack.BaudRate} baud", true);
@@ -512,6 +523,7 @@ namespace SerialComm
             selectCOMPortToolStripMenuItem.Enabled = true;
             showDeveloperDebugToolStripMenuItem.Enabled = true;
             pcCardRefreshToolStripMenuItem.Enabled = false;
+            serialCaptureToolStripMenuItem.Enabled = true;
 
             // Clear displayed embroidery files
             ClearEmbroideryFiles();
@@ -637,7 +649,7 @@ namespace SerialComm
             try
             {
                 byte[] compressedData = await _serialStack.SerializeCacheAsync();
-                
+
                 if (compressedData.Length > 0)
                 {
                     using (RegistryKey key = Registry.CurrentUser.CreateSubKey(RegistryKeyPath))
@@ -795,10 +807,10 @@ namespace SerialComm
             // Create a new control for this file
             var fileControl = new EmbroideryFileControl();
             fileControl.SetEmbroideryFile(file);
-            
+
             // Add to PC Card flow layout panel (will appear immediately)
             flowLayoutPanelPcCards.Controls.Add(fileControl);
-            
+
             // Track the control
             if (_pcCardFileControls != null)
             {
@@ -839,7 +851,8 @@ namespace SerialComm
             {
                 int percentage = (int)((current * 100) / total);
                 toolStripProgressBar.Value = Math.Min(percentage, 100);
-                if (pccard) {
+                if (pccard)
+                {
                     UpdateStatus($"Loading PC Card files...");
                 }
                 else
@@ -866,16 +879,16 @@ namespace SerialComm
             // Create a new control for this file
             var fileControl = new EmbroideryFileControl();
             fileControl.SetEmbroideryFile(file);
-            
+
             // Add to flow layout panel (will appear immediately)
             flowLayoutPanelFiles.Controls.Add(fileControl);
-            
+
             // Track the control
             if (_embroideryFileControls != null)
             {
                 _embroideryFileControls.Add(fileControl);
             }
-            
+
             // Don't auto-scroll - let user control the scroll position
             // flowLayoutPanelFiles.ScrollControlIntoView(fileControl);
         }
@@ -1013,7 +1026,7 @@ namespace SerialComm
                 else
                 {
                     UpdateStatus("PC Card not detected");
-                    
+
                     // Remove PC Card tab only if PC Card is not detected
                     if (pcCardTabPage != null && mainTabControl.TabPages.Contains(pcCardTabPage))
                     {
@@ -1072,7 +1085,7 @@ namespace SerialComm
                     AddListViewItem("Firmware Version", _embroideryModuleFirmwareInfo.Version ?? "Unknown", "Embroidery Module");
                     AddListViewItem("Manufacturer", _embroideryModuleFirmwareInfo.Manufacturer ?? "Unknown", "Embroidery Module");
                     AddListViewItem("Firmware Date", _embroideryModuleFirmwareInfo.Date ?? "Unknown", "Embroidery Module");
-                    
+
                     // Check if PC Card is attached
                     string pcCardStatus = _embroideryModuleFirmwareInfo.PcCardInserted ? "Inserted" : "Not Inserted";
                     AddListViewItem("PC Card", pcCardStatus, "Embroidery Module");
@@ -1189,8 +1202,8 @@ namespace SerialComm
                     }
 
                     // Update or add the stat items
-                    string sessionDisplayText = _serialStack.CurrentSessionState == SessionState.Sewing ? "Sewing Machine" : 
-                                               _serialStack.CurrentSessionState == SessionState.Embroidery ? "Embroidery Module" : 
+                    string sessionDisplayText = _serialStack.CurrentSessionState == SessionState.Sewing ? "Sewing Machine" :
+                                               _serialStack.CurrentSessionState == SessionState.Embroidery ? "Embroidery Module" :
                                                _serialStack.CurrentSessionState.ToString();
                     UpdateOrAddListViewItem("Session", sessionDisplayText, group);
                     UpdateOrAddListViewItem("Bytes Sent", bytesSent.ToString(), group);
@@ -1272,6 +1285,28 @@ namespace SerialComm
                 _serialStack.Dispose();
                 _serialStack = null;
             }
+        }
+
+        private void serialCaptureToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            // If serial capture form already exists and is not disposed, just focus it
+            if (_serialCaptureForm != null && !_serialCaptureForm.IsDisposed)
+            {
+                _serialCaptureForm.Focus();
+                _serialCaptureForm.BringToFront();
+                return;
+            }
+
+            // Create new serial capture form
+            _serialCaptureForm = new SerialCaptureForm();
+            
+            // Subscribe to FormClosed event to reset the reference when the form is closed
+            _serialCaptureForm.FormClosed += (s, args) =>
+            {
+                _serialCaptureForm = null;
+            };
+            
+            _serialCaptureForm.Show();
         }
     }
 }
