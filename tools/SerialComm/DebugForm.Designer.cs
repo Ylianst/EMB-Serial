@@ -1,4 +1,4 @@
-namespace SerialComm
+namespace EmbroideryCommunicator
 {
     partial class DebugForm
     {

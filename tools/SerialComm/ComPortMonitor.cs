@@ -2,7 +2,7 @@ using System;
 using System.Management;
 using System.Threading;
 
-namespace SerialComm
+namespace EmbroideryCommunicator
 {
     /// <summary>
     /// Monitors for COM port additions and removals using WMI event notifications.

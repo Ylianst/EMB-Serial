@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using Bernina.SerialStack;
 
-namespace SerialComm
+namespace EmbroideryCommunicator
 {
     public partial class MemoryDumpForm : Form
     {

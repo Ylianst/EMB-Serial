@@ -1,4 +1,4 @@
-namespace SerialComm
+namespace EmbroideryCommunicator
 {
     internal static class Program
     {

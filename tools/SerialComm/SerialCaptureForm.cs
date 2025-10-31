@@ -2,7 +2,7 @@ using System.IO.Ports;
 using System.Text;
 using Microsoft.Win32;
 
-namespace SerialComm
+namespace EmbroideryCommunicator
 {
     public partial class SerialCaptureForm : Form
     {

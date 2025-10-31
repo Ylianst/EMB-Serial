@@ -2,7 +2,7 @@ using System.IO.Ports;
 using Bernina.SerialStack;
 using Microsoft.Win32;
 
-namespace SerialComm
+namespace EmbroideryCommunicator
 {
     public partial class MainForm : Form
     {
@@ -847,19 +847,23 @@ namespace SerialComm
                 return;
             }
 
-            if (total > 0)
+            try
             {
-                int percentage = (int)((current * 100) / total);
-                toolStripProgressBar.Value = Math.Min(percentage, 100);
-                if (pccard)
+                if (total > 0)
                 {
-                    UpdateStatus($"Loading PC Card files...");
-                }
-                else
-                {
-                    UpdateStatus($"Loading embroidery files...");
+                    int percentage = (int)((current * 100) / total);
+                    toolStripProgressBar.Value = Math.Min(percentage, 100);
+                    if (pccard)
+                    {
+                        UpdateStatus($"Loading PC Card files...");
+                    }
+                    else
+                    {
+                        UpdateStatus($"Loading embroidery files...");
+                    }
                 }
             }
+            catch (Exception) { }
         }
 
         private void AddFileToUIRealTime(EmbroideryFile file)

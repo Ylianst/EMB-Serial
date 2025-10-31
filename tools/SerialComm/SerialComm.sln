@@ -1,9 +1,9 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
-VisualStudioVersion = 17.14.36414.22 d17.14
+VisualStudioVersion = 17.14.36414.22
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SerialComm", "SerialComm.csproj", "{7D5CA4A0-3B8D-4D20-9991-83D083A8DF92}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EmbroideryCommunicator", "EmbroideryCommunicator.csproj", "{7D5CA4A0-3B8D-4D20-9991-83D083A8DF92}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

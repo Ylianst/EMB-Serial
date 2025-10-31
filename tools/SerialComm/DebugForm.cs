@@ -3,7 +3,7 @@ using System.Text;
 using System.Windows.Forms;
 using Bernina.SerialStack;
 
-namespace SerialComm
+namespace EmbroideryCommunicator
 {
     public partial class DebugForm : Form
     {

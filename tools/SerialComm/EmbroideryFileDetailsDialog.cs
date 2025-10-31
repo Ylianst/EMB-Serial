@@ -3,7 +3,7 @@ using System;
 using System.Drawing;
 using System.Windows.Forms;
 
-namespace SerialComm
+namespace EmbroideryCommunicator
 {
     public partial class EmbroideryFileDetailsDialog : Form
     {

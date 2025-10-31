@@ -1,7 +1,7 @@
 using System.Text;
 using Bernina.SerialStack;
 
-namespace SerialComm
+namespace EmbroideryCommunicator
 {
     public partial class MemoryWindow : Form
     {

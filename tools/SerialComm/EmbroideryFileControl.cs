@@ -1,7 +1,7 @@
 using Bernina.SerialStack;
 using System.Drawing;
 
-namespace SerialComm
+namespace EmbroideryCommunicator
 {
     public partial class EmbroideryFileControl : UserControl
     {

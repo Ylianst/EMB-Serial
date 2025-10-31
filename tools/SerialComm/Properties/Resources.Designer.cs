@@ -8,7 +8,7 @@
 // </auto-generated>
 //------------------------------------------------------------------------------
 
-namespace SerialComm.Properties {
+namespace EmbroideryCommunicator.Properties {
     using System;
     
     

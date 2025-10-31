@@ -1,4 +1,4 @@
-﻿namespace SerialComm
+﻿namespace EmbroideryCommunicator
 {
     partial class MainForm
     {
@@ -36,6 +36,7 @@
             debugToolStripMenuItem = new ToolStripMenuItem();
             showDeveloperDebugToolStripMenuItem = new ToolStripMenuItem();
             downloadMemoryDumpToolStripMenuItem = new ToolStripMenuItem();
+            serialCaptureToolStripMenuItem = new ToolStripMenuItem();
             statusStrip = new StatusStrip();
             toolStripStatusLabel = new ToolStripStatusLabel();
             toolStripProgressBar = new ToolStripProgressBar();
@@ -57,7 +58,6 @@
             mainPanel = new Panel();
             btnConnect = new Button();
             bannerPictureBox = new PictureBox();
-            serialCaptureToolStripMenuItem = new ToolStripMenuItem();
             menuStrip.SuspendLayout();
             statusStrip.SuspendLayout();
             panelMain.SuspendLayout();
@@ -177,16 +177,23 @@
             // showDeveloperDebugToolStripMenuItem
             // 
             showDeveloperDebugToolStripMenuItem.Name = "showDeveloperDebugToolStripMenuItem";
-            showDeveloperDebugToolStripMenuItem.Size = new Size(224, 26);
+            showDeveloperDebugToolStripMenuItem.Size = new Size(219, 26);
             showDeveloperDebugToolStripMenuItem.Text = "&Developer Debug...";
             showDeveloperDebugToolStripMenuItem.Click += showDeveloperDebugToolStripMenuItem_Click;
             // 
             // downloadMemoryDumpToolStripMenuItem
             // 
             downloadMemoryDumpToolStripMenuItem.Name = "downloadMemoryDumpToolStripMenuItem";
-            downloadMemoryDumpToolStripMenuItem.Size = new Size(224, 26);
+            downloadMemoryDumpToolStripMenuItem.Size = new Size(219, 26);
             downloadMemoryDumpToolStripMenuItem.Text = "&Memory Dump...";
             downloadMemoryDumpToolStripMenuItem.Click += downloadMemoryDumpToolStripMenuItem_Click;
+            // 
+            // serialCaptureToolStripMenuItem
+            // 
+            serialCaptureToolStripMenuItem.Name = "serialCaptureToolStripMenuItem";
+            serialCaptureToolStripMenuItem.Size = new Size(219, 26);
+            serialCaptureToolStripMenuItem.Text = "&Serial Capture...";
+            serialCaptureToolStripMenuItem.Click += serialCaptureToolStripMenuItem_Click;
             // 
             // statusStrip
             // 
@@ -317,6 +324,7 @@
             // 
             // machineImageStatePanel
             // 
+            machineImageStatePanel.BackColor = Color.White;
             machineImageStatePanel.Controls.Add(pictureBox1);
             machineImageStatePanel.Dock = DockStyle.Left;
             machineImageStatePanel.Location = new Point(0, 0);
@@ -331,7 +339,7 @@
             pictureBox1.Image = (Image)resources.GetObject("pictureBox1.Image");
             pictureBox1.Location = new Point(0, 0);
             pictureBox1.Name = "pictureBox1";
-            pictureBox1.Size = new Size(289, 349);
+            pictureBox1.Size = new Size(289, 413);
             pictureBox1.SizeMode = PictureBoxSizeMode.Zoom;
             pictureBox1.TabIndex = 0;
             pictureBox1.TabStop = false;
@@ -414,13 +422,6 @@
             bannerPictureBox.SizeMode = PictureBoxSizeMode.AutoSize;
             bannerPictureBox.TabIndex = 3;
             bannerPictureBox.TabStop = false;
-            // 
-            // serialCaptureToolStripMenuItem
-            // 
-            serialCaptureToolStripMenuItem.Name = "serialCaptureToolStripMenuItem";
-            serialCaptureToolStripMenuItem.Size = new Size(224, 26);
-            serialCaptureToolStripMenuItem.Text = "&Serial Capture...";
-            serialCaptureToolStripMenuItem.Click += serialCaptureToolStripMenuItem_Click;
             // 
             // MainForm
             // 

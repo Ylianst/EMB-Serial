@@ -1,7 +1,7 @@
 using System;
 using System.Windows.Forms;
 
-namespace SerialComm
+namespace EmbroideryCommunicator
 {
     public partial class SumDialog : Form
     {
