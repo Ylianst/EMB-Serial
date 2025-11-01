@@ -6,6 +6,15 @@
     <Nullable>enable</Nullable>
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
+    
+    <!-- Assembly information -->
+    <AssemblyTitle>Embroidery Communicator</AssemblyTitle>
+    <Description>Open Source Software for the Artista 180.</Description>
+    <Company>Open Source</Company>
+    <Product>Embroidery Communicator</Product>
+    <Copyright>Copyright© 2025, Apache 2.0 License</Copyright>
+    <Version>0.1.0.0</Version>
+    <FileVersion>0.1.0.0</FileVersion>
   </PropertyGroup>
 
   <ItemGroup>

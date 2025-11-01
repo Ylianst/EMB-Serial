@@ -11,6 +11,7 @@ namespace EmbroideryCommunicator
             pbPreview = new PictureBox();
             contextMenuStrip = new ContextMenuStrip(components);
             detailsToolStripMenuItem = new ToolStripMenuItem();
+            viewToolStripMenuItem = new ToolStripMenuItem();
             downloadToolStripMenuItem = new ToolStripMenuItem();
             lblFileName = new Label();
             attributesPanel = new Panel();
@@ -42,24 +43,32 @@ namespace EmbroideryCommunicator
             // contextMenuStrip
             // 
             contextMenuStrip.ImageScalingSize = new Size(20, 20);
-            contextMenuStrip.Items.AddRange(new ToolStripItem[] { detailsToolStripMenuItem, downloadToolStripMenuItem });
+            contextMenuStrip.Items.AddRange(new ToolStripItem[] { detailsToolStripMenuItem, viewToolStripMenuItem, downloadToolStripMenuItem });
             contextMenuStrip.Name = "contextMenuStrip";
-            contextMenuStrip.Size = new Size(211, 80);
+            contextMenuStrip.Size = new Size(157, 76);
             contextMenuStrip.Opening += contextMenuStrip_Opening;
             // 
             // detailsToolStripMenuItem
             // 
             detailsToolStripMenuItem.Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
             detailsToolStripMenuItem.Name = "detailsToolStripMenuItem";
-            detailsToolStripMenuItem.Size = new Size(210, 24);
+            detailsToolStripMenuItem.Size = new Size(156, 24);
             detailsToolStripMenuItem.Text = "&Details...";
             detailsToolStripMenuItem.Click += detailsToolStripMenuItem_Click;
+            // 
+            // viewToolStripMenuItem
+            // 
+            viewToolStripMenuItem.Enabled = false;
+            viewToolStripMenuItem.Name = "viewToolStripMenuItem";
+            viewToolStripMenuItem.Size = new Size(156, 24);
+            viewToolStripMenuItem.Text = "&View...";
+            viewToolStripMenuItem.Click += viewToolStripMenuItem_Click;
             // 
             // downloadToolStripMenuItem
             // 
             downloadToolStripMenuItem.Enabled = false;
             downloadToolStripMenuItem.Name = "downloadToolStripMenuItem";
-            downloadToolStripMenuItem.Size = new Size(210, 24);
+            downloadToolStripMenuItem.Size = new Size(156, 24);
             downloadToolStripMenuItem.Text = "D&ownload...";
             downloadToolStripMenuItem.Click += downloadToolStripMenuItem_Click;
             // 
@@ -165,5 +174,6 @@ namespace EmbroideryCommunicator
         private ContextMenuStrip contextMenuStrip;
         private ToolStripMenuItem detailsToolStripMenuItem;
         private ToolStripMenuItem downloadToolStripMenuItem;
+        private ToolStripMenuItem viewToolStripMenuItem;
     }
 }

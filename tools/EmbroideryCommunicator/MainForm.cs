@@ -852,16 +852,14 @@ namespace EmbroideryCommunicator
             {
                 if (total > 0)
                 {
+                    toolStripProgressBar.Visible = true;
                     int percentage = (int)((current * 100) / total);
                     toolStripProgressBar.Value = Math.Min(percentage, 100);
-                    if (pccard)
-                    {
-                        UpdateStatus($"Loading PC Card files...");
-                    }
-                    else
-                    {
-                        UpdateStatus($"Loading embroidery files...");
-                    }
+                }
+                else
+                {
+                    toolStripProgressBar.Visible = false;
+                    toolStripProgressBar.Value = 0;
                 }
             }
             catch (Exception) { }
@@ -1334,6 +1332,145 @@ namespace EmbroideryCommunicator
             };
             
             _embroideryViewerForm.Show();
+        }
+
+        /// <summary>
+        /// Downloads an embroidery file from the machine and opens it in the EmbroideryViewerForm.
+        /// Shows progress during download.
+        /// </summary>
+        /// <param name="embroideryFile">The embroidery file to view (must have FileId and FileName set)</param>
+        /// <param name="location">Storage location (EmbroideryModuleMemory or PCCard)</param>
+        public async Task ViewEmbroideryFileAsync(EmbroideryFile embroideryFile, StorageLocation location)
+        {
+            if (_serialStack == null || !_isConnected)
+            {
+                MessageBox.Show("Not connected to machine", "View Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            if (embroideryFile == null)
+            {
+                MessageBox.Show("No file data available", "View Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            try
+            {
+                // Show progress bar
+                ShowProgressBar(true, $"Downloading {embroideryFile.FileName}...");
+
+                // Read the file data from the machine with progress callback
+                EmbroideryFile? downloadedFile = await _serialStack.ReadEmbroideryFileAsync(
+                    location,
+                    embroideryFile.FileId,
+                    (current, total) => UpdateProgress(current, total, false)
+                );
+
+                // Hide progress bar
+                ShowProgressBar(false);
+
+                if (downloadedFile == null || downloadedFile.FileData == null)
+                {
+                    MessageBox.Show("Failed to read file from machine", "View Error", 
+                        MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+
+                // Open or focus the embroidery viewer form
+                if (_embroideryViewerForm == null || _embroideryViewerForm.IsDisposed)
+                {
+                    _embroideryViewerForm = new EmbroideryViewerForm();
+                    
+                    // Subscribe to FormClosed event to reset the reference when the form is closed
+                    _embroideryViewerForm.FormClosed += (s, args) =>
+                    {
+                        _embroideryViewerForm = null;
+                    };
+                }
+
+                // Load the file data into the viewer
+                _embroideryViewerForm.LoadFileFromMemory(embroideryFile.FileName, downloadedFile.FileData);
+            }
+            catch (Exception ex)
+            {
+                // Hide progress bar on error
+                ShowProgressBar(false);
+                
+                MessageBox.Show($"Error viewing file: {ex.Message}", "View Error",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        /// <summary>
+        /// Downloads an embroidery file from the machine and saves it to disk.
+        /// Shows a SaveFileDialog and displays progress during download.
+        /// </summary>
+        /// <param name="embroideryFile">The embroidery file to download (must have FileId and FileName set)</param>
+        /// <param name="location">Storage location (EmbroideryModuleMemory or PCCard)</param>
+        public async Task DownloadEmbroideryFileAsync(EmbroideryFile embroideryFile, StorageLocation location)
+        {
+            if (_serialStack == null || !_isConnected)
+            {
+                MessageBox.Show("Not connected to machine", "Download Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            if (embroideryFile == null)
+            {
+                MessageBox.Show("No file data available", "Download Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            // Show Save As dialog with suggested filename
+            using (SaveFileDialog saveDialog = new SaveFileDialog())
+            {
+                saveDialog.Filter = "Embroidery Files (*.exp)|*.exp|All Files (*.*)|*.*";
+                saveDialog.DefaultExt = "exp";
+                saveDialog.FileName = embroideryFile.FileName + ".exp";
+                saveDialog.Title = "Save Embroidery File";
+
+                if (saveDialog.ShowDialog() != DialogResult.OK)
+                {
+                    return;
+                }
+
+                try
+                {
+                    // Show progress bar
+                    ShowProgressBar(true, $"Downloading {embroideryFile.FileName}...");
+
+                    // Read the file data from the machine with progress callback
+                    EmbroideryFile? downloadedFile = await _serialStack.ReadEmbroideryFileAsync(
+                        location,
+                        embroideryFile.FileId,
+                        (current, total) => UpdateProgress(current, total, false)
+                    );
+
+                    // Hide progress bar
+                    ShowProgressBar(false);
+
+                    if (downloadedFile == null || downloadedFile.FileData == null)
+                    {
+                        MessageBox.Show("Failed to read file from machine", "Download Error", 
+                            MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        return;
+                    }
+
+                    // Save the file data to disk
+                    File.WriteAllBytes(saveDialog.FileName, downloadedFile.FileData);
+
+                    MessageBox.Show($"File saved successfully to:\n{saveDialog.FileName}", "Download Complete",
+                        MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+                catch (Exception ex)
+                {
+                    // Hide progress bar on error
+                    ShowProgressBar(false);
+                    
+                    MessageBox.Show($"Error downloading file: {ex.Message}", "Download Error",
+                        MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
         }
     }
 }

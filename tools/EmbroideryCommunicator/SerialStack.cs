@@ -3465,6 +3465,9 @@ namespace Bernina.SerialStack
                     }
                 }
 
+                // Reset the protocol
+                await ProtocolResetAsync();
+
                 // Step 4: Select storage source
                 ushort storageFunction = location == StorageLocation.EmbroideryModuleMemory ? (ushort)0x00A1 : (ushort)0x0051;
                 RaiseDebugMessage($"ReadEmbroideryFile: Selecting storage source with function 0x{storageFunction:X4}");
@@ -3478,7 +3481,7 @@ namespace Bernina.SerialStack
 
                 // Step 5: Set FileId and arguments for reading
                 RaiseDebugMessage($"ReadEmbroideryFile: Setting FileId {FileId} as argument 2");
-                var setArg2Result = await SetArgument2Async((byte)FileId);
+                var setArg2Result = await SetArgument2Async((byte)(FileId + 1));
                 if (!setArg2Result.Success)
                 {
                     RaiseDebugMessage($"ReadEmbroideryFile: Failed to set argument 2: {setArg2Result.ErrorMessage}");
@@ -3535,7 +3538,7 @@ namespace Bernina.SerialStack
 
                 // Step 9: Set FileId and prepare for full file read
                 RaiseDebugMessage($"ReadEmbroideryFile: Setting FileId {FileId} as argument 2 for file read");
-                setArg2Result = await SetArgument2Async((byte)FileId);
+                setArg2Result = await SetArgument2Async((byte)(FileId + 1));
                 if (!setArg2Result.Success)
                 {
                     RaiseDebugMessage($"ReadEmbroideryFile: Failed to set argument 2: {setArg2Result.ErrorMessage}");

@@ -268,7 +268,7 @@ namespace EmbroideryCommunicator
 
         private void contextMenuStrip_Opening(object sender, System.ComponentModel.CancelEventArgs e)
         {
-            downloadToolStripMenuItem.Enabled = (_embroideryFile != null) && (_embroideryFile.FileAttributes & 0x08) == 0;
+            downloadToolStripMenuItem.Enabled = viewToolStripMenuItem.Enabled = (_embroideryFile != null) && (_embroideryFile.FileAttributes & 0x08) == 0;
         }
         private async void downloadToolStripMenuItem_Click(object sender, EventArgs e)
         {
@@ -278,96 +278,65 @@ namespace EmbroideryCommunicator
                 return;
             }
 
-            // Find the parent MainForm to access the SerialStack
-            Form? parentForm = this.FindForm();
-            if (parentForm == null || parentForm.GetType().Name != "MainForm")
+            // Find the parent MainForm
+            if (this.FindForm() is MainForm mainForm)
+            {
+                // Determine storage location (check if this file control is in PC Card tab)
+                StorageLocation location = StorageLocation.EmbroideryModuleMemory;
+
+                // Check if this control's parent hierarchy contains the PC Card flow layout panel
+                Control? parent = this.Parent;
+                while (parent != null)
+                {
+                    if (parent.Name == "flowLayoutPanelPcCards")
+                    {
+                        location = StorageLocation.PCCard;
+                        break;
+                    }
+                    parent = parent.Parent;
+                }
+
+                // Call the MainForm's download method
+                await mainForm.DownloadEmbroideryFileAsync(_embroideryFile, location);
+            }
+            else
             {
                 MessageBox.Show("Cannot access parent form", "Download Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private async void viewToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            if (_embroideryFile == null)
+            {
+                MessageBox.Show("No file data available", "View Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
-            // Use reflection to access the private _serialStack field
-            var serialStackField = parentForm.GetType().GetField("_serialStack", 
-                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            
-            if (serialStackField == null)
+            // Find the parent MainForm
+            if (this.FindForm() is MainForm mainForm)
             {
-                MessageBox.Show("Cannot access serial stack", "Download Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                return;
-            }
+                // Determine storage location (check if this file control is in PC Card tab)
+                StorageLocation location = StorageLocation.EmbroideryModuleMemory;
 
-            SerialStack? serialStack = serialStackField.GetValue(parentForm) as SerialStack;
-            
-            if (serialStack == null || !serialStack.IsConnected)
-            {
-                MessageBox.Show("Not connected to machine", "Download Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
-
-            // Show Save As dialog with suggested filename
-            using (SaveFileDialog saveDialog = new SaveFileDialog())
-            {
-                saveDialog.Filter = "Embroidery Files (*.exp)|*.exp|All Files (*.*)|*.*";
-                saveDialog.DefaultExt = "exp";
-                saveDialog.FileName = _embroideryFile.FileName + ".exp";
-                saveDialog.Title = "Save Embroidery File";
-
-                if (saveDialog.ShowDialog() != DialogResult.OK)
+                // Check if this control's parent hierarchy contains the PC Card flow layout panel
+                Control? parent = this.Parent;
+                while (parent != null)
                 {
-                    return;
-                }
-
-                try
-                {
-                    // Determine storage location (check if this file control is in PC Card tab)
-                    StorageLocation location = StorageLocation.EmbroideryModuleMemory;
-                    
-                    // Check if this control's parent hierarchy contains the PC Card flow layout panel
-                    Control? parent = this.Parent;
-                    while (parent != null)
+                    if (parent.Name == "flowLayoutPanelPcCards")
                     {
-                        if (parent.Name == "flowLayoutPanelPcCards")
-                        {
-                            location = StorageLocation.PCCard;
-                            break;
-                        }
-                        parent = parent.Parent;
+                        location = StorageLocation.PCCard;
+                        break;
                     }
-
-                    // Show progress (simplified - just disable the control)
-                    this.Enabled = false;
-                    this.Cursor = Cursors.WaitCursor;
-
-                    // Read the file data from the machine
-                    EmbroideryFile? downloadedFile = await serialStack.ReadEmbroideryFileAsync(
-                        location,
-                        _embroideryFile.FileId,
-                        null  // Progress callback (optional)
-                    );
-
-                    if (downloadedFile == null || downloadedFile.FileData == null)
-                    {
-                        MessageBox.Show("Failed to read file from machine", "Download Error", 
-                            MessageBoxButtons.OK, MessageBoxIcon.Error);
-                        return;
-                    }
-
-                    // Save the file data to disk
-                    File.WriteAllBytes(saveDialog.FileName, downloadedFile.FileData);
-
-                    MessageBox.Show($"File saved successfully to:\n{saveDialog.FileName}", "Download Complete",
-                        MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    parent = parent.Parent;
                 }
-                catch (Exception ex)
-                {
-                    MessageBox.Show($"Error downloading file: {ex.Message}", "Download Error",
-                        MessageBoxButtons.OK, MessageBoxIcon.Error);
-                }
-                finally
-                {
-                    this.Enabled = true;
-                    this.Cursor = Cursors.Default;
-                }
+
+                // Call the MainForm's view method
+                await mainForm.ViewEmbroideryFileAsync(_embroideryFile, location);
+            }
+            else
+            {
+                MessageBox.Show("Cannot access parent form", "View Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
     }

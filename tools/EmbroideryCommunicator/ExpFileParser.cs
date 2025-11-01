@@ -17,17 +17,29 @@ namespace EmbroideryCommunicator
             if (!File.Exists(filePath))
                 throw new FileNotFoundException("EXP file not found", filePath);
 
+            byte[] fileData = File.ReadAllBytes(filePath);
+            return ParseFromBytes(fileData, Path.GetFileName(filePath));
+        }
+
+        /// <summary>
+        /// Parses .EXP file data from a byte array and returns the embroidery pattern
+        /// </summary>
+        /// <param name="fileData">Byte array containing .exp file data</param>
+        /// <param name="fileName">Name of the file (for display purposes)</param>
+        /// <returns>Parsed embroidery pattern</returns>
+        public static EmbroideryPattern ParseFromBytes(byte[] fileData, string fileName)
+        {
             var pattern = new EmbroideryPattern
             {
-                FileName = Path.GetFileName(filePath)
+                FileName = fileName
             };
 
             // Current position (cumulative)
             float currentX = 0;
             float currentY = 0;
 
-            using (FileStream fs = new FileStream(filePath, FileMode.Open, FileAccess.Read))
-            using (BinaryReader reader = new BinaryReader(fs))
+            using (MemoryStream ms = new MemoryStream(fileData))
+            using (BinaryReader reader = new BinaryReader(ms))
             {
                 // Track if we're in a jump sequence
                 bool inJump = false;

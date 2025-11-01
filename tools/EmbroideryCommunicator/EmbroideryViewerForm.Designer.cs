@@ -232,6 +232,7 @@ namespace EmbroideryCommunicator
             // 
             // EmbroideryViewerForm
             // 
+            AllowDrop = true;
             AutoScaleDimensions = new SizeF(8F, 20F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(1000, 652);
@@ -245,6 +246,8 @@ namespace EmbroideryCommunicator
             Name = "EmbroideryViewerForm";
             StartPosition = FormStartPosition.CenterScreen;
             Text = "Embroidery Viewer";
+            DragDrop += EmbroideryViewerForm_DragDrop;
+            DragEnter += EmbroideryViewerForm_DragEnter;
             KeyDown += EmbroideryViewerForm_KeyDown;
             menuStrip.ResumeLayout(false);
             menuStrip.PerformLayout();

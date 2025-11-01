@@ -161,6 +161,89 @@ namespace EmbroideryCommunicator
             }
         }
 
+        /// <summary>
+        /// Loads embroidery file data from memory. Closes any existing file first.
+        /// </summary>
+        /// <param name="fileName">The name of the file (without path)</param>
+        /// <param name="fileData">The raw .EXP file data</param>
+        public void LoadFileFromMemory(string fileName, byte[] fileData)
+        {
+            try
+            {
+                // Close any existing file first
+                if (_pattern != null)
+                {
+                    CloseFile();
+                }
+
+                // Validate file data
+                if (fileData == null || fileData.Length == 0)
+                {
+                    MessageBox.Show("File data is empty or invalid.",
+                        "Invalid File", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                // Parse the file data directly
+                _pattern = ExpFileParser.ParseFromBytes(fileData, fileName);
+
+                // Calculate base scale and reset view
+                _baseScale = CalculateBaseScale();
+                _zoomFactor = 1.0f;
+                _panOffset = new PointF(0, 0);
+
+                // Configure trackbar for this pattern
+                if (_pattern.Stitches.Count > 0)
+                {
+                    trackBar.Minimum = 0;
+                    trackBar.Maximum = _pattern.Stitches.Count;
+                    trackBar.Value = _pattern.Stitches.Count; // Show all stitches by default
+                    trackBar.TickFrequency = Math.Max(1, _pattern.Stitches.Count / 20); // ~20 ticks
+                    trackBar.Enabled = true;
+                    _maxStitchesToDisplay = _pattern.Stitches.Count;
+                }
+                else
+                {
+                    trackBar.Enabled = false;
+                }
+
+                // Update status
+                UpdateStatus();
+
+                // Update window title with filename
+                this.Text = $"Embroidery Viewer - {fileName}";
+
+                // Generate preview image
+                try
+                {
+                    _previewImageData = ExpFileParser.GeneratePreviewImage(fileData);
+                }
+                catch
+                {
+                    _previewImageData = null;
+                }
+
+                // Enable close menu item
+                closeToolStripMenuItem.Enabled = true;
+
+                // Update scroll bars
+                UpdateScrollBars();
+
+                // Trigger repaint
+                renderPanel.Invalidate();
+
+                // Show the form and bring it to front
+                this.Show();
+                this.BringToFront();
+                this.Focus();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error loading file: {ex.Message}",
+                    "Load Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
         private void CloseFile()
         {
             _pattern = null;
@@ -779,6 +862,56 @@ namespace EmbroideryCommunicator
             
             _baseScale = CalculateBaseScale();
             SetZoom(2.0f);
+        }
+
+        private void EmbroideryViewerForm_DragEnter(object? sender, DragEventArgs e)
+        {
+            // Check if the data being dragged is a file
+            if (e.Data != null && e.Data.GetDataPresent(DataFormats.FileDrop))
+            {
+                string[]? files = e.Data.GetData(DataFormats.FileDrop) as string[];
+                
+                // Check if exactly one file is being dragged and it's an .exp file
+                if (files != null && files.Length == 1 && 
+                    Path.GetExtension(files[0]).Equals(".exp", StringComparison.OrdinalIgnoreCase))
+                {
+                    e.Effect = DragDropEffects.Copy;
+                }
+                else
+                {
+                    e.Effect = DragDropEffects.None;
+                }
+            }
+            else
+            {
+                e.Effect = DragDropEffects.None;
+            }
+        }
+
+        private void EmbroideryViewerForm_DragDrop(object? sender, DragEventArgs e)
+        {
+            if (e.Data != null && e.Data.GetDataPresent(DataFormats.FileDrop))
+            {
+                string[]? files = e.Data.GetData(DataFormats.FileDrop) as string[];
+                
+                if (files != null && files.Length == 1)
+                {
+                    string filePath = files[0];
+                    
+                    // Check if it's an .exp file
+                    if (Path.GetExtension(filePath).Equals(".exp", StringComparison.OrdinalIgnoreCase))
+                    {
+                        // Close any existing file before loading the new one
+                        if (_pattern != null)
+                        {
+                            CloseFile();
+                        }
+                        
+                        // Load the dropped file
+                        LoadFile(filePath);
+                    }
+                }
+            }
         }
     }
 }

@@ -178,28 +178,28 @@
             // showDeveloperDebugToolStripMenuItem
             // 
             showDeveloperDebugToolStripMenuItem.Name = "showDeveloperDebugToolStripMenuItem";
-            showDeveloperDebugToolStripMenuItem.Size = new Size(219, 26);
+            showDeveloperDebugToolStripMenuItem.Size = new Size(227, 26);
             showDeveloperDebugToolStripMenuItem.Text = "&Developer Debug...";
             showDeveloperDebugToolStripMenuItem.Click += showDeveloperDebugToolStripMenuItem_Click;
             // 
             // downloadMemoryDumpToolStripMenuItem
             // 
             downloadMemoryDumpToolStripMenuItem.Name = "downloadMemoryDumpToolStripMenuItem";
-            downloadMemoryDumpToolStripMenuItem.Size = new Size(219, 26);
+            downloadMemoryDumpToolStripMenuItem.Size = new Size(227, 26);
             downloadMemoryDumpToolStripMenuItem.Text = "&Memory Dump...";
             downloadMemoryDumpToolStripMenuItem.Click += downloadMemoryDumpToolStripMenuItem_Click;
             // 
             // serialCaptureToolStripMenuItem
             // 
             serialCaptureToolStripMenuItem.Name = "serialCaptureToolStripMenuItem";
-            serialCaptureToolStripMenuItem.Size = new Size(219, 26);
+            serialCaptureToolStripMenuItem.Size = new Size(227, 26);
             serialCaptureToolStripMenuItem.Text = "&Serial Capture...";
             serialCaptureToolStripMenuItem.Click += serialCaptureToolStripMenuItem_Click;
             // 
             // embroideryViewerToolStripMenuItem
             // 
             embroideryViewerToolStripMenuItem.Name = "embroideryViewerToolStripMenuItem";
-            embroideryViewerToolStripMenuItem.Size = new Size(219, 26);
+            embroideryViewerToolStripMenuItem.Size = new Size(227, 26);
             embroideryViewerToolStripMenuItem.Text = "E&mbroidery Viewer...";
             embroideryViewerToolStripMenuItem.Click += embroideryViewerToolStripMenuItem_Click;
             // 
@@ -217,7 +217,7 @@
             // toolStripStatusLabel
             // 
             toolStripStatusLabel.Name = "toolStripStatusLabel";
-            toolStripStatusLabel.Size = new Size(686, 20);
+            toolStripStatusLabel.Size = new Size(527, 20);
             toolStripStatusLabel.Spring = true;
             toolStripStatusLabel.Text = "Ready";
             toolStripStatusLabel.TextAlign = ContentAlignment.MiddleLeft;
