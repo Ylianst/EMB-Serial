@@ -1,4 +1,3 @@
-using Bernina.SerialStack;
 using System;
 using System.Drawing;
 using System.Windows.Forms;
@@ -112,6 +111,16 @@ namespace EmbroideryCommunicator
         {
             this.DialogResult = DialogResult.OK;
             this.Close();
+        }
+
+        private void downloadButton_Click(object sender, EventArgs e)
+        {
+            // TODO
+        }
+
+        private void viewButton_Click(object sender, EventArgs e)
+        {
+            // TODO
         }
     }
 }

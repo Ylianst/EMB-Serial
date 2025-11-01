@@ -1,5 +1,4 @@
 using System.IO.Ports;
-using Bernina.SerialStack;
 using Microsoft.Win32;
 
 namespace EmbroideryCommunicator

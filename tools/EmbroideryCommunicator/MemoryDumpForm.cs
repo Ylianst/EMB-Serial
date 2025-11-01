@@ -3,7 +3,6 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using Bernina.SerialStack;
 
 namespace EmbroideryCommunicator
 {
@@ -60,7 +59,7 @@ namespace EmbroideryCommunicator
             UpdateUIState();
         }
 
-        private void SerialStack_ConnectionStateChanged(object? sender, Bernina.SerialStack.ConnectionStateChangedEventArgs e)
+        private void SerialStack_ConnectionStateChanged(object? sender, ConnectionStateChangedEventArgs e)
         {
             // Update UI whenever connection state changes
             if (InvokeRequired)

@@ -1,5 +1,4 @@
 using System.Text;
-using Bernina.SerialStack;
 
 namespace EmbroideryCommunicator
 {

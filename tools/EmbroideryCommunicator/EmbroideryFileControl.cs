@@ -1,4 +1,3 @@
-using Bernina.SerialStack;
 using System.Drawing;
 
 namespace EmbroideryCommunicator

@@ -16,6 +16,8 @@ namespace EmbroideryCommunicator
         private bool _showStitchLines = true;
         private bool _showStitchPoints = false;
         private float _baseScale = 1.0f; // Base scale to fit pattern in window
+        private byte[]? _currentFileData = null; // Store current file data for saving
+        private string? _currentFileName = null; // Store current filename
         
         // Colors to rotate through for different thread segments
         private readonly Color[] _threadColors = new Color[]
@@ -88,6 +90,39 @@ namespace EmbroideryCommunicator
             CloseFile();
         }
 
+        private void saveAsToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            if (_currentFileData == null || _currentFileData.Length == 0)
+            {
+                MessageBox.Show("No file data available to save", "Save Error", 
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            using (SaveFileDialog saveDialog = new SaveFileDialog())
+            {
+                saveDialog.Filter = "Embroidery Files (*.exp)|*.exp|All Files (*.*)|*.*";
+                saveDialog.DefaultExt = "exp";
+                saveDialog.FileName = _currentFileName ?? "embroidery.exp";
+                saveDialog.Title = "Save Embroidery File As";
+
+                if (saveDialog.ShowDialog() == DialogResult.OK)
+                {
+                    try
+                    {
+                        File.WriteAllBytes(saveDialog.FileName, _currentFileData);
+                        MessageBox.Show($"File saved successfully to:\n{saveDialog.FileName}", 
+                            "Save Complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show($"Error saving file: {ex.Message}", "Save Error",
+                            MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                }
+            }
+        }
+
         private void exitToolStripMenuItem_Click(object sender, EventArgs e)
         {
             Close();
@@ -104,6 +139,10 @@ namespace EmbroideryCommunicator
                         "Invalid File", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
                 }
+
+                // Read and store file data
+                _currentFileData = File.ReadAllBytes(filePath);
+                _currentFileName = Path.GetFileName(filePath);
 
                 // Parse the file
                 _pattern = ExpFileParser.Parse(filePath);
@@ -145,8 +184,9 @@ namespace EmbroideryCommunicator
                     _previewImageData = null;
                 }
 
-                // Enable close menu item
+                // Enable close and save as menu items
                 closeToolStripMenuItem.Enabled = true;
+                saveAsToolStripMenuItem.Enabled = true;
 
                 // Update scroll bars
                 UpdateScrollBars();
@@ -183,6 +223,10 @@ namespace EmbroideryCommunicator
                         "Invalid File", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
                 }
+
+                // Store file data and filename
+                _currentFileData = fileData;
+                _currentFileName = fileName;
 
                 // Parse the file data directly
                 _pattern = ExpFileParser.ParseFromBytes(fileData, fileName);
@@ -223,8 +267,9 @@ namespace EmbroideryCommunicator
                     _previewImageData = null;
                 }
 
-                // Enable close menu item
+                // Enable close and save as menu items
                 closeToolStripMenuItem.Enabled = true;
+                saveAsToolStripMenuItem.Enabled = true;
 
                 // Update scroll bars
                 UpdateScrollBars();
@@ -253,7 +298,10 @@ namespace EmbroideryCommunicator
             _maxStitchesToDisplay = int.MaxValue;
             _currentColorIndex = 0;
             _previewImageData = null;
+            _currentFileData = null;
+            _currentFileName = null;
             closeToolStripMenuItem.Enabled = false;
+            saveAsToolStripMenuItem.Enabled = false;
             
             // Reset trackbar
             trackBar.Minimum = 0;

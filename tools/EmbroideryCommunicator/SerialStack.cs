@@ -7,7 +7,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Bernina.SerialStack
+namespace EmbroideryCommunicator
 {
     /// <summary>
     /// Connection state of the serial stack

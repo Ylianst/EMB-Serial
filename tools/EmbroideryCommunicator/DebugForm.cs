@@ -1,7 +1,6 @@
 using System;
 using System.Text;
 using System.Windows.Forms;
-using Bernina.SerialStack;
 
 namespace EmbroideryCommunicator
 {

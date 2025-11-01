@@ -20,6 +20,8 @@ namespace EmbroideryCommunicator
             lblFileName = new Label();
             lblAttributeDetails = new Label();
             btnOK = new Button();
+            viewButton = new Button();
+            downloadButton = new Button();
             ((System.ComponentModel.ISupportInitialize)pbPreview).BeginInit();
             SuspendLayout();
             // 
@@ -65,20 +67,46 @@ namespace EmbroideryCommunicator
             // btnOK
             // 
             btnOK.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
-            btnOK.Location = new Point(359, 204);
+            btnOK.Location = new Point(339, 204);
             btnOK.Margin = new Padding(3, 4, 3, 4);
             btnOK.Name = "btnOK";
-            btnOK.Size = new Size(86, 31);
+            btnOK.Size = new Size(106, 31);
             btnOK.TabIndex = 5;
-            btnOK.Text = "OK";
+            btnOK.Text = "Close";
             btnOK.UseVisualStyleBackColor = true;
             btnOK.Click += btnOK_Click;
+            // 
+            // viewButton
+            // 
+            viewButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
+            viewButton.Location = new Point(115, 204);
+            viewButton.Margin = new Padding(3, 4, 3, 4);
+            viewButton.Name = "viewButton";
+            viewButton.Size = new Size(106, 31);
+            viewButton.TabIndex = 6;
+            viewButton.Text = "View...";
+            viewButton.UseVisualStyleBackColor = true;
+            viewButton.Click += viewButton_Click;
+            // 
+            // downloadButton
+            // 
+            downloadButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
+            downloadButton.Location = new Point(227, 205);
+            downloadButton.Margin = new Padding(3, 4, 3, 4);
+            downloadButton.Name = "downloadButton";
+            downloadButton.Size = new Size(106, 31);
+            downloadButton.TabIndex = 7;
+            downloadButton.Text = "Download...";
+            downloadButton.UseVisualStyleBackColor = true;
+            downloadButton.Click += downloadButton_Click;
             // 
             // EmbroideryFileDetailsDialog
             // 
             AutoScaleDimensions = new SizeF(8F, 20F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(457, 248);
+            Controls.Add(downloadButton);
+            Controls.Add(viewButton);
             Controls.Add(pbPreview);
             Controls.Add(lblFileId);
             Controls.Add(lblFileName);
@@ -101,5 +129,7 @@ namespace EmbroideryCommunicator
         private Label lblFileName = null!;
         private Label lblAttributeDetails = null!;
         private Button btnOK = null!;
+        private Button viewButton;
+        private Button downloadButton;
     }
 }
