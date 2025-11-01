@@ -104,6 +104,7 @@ namespace EmbroideryCommunicator
             // 
             AutoScaleDimensions = new SizeF(8F, 20F);
             AutoScaleMode = AutoScaleMode.Font;
+            CancelButton = btnOK;
             ClientSize = new Size(457, 248);
             Controls.Add(downloadButton);
             Controls.Add(viewButton);

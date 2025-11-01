@@ -128,9 +128,30 @@ namespace EmbroideryCommunicator
                 return;
             }
 
+            // Determine storage location (check if this file control is in PC Card tab)
+            StorageLocation location = StorageLocation.EmbroideryModuleMemory;
+
+            // Check if this control's parent hierarchy contains the PC Card flow layout panel
+            Control? parent = this.Parent;
+            while (parent != null)
+            {
+                if (parent.Name == "flowLayoutPanelPcCards")
+                {
+                    location = StorageLocation.PCCard;
+                    break;
+                }
+                parent = parent.Parent;
+            }
+
             // Create and show the details dialog
             using (EmbroideryFileDetailsDialog detailsDialog = new EmbroideryFileDetailsDialog(_embroideryFile))
             {
+                // Set the Tag to indicate the storage location for download/view buttons
+                detailsDialog.Tag = location;
+                
+                // Set the owner to the parent form for proper dialog behavior
+                detailsDialog.Owner = this.FindForm();
+                
                 detailsDialog.ShowDialog();
             }
         }

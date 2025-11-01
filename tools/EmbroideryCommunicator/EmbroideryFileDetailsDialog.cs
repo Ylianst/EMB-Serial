@@ -113,14 +113,77 @@ namespace EmbroideryCommunicator
             this.Close();
         }
 
-        private void downloadButton_Click(object sender, EventArgs e)
+        private async void downloadButton_Click(object sender, EventArgs e)
         {
-            // TODO
+            if (_embroideryFile == null)
+            {
+                MessageBox.Show("No file data available", "Download Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            // Find the parent MainForm by walking up the owner chain
+            Form? parentForm = this.Owner;
+            while (parentForm != null && !(parentForm is MainForm))
+            {
+                parentForm = parentForm.Owner;
+            }
+
+            if (parentForm is MainForm mainForm)
+            {
+                // Determine storage location - check if the dialog was opened from PC Card tab
+                // We'll need to check the calling context, but for now default to EmbroideryModuleMemory
+                StorageLocation location = StorageLocation.EmbroideryModuleMemory;
+
+                // Check if this dialog has a Tag property that indicates the storage location
+                // (This would need to be set when creating the dialog)
+                if (this.Tag is StorageLocation tagLocation)
+                {
+                    location = tagLocation;
+                }
+
+                // Call the MainForm's download method
+                await mainForm.DownloadEmbroideryFileAsync(_embroideryFile, location);
+            }
+            else
+            {
+                MessageBox.Show("Cannot access parent form", "Download Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
 
-        private void viewButton_Click(object sender, EventArgs e)
+        private async void viewButton_Click(object sender, EventArgs e)
         {
-            // TODO
+            if (_embroideryFile == null)
+            {
+                MessageBox.Show("No file data available", "View Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            // Find the parent MainForm by walking up the owner chain
+            Form? parentForm = this.Owner;
+            while (parentForm != null && !(parentForm is MainForm))
+            {
+                parentForm = parentForm.Owner;
+            }
+
+            if (parentForm is MainForm mainForm)
+            {
+                // Determine storage location - check if the dialog was opened from PC Card tab
+                StorageLocation location = StorageLocation.EmbroideryModuleMemory;
+
+                // Check if this dialog has a Tag property that indicates the storage location
+                // (This would need to be set when creating the dialog)
+                if (this.Tag is StorageLocation tagLocation)
+                {
+                    location = tagLocation;
+                }
+
+                // Call the MainForm's view method
+                await mainForm.ViewEmbroideryFileAsync(_embroideryFile, location);
+            }
+            else
+            {
+                MessageBox.Show("Cannot access parent form", "View Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
     }
 }

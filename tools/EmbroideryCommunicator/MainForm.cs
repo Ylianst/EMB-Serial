@@ -1353,6 +1353,14 @@ namespace EmbroideryCommunicator
                 return;
             }
 
+            // Check if the machine is currently busy
+            if (_serialStack.IsBusy)
+            {
+                MessageBox.Show("Machine is currently busy with another operation. Please wait for the current operation to complete.", 
+                    "Machine Busy", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
             try
             {
                 // Show progress bar
@@ -1370,8 +1378,17 @@ namespace EmbroideryCommunicator
 
                 if (downloadedFile == null || downloadedFile.FileData == null)
                 {
-                    MessageBox.Show("Failed to read file from machine", "View Error", 
-                        MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    // Check if the failure was due to busy state
+                    if (_serialStack.IsBusy)
+                    {
+                        MessageBox.Show("Machine is currently busy with another operation. Please wait for the current operation to complete.", 
+                            "Machine Busy", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
+                    else
+                    {
+                        MessageBox.Show("Failed to read file from machine", "View Error", 
+                            MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
                     return;
                 }
 
@@ -1420,6 +1437,14 @@ namespace EmbroideryCommunicator
                 return;
             }
 
+            // Check if the machine is currently busy
+            if (_serialStack.IsBusy)
+            {
+                MessageBox.Show("Machine is currently busy with another operation. Please wait for the current operation to complete.", 
+                    "Machine Busy", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
             // Show Save As dialog with suggested filename
             using (SaveFileDialog saveDialog = new SaveFileDialog())
             {
@@ -1450,8 +1475,17 @@ namespace EmbroideryCommunicator
 
                     if (downloadedFile == null || downloadedFile.FileData == null)
                     {
-                        MessageBox.Show("Failed to read file from machine", "Download Error", 
-                            MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        // Check if the failure was due to busy state
+                        if (_serialStack.IsBusy)
+                        {
+                            MessageBox.Show("Machine is currently busy with another operation. Please wait for the current operation to complete.", 
+                                "Machine Busy", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        }
+                        else
+                        {
+                            MessageBox.Show("Failed to read file from machine", "Download Error", 
+                                MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        }
                         return;
                     }
 
