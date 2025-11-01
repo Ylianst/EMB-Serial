@@ -11,6 +11,7 @@ namespace EmbroideryCommunicator
             pbPreview = new PictureBox();
             contextMenuStrip = new ContextMenuStrip(components);
             detailsToolStripMenuItem = new ToolStripMenuItem();
+            downloadToolStripMenuItem = new ToolStripMenuItem();
             lblFileName = new Label();
             attributesPanel = new Panel();
             attributeImagesPanel = new Panel();
@@ -41,9 +42,10 @@ namespace EmbroideryCommunicator
             // contextMenuStrip
             // 
             contextMenuStrip.ImageScalingSize = new Size(20, 20);
-            contextMenuStrip.Items.AddRange(new ToolStripItem[] { detailsToolStripMenuItem });
+            contextMenuStrip.Items.AddRange(new ToolStripItem[] { detailsToolStripMenuItem, downloadToolStripMenuItem });
             contextMenuStrip.Name = "contextMenuStrip";
-            contextMenuStrip.Size = new Size(211, 56);
+            contextMenuStrip.Size = new Size(211, 80);
+            contextMenuStrip.Opening += contextMenuStrip_Opening;
             // 
             // detailsToolStripMenuItem
             // 
@@ -52,6 +54,14 @@ namespace EmbroideryCommunicator
             detailsToolStripMenuItem.Size = new Size(210, 24);
             detailsToolStripMenuItem.Text = "&Details...";
             detailsToolStripMenuItem.Click += detailsToolStripMenuItem_Click;
+            // 
+            // downloadToolStripMenuItem
+            // 
+            downloadToolStripMenuItem.Enabled = false;
+            downloadToolStripMenuItem.Name = "downloadToolStripMenuItem";
+            downloadToolStripMenuItem.Size = new Size(210, 24);
+            downloadToolStripMenuItem.Text = "D&ownload...";
+            downloadToolStripMenuItem.Click += downloadToolStripMenuItem_Click;
             // 
             // lblFileName
             // 
@@ -154,5 +164,6 @@ namespace EmbroideryCommunicator
         private PictureBox alphabetPictureBox;
         private ContextMenuStrip contextMenuStrip;
         private ToolStripMenuItem detailsToolStripMenuItem;
+        private ToolStripMenuItem downloadToolStripMenuItem;
     }
 }

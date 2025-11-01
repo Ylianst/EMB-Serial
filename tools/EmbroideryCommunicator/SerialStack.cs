@@ -116,6 +116,7 @@ namespace Bernina.SerialStack
         public byte FileAttributes { get; set; }
         public byte[]? PreviewImageData { get; set; } = null;
         public byte[]? FileData { get; set; } = null;
+        public byte[]? FileExtraData { get; set; } = null;
     }
 
     /// <summary>
@@ -3372,6 +3373,292 @@ namespace Bernina.SerialStack
                 if (previewData != null)
                 {
                     RaiseDebugMessage($"ReadEmbroideryFilePreview: Complete - returning {previewData.Length} bytes of preview image data");
+                }
+
+                SetBusyState(false);
+            }
+        }
+
+        /// <summary>
+        /// Reads the complete embroidery file data and extra data from the specified storage location.
+        /// This method retrieves the entire file contents including both the main file data and extra data.
+        /// Uses checked read for the large data transfer and reports progress.
+        /// </summary>
+        /// <param name="location">Storage location to read from (EmbroideryModuleMemory or PCCard)</param>
+        /// <param name="FileId">The file ID (0-based) to read</param>
+        /// <param name="progress">Optional progress callback for the large data read operation</param>
+        /// <returns>EmbroideryFile object with FileId, FileData, and FileExtraData populated, or null if operation fails</returns>
+        public async Task<EmbroideryFile?> ReadEmbroideryFileAsync(StorageLocation location, int FileId, Action<int, int>? progress = null)
+        {
+            RaiseDebugMessage($"ReadEmbroideryFile: Starting read for FileId {FileId} from {location}");
+            
+            // Step 1: Check connection
+            if (State != ConnectionState.Connected)
+            {
+                RaiseDebugMessage("ReadEmbroideryFile: Not connected");
+                return null;
+            }
+
+            // Check if already busy
+            if (IsBusy)
+            {
+                RaiseDebugMessage("ReadEmbroideryFile: Already busy with another operation");
+                return null;
+            }
+
+            SetBusyState(true, "Reading embroidery file");
+
+            EmbroideryFile? embroideryFile = null;
+            bool sessionStarted = false;
+
+            try
+            {
+                // Step 2: Ensure we're in Embroidery Mode
+                RaiseDebugMessage("ReadEmbroideryFile: Checking current session mode");
+                var currentMode = await GetCurrentSessionModeAsync();
+                if (currentMode == null)
+                {
+                    RaiseDebugMessage("ReadEmbroideryFile: Failed to get session mode");
+                    return null;
+                }
+                RaiseDebugMessage($"ReadEmbroideryFile: Current mode is {currentMode}");
+
+                // If in Sewing Machine mode, start embroidery session
+                if (currentMode == SessionMode.SewingMachine)
+                {
+                    RaiseDebugMessage("ReadEmbroideryFile: In Sewing Machine mode, starting embroidery session");
+                    var sessionStartResult = await SessionStartAsync();
+                    if (!sessionStartResult.Success)
+                    {
+                        RaiseDebugMessage($"ReadEmbroideryFile: Session start failed: {sessionStartResult.ErrorMessage}");
+                        return null;
+                    }
+                    sessionStarted = true;
+                    RaiseDebugMessage("ReadEmbroideryFile: Session start successful");
+                }
+                else
+                {
+                    RaiseDebugMessage("ReadEmbroideryFile: Already in Embroidery Module mode");
+                    sessionStarted = true;
+                }
+
+                // Step 3: Check PC Card if reading from PC Card
+                if (location == StorageLocation.PCCard)
+                {
+                    RaiseDebugMessage("ReadEmbroideryFile: Checking PC card status");
+                    var pcCardReadResult = await ReadAsync(0xFFFED9);
+                    
+                    if (pcCardReadResult.Success && pcCardReadResult.BinaryData != null && pcCardReadResult.BinaryData.Length > 0)
+                    {
+                        bool pcCardInserted = (pcCardReadResult.BinaryData[0] & 0x01) == 0x01;
+                        RaiseDebugMessage($"ReadEmbroideryFile: PC card inserted: {pcCardInserted}");
+                        if (!pcCardInserted)
+                        {
+                            RaiseDebugMessage("ReadEmbroideryFile: No PC card present");
+                            return null;
+                        }
+                    }
+                    else
+                    {
+                        RaiseDebugMessage("ReadEmbroideryFile: Failed to read PC card status");
+                        return null;
+                    }
+                }
+
+                // Step 4: Select storage source
+                ushort storageFunction = location == StorageLocation.EmbroideryModuleMemory ? (ushort)0x00A1 : (ushort)0x0051;
+                RaiseDebugMessage($"ReadEmbroideryFile: Selecting storage source with function 0x{storageFunction:X4}");
+                var selectStorageResult = await InvokeFunctionAsync(storageFunction);
+                if (!selectStorageResult.Success)
+                {
+                    RaiseDebugMessage($"ReadEmbroideryFile: Failed to select storage source: {selectStorageResult.ErrorMessage}");
+                    return null;
+                }
+                RaiseDebugMessage("ReadEmbroideryFile: Storage source selected successfully");
+
+                // Step 5: Set FileId and arguments for reading
+                RaiseDebugMessage($"ReadEmbroideryFile: Setting FileId {FileId} as argument 2");
+                var setArg2Result = await SetArgument2Async((byte)FileId);
+                if (!setArg2Result.Success)
+                {
+                    RaiseDebugMessage($"ReadEmbroideryFile: Failed to set argument 2: {setArg2Result.ErrorMessage}");
+                    return null;
+                }
+
+                RaiseDebugMessage("ReadEmbroideryFile: Setting argument 1 to 0x01");
+                var setArg1Result = await SetArgument1Async(0x01);
+                if (!setArg1Result.Success)
+                {
+                    RaiseDebugMessage($"ReadEmbroideryFile: Failed to set argument 1: {setArg1Result.ErrorMessage}");
+                    return null;
+                }
+
+                // Step 6: Invoke function 0x0061
+                RaiseDebugMessage("ReadEmbroideryFile: Invoking function 0x0061");
+                var invokeFunc61Result = await InvokeFunctionAsync(0x0061);
+                if (!invokeFunc61Result.Success)
+                {
+                    RaiseDebugMessage($"ReadEmbroideryFile: Failed to invoke function 0x0061: {invokeFunc61Result.ErrorMessage}");
+                    return null;
+                }
+                RaiseDebugMessage("ReadEmbroideryFile: Function 0x0061 invoked successfully");
+
+                // Step 7: Invoke function 0x0021
+                RaiseDebugMessage("ReadEmbroideryFile: Invoking function 0x0021");
+                var invokeFunc21Result = await InvokeFunctionAsync(0x0021);
+                if (!invokeFunc21Result.Success)
+                {
+                    RaiseDebugMessage($"ReadEmbroideryFile: Failed to invoke function 0x0021: {invokeFunc21Result.ErrorMessage}");
+                    return null;
+                }
+                RaiseDebugMessage("ReadEmbroideryFile: Function 0x0021 invoked successfully");
+
+                // Step 8: Read file count and validate FileId
+                RaiseDebugMessage("ReadEmbroideryFile: Reading file count from 0x024080");
+                var fileCountResult = await ReadAsync(0x024080);
+                if (!fileCountResult.Success || fileCountResult.BinaryData == null || fileCountResult.BinaryData.Length == 0)
+                {
+                    RaiseDebugMessage("ReadEmbroideryFile: Failed to read file count");
+                    return null;
+                }
+
+                int totalFileCount = fileCountResult.BinaryData[0];
+                RaiseDebugMessage($"ReadEmbroideryFile: Total file count: {totalFileCount}");
+
+                // Validate FileId is within range
+                if (FileId < 0 || FileId >= totalFileCount)
+                {
+                    RaiseDebugMessage($"ReadEmbroideryFile: FileId {FileId} is out of range [0, {totalFileCount - 1}]");
+                    return null;
+                }
+                RaiseDebugMessage($"ReadEmbroideryFile: FileId {FileId} is valid");
+
+                // Step 9: Set FileId and prepare for full file read
+                RaiseDebugMessage($"ReadEmbroideryFile: Setting FileId {FileId} as argument 2 for file read");
+                setArg2Result = await SetArgument2Async((byte)FileId);
+                if (!setArg2Result.Success)
+                {
+                    RaiseDebugMessage($"ReadEmbroideryFile: Failed to set argument 2: {setArg2Result.ErrorMessage}");
+                    return null;
+                }
+
+                RaiseDebugMessage("ReadEmbroideryFile: Setting argument 1 to 0x01 for file read");
+                setArg1Result = await SetArgument1Async(0x01);
+                if (!setArg1Result.Success)
+                {
+                    RaiseDebugMessage($"ReadEmbroideryFile: Failed to set argument 1: {setArg1Result.ErrorMessage}");
+                    return null;
+                }
+
+                // Step 10: Invoke function 0x0401 to prepare file data
+                RaiseDebugMessage("ReadEmbroideryFile: Invoking function 0x0401");
+                var invokeFunc401Result = await InvokeFunctionAsync(0x0401);
+                if (!invokeFunc401Result.Success)
+                {
+                    RaiseDebugMessage($"ReadEmbroideryFile: Failed to invoke function 0x0401: {invokeFunc401Result.ErrorMessage}");
+                    return null;
+                }
+                RaiseDebugMessage("ReadEmbroideryFile: Function 0x0401 invoked successfully");
+
+                // Step 11: Read file lengths from 0x028F40
+                RaiseDebugMessage("ReadEmbroideryFile: Reading file lengths from 0x028F40");
+                var lengthsResult = await ReadAsync(0x028F40);
+                if (!lengthsResult.Success || lengthsResult.BinaryData == null || lengthsResult.BinaryData.Length < 8)
+                {
+                    RaiseDebugMessage("ReadEmbroideryFile: Failed to read file lengths");
+                    return null;
+                }
+
+                // Parse the lengths (first 4 bytes = file data length, next 4 bytes = file extra data length)
+                // The lengths are in network byte order (big-endian), so we need to reverse them
+                uint fileDataLength = (uint)((lengthsResult.BinaryData[0] << 24) | 
+                                             (lengthsResult.BinaryData[1] << 16) | 
+                                             (lengthsResult.BinaryData[2] << 8) | 
+                                             lengthsResult.BinaryData[3]);
+                uint fileExtraDataLength = (uint)((lengthsResult.BinaryData[4] << 24) | 
+                                                  (lengthsResult.BinaryData[5] << 16) | 
+                                                  (lengthsResult.BinaryData[6] << 8) | 
+                                                  lengthsResult.BinaryData[7]);
+                uint totalLength = fileDataLength + fileExtraDataLength;
+                
+                RaiseDebugMessage($"ReadEmbroideryFile: File data length: {fileDataLength} bytes (0x{fileDataLength:X})");
+                RaiseDebugMessage($"ReadEmbroideryFile: File extra data length: {fileExtraDataLength} bytes (0x{fileExtraDataLength:X})");
+                RaiseDebugMessage($"ReadEmbroideryFile: Total length to read: {totalLength} bytes (0x{totalLength:X})");
+
+                // Step 12: Perform large checked read of the entire file (data + extra data)
+                RaiseDebugMessage($"ReadEmbroideryFile: Reading {totalLength} bytes from 0x028F48");
+                var fileResult = await ReadMemoryBlockCheckedAsync(0x028F48, (int)totalLength, progress);
+                if (!fileResult.Success || fileResult.BinaryData == null)
+                {
+                    RaiseDebugMessage($"ReadEmbroideryFile: Failed to read file data: {fileResult.ErrorMessage}");
+                    return null;
+                }
+                RaiseDebugMessage($"ReadEmbroideryFile: Successfully read {fileResult.BinaryData.Length} bytes of file data");
+
+                // Step 13: Create EmbroideryFile instance and separate the data
+                embroideryFile = new EmbroideryFile
+                {
+                    FileId = FileId
+                };
+
+                // Separate file data and file extra data
+                embroideryFile.FileData = new byte[fileDataLength];
+                Array.Copy(fileResult.BinaryData, 0, embroideryFile.FileData, 0, (int)fileDataLength);
+                
+                if (fileExtraDataLength > 0)
+                {
+                    embroideryFile.FileExtraData = new byte[fileExtraDataLength];
+                    Array.Copy(fileResult.BinaryData, (int)fileDataLength, embroideryFile.FileExtraData, 0, (int)fileExtraDataLength);
+                }
+
+                RaiseDebugMessage($"ReadEmbroideryFile: File data separated - FileData: {embroideryFile.FileData.Length} bytes, FileExtraData: {embroideryFile.FileExtraData?.Length ?? 0} bytes");
+                
+                return embroideryFile;
+            }
+            catch (Exception ex)
+            {
+                RaiseDebugMessage($"ReadEmbroideryFile: Exception occurred: {ex.Message}");
+                return null;
+            }
+            finally
+            {
+                // Always attempt cleanup, even if errors occurred
+                if (sessionStarted)
+                {
+                    // Step 14: Invoke function 0x0101 for cleanup
+                    RaiseDebugMessage("ReadEmbroideryFile: Invoking cleanup function 0x0101");
+                    try
+                    {
+                        var invokeFunc101Result = await InvokeFunctionAsync(0x0101);
+                        if (!invokeFunc101Result.Success)
+                        {
+                            RaiseDebugMessage($"ReadEmbroideryFile: Warning - Failed to invoke cleanup function 0x0101: {invokeFunc101Result.ErrorMessage}");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        RaiseDebugMessage($"ReadEmbroideryFile: Warning - Exception during cleanup function 0x0101: {ex.Message}");
+                    }
+
+                    // Step 15: Close embroidery session
+                    RaiseDebugMessage("ReadEmbroideryFile: Ending session");
+                    try
+                    {
+                        var sessionEndResult = await SessionEndAsync();
+                        if (!sessionEndResult.Success)
+                        {
+                            RaiseDebugMessage($"ReadEmbroideryFile: Warning - Session end failed: {sessionEndResult.ErrorMessage}");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        RaiseDebugMessage($"ReadEmbroideryFile: Warning - Exception during session end: {ex.Message}");
+                    }
+                }
+
+                if (embroideryFile != null)
+                {
+                    RaiseDebugMessage($"ReadEmbroideryFile: Complete - returning file with {embroideryFile.FileData?.Length ?? 0} bytes of data");
                 }
 
                 SetBusyState(false);

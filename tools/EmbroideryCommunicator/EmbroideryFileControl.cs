@@ -243,7 +243,7 @@ namespace EmbroideryCommunicator
         protected override void OnKeyDown(KeyEventArgs e)
         {
             base.OnKeyDown(e);
-            
+
             // Handle Enter or Space to show details
             if (e.KeyCode == Keys.Enter || e.KeyCode == Keys.Space)
             {
@@ -264,6 +264,111 @@ namespace EmbroideryCommunicator
         private void detailsToolStripMenuItem_Click(object sender, EventArgs e)
         {
             ShowDetails();
+        }
+
+        private void contextMenuStrip_Opening(object sender, System.ComponentModel.CancelEventArgs e)
+        {
+            downloadToolStripMenuItem.Enabled = (_embroideryFile != null) && (_embroideryFile.FileAttributes & 0x08) == 0;
+        }
+        private async void downloadToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            if (_embroideryFile == null)
+            {
+                MessageBox.Show("No file data available", "Download Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            // Find the parent MainForm to access the SerialStack
+            Form? parentForm = this.FindForm();
+            if (parentForm == null || parentForm.GetType().Name != "MainForm")
+            {
+                MessageBox.Show("Cannot access parent form", "Download Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            // Use reflection to access the private _serialStack field
+            var serialStackField = parentForm.GetType().GetField("_serialStack", 
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            
+            if (serialStackField == null)
+            {
+                MessageBox.Show("Cannot access serial stack", "Download Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            SerialStack? serialStack = serialStackField.GetValue(parentForm) as SerialStack;
+            
+            if (serialStack == null || !serialStack.IsConnected)
+            {
+                MessageBox.Show("Not connected to machine", "Download Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            // Show Save As dialog with suggested filename
+            using (SaveFileDialog saveDialog = new SaveFileDialog())
+            {
+                saveDialog.Filter = "Embroidery Files (*.exp)|*.exp|All Files (*.*)|*.*";
+                saveDialog.DefaultExt = "exp";
+                saveDialog.FileName = _embroideryFile.FileName + ".exp";
+                saveDialog.Title = "Save Embroidery File";
+
+                if (saveDialog.ShowDialog() != DialogResult.OK)
+                {
+                    return;
+                }
+
+                try
+                {
+                    // Determine storage location (check if this file control is in PC Card tab)
+                    StorageLocation location = StorageLocation.EmbroideryModuleMemory;
+                    
+                    // Check if this control's parent hierarchy contains the PC Card flow layout panel
+                    Control? parent = this.Parent;
+                    while (parent != null)
+                    {
+                        if (parent.Name == "flowLayoutPanelPcCards")
+                        {
+                            location = StorageLocation.PCCard;
+                            break;
+                        }
+                        parent = parent.Parent;
+                    }
+
+                    // Show progress (simplified - just disable the control)
+                    this.Enabled = false;
+                    this.Cursor = Cursors.WaitCursor;
+
+                    // Read the file data from the machine
+                    EmbroideryFile? downloadedFile = await serialStack.ReadEmbroideryFileAsync(
+                        location,
+                        _embroideryFile.FileId,
+                        null  // Progress callback (optional)
+                    );
+
+                    if (downloadedFile == null || downloadedFile.FileData == null)
+                    {
+                        MessageBox.Show("Failed to read file from machine", "Download Error", 
+                            MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        return;
+                    }
+
+                    // Save the file data to disk
+                    File.WriteAllBytes(saveDialog.FileName, downloadedFile.FileData);
+
+                    MessageBox.Show($"File saved successfully to:\n{saveDialog.FileName}", "Download Complete",
+                        MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Error downloading file: {ex.Message}", "Download Error",
+                        MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+                finally
+                {
+                    this.Enabled = true;
+                    this.Cursor = Cursors.Default;
+                }
+            }
         }
     }
 }
