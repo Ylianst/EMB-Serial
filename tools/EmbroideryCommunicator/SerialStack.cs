@@ -1348,6 +1348,11 @@ namespace Bernina.SerialStack
                         {
                             return _serialPort?.Read(_readBuffer, 0, _readBuffer.Length) ?? 0;
                         }
+                        catch (IOException)
+                        {
+                            // Port was closed, return 0
+                            return 0;
+                        }
                         catch (OperationCanceledException)
                         {
                             // Port was closed, return 0

@@ -21,6 +21,16 @@ namespace EmbroideryCommunicator
             closeToolStripMenuItem = new ToolStripMenuItem();
             toolStripSeparator1 = new ToolStripSeparator();
             exitToolStripMenuItem = new ToolStripMenuItem();
+            viewToolStripMenuItem = new ToolStripMenuItem();
+            previewImageToolStripMenuItem = new ToolStripMenuItem();
+            jumpsToolStripMenuItem = new ToolStripMenuItem();
+            stitchLinesToolStripMenuItem = new ToolStripMenuItem();
+            stitchPointsToolStripMenuItem = new ToolStripMenuItem();
+            zoomToolStripMenuItem = new ToolStripMenuItem();
+            fitToWindowToolStripMenuItem = new ToolStripMenuItem();
+            zoom50ToolStripMenuItem = new ToolStripMenuItem();
+            zoom100ToolStripMenuItem = new ToolStripMenuItem();
+            zoom200ToolStripMenuItem = new ToolStripMenuItem();
             statusStrip = new StatusStrip();
             fileNameLabel = new ToolStripStatusLabel();
             stitchCountLabel = new ToolStripStatusLabel();
@@ -36,7 +46,7 @@ namespace EmbroideryCommunicator
             // menuStrip
             // 
             menuStrip.ImageScalingSize = new Size(20, 20);
-            menuStrip.Items.AddRange(new ToolStripItem[] { fileToolStripMenuItem });
+            menuStrip.Items.AddRange(new ToolStripItem[] { fileToolStripMenuItem, viewToolStripMenuItem, zoomToolStripMenuItem });
             menuStrip.Location = new Point(0, 0);
             menuStrip.Name = "menuStrip";
             menuStrip.Padding = new Padding(7, 3, 0, 3);
@@ -79,6 +89,87 @@ namespace EmbroideryCommunicator
             exitToolStripMenuItem.Text = "E&xit";
             exitToolStripMenuItem.Click += exitToolStripMenuItem_Click;
             // 
+            // viewToolStripMenuItem
+            // 
+            viewToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { previewImageToolStripMenuItem, jumpsToolStripMenuItem, stitchLinesToolStripMenuItem, stitchPointsToolStripMenuItem });
+            viewToolStripMenuItem.Name = "viewToolStripMenuItem";
+            viewToolStripMenuItem.Size = new Size(55, 24);
+            viewToolStripMenuItem.Text = "&View";
+            // 
+            // previewImageToolStripMenuItem
+            // 
+            previewImageToolStripMenuItem.CheckOnClick = true;
+            previewImageToolStripMenuItem.Name = "previewImageToolStripMenuItem";
+            previewImageToolStripMenuItem.Size = new Size(195, 26);
+            previewImageToolStripMenuItem.Text = "&Preview Image";
+            previewImageToolStripMenuItem.Click += previewImageToolStripMenuItem_Click;
+            // 
+            // jumpsToolStripMenuItem
+            // 
+            jumpsToolStripMenuItem.Checked = true;
+            jumpsToolStripMenuItem.CheckOnClick = true;
+            jumpsToolStripMenuItem.CheckState = CheckState.Checked;
+            jumpsToolStripMenuItem.Name = "jumpsToolStripMenuItem";
+            jumpsToolStripMenuItem.Size = new Size(195, 26);
+            jumpsToolStripMenuItem.Text = "&Jumps";
+            jumpsToolStripMenuItem.Click += jumpsToolStripMenuItem_Click;
+            // 
+            // stitchLinesToolStripMenuItem
+            // 
+            stitchLinesToolStripMenuItem.Checked = true;
+            stitchLinesToolStripMenuItem.CheckOnClick = true;
+            stitchLinesToolStripMenuItem.CheckState = CheckState.Checked;
+            stitchLinesToolStripMenuItem.Name = "stitchLinesToolStripMenuItem";
+            stitchLinesToolStripMenuItem.Size = new Size(195, 26);
+            stitchLinesToolStripMenuItem.Text = "Stitch &Lines";
+            stitchLinesToolStripMenuItem.Click += stitchLinesToolStripMenuItem_Click;
+            // 
+            // stitchPointsToolStripMenuItem
+            // 
+            stitchPointsToolStripMenuItem.CheckOnClick = true;
+            stitchPointsToolStripMenuItem.Name = "stitchPointsToolStripMenuItem";
+            stitchPointsToolStripMenuItem.Size = new Size(195, 26);
+            stitchPointsToolStripMenuItem.Text = "Stitch &Points";
+            stitchPointsToolStripMenuItem.Click += stitchPointsToolStripMenuItem_Click;
+            // 
+            // zoomToolStripMenuItem
+            // 
+            zoomToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { fitToWindowToolStripMenuItem, zoom50ToolStripMenuItem, zoom100ToolStripMenuItem, zoom200ToolStripMenuItem });
+            zoomToolStripMenuItem.Name = "zoomToolStripMenuItem";
+            zoomToolStripMenuItem.Size = new Size(61, 24);
+            zoomToolStripMenuItem.Text = "&Zoom";
+            // 
+            // fitToWindowToolStripMenuItem
+            // 
+            fitToWindowToolStripMenuItem.Name = "fitToWindowToolStripMenuItem";
+            fitToWindowToolStripMenuItem.ShortcutKeys = Keys.Control | Keys.D0;
+            fitToWindowToolStripMenuItem.Size = new Size(229, 26);
+            fitToWindowToolStripMenuItem.Text = "&Fit to Window";
+            fitToWindowToolStripMenuItem.Click += fitToWindowToolStripMenuItem_Click;
+            // 
+            // zoom50ToolStripMenuItem
+            // 
+            zoom50ToolStripMenuItem.Name = "zoom50ToolStripMenuItem";
+            zoom50ToolStripMenuItem.Size = new Size(229, 26);
+            zoom50ToolStripMenuItem.Text = "50%";
+            zoom50ToolStripMenuItem.Click += zoom50ToolStripMenuItem_Click;
+            // 
+            // zoom100ToolStripMenuItem
+            // 
+            zoom100ToolStripMenuItem.Name = "zoom100ToolStripMenuItem";
+            zoom100ToolStripMenuItem.ShortcutKeys = Keys.Control | Keys.D1;
+            zoom100ToolStripMenuItem.Size = new Size(229, 26);
+            zoom100ToolStripMenuItem.Text = "100%";
+            zoom100ToolStripMenuItem.Click += zoom100ToolStripMenuItem_Click;
+            // 
+            // zoom200ToolStripMenuItem
+            // 
+            zoom200ToolStripMenuItem.Name = "zoom200ToolStripMenuItem";
+            zoom200ToolStripMenuItem.ShortcutKeys = Keys.Control | Keys.D2;
+            zoom200ToolStripMenuItem.Size = new Size(229, 26);
+            zoom200ToolStripMenuItem.Text = "200%";
+            zoom200ToolStripMenuItem.Click += zoom200ToolStripMenuItem_Click;
+            // 
             // statusStrip
             // 
             statusStrip.ImageScalingSize = new Size(20, 20);
@@ -116,6 +207,7 @@ namespace EmbroideryCommunicator
             // 
             // renderPanel
             // 
+            renderPanel.AutoScroll = true;
             renderPanel.BackColor = Color.White;
             renderPanel.BorderStyle = BorderStyle.FixedSingle;
             renderPanel.Dock = DockStyle.Fill;
@@ -176,5 +268,15 @@ namespace EmbroideryCommunicator
         private ToolStripStatusLabel dimensionsLabel;
         private Panel renderPanel;
         private TrackBar trackBar;
+        private ToolStripMenuItem viewToolStripMenuItem;
+        private ToolStripMenuItem previewImageToolStripMenuItem;
+        private ToolStripMenuItem jumpsToolStripMenuItem;
+        private ToolStripMenuItem stitchLinesToolStripMenuItem;
+        private ToolStripMenuItem stitchPointsToolStripMenuItem;
+        private ToolStripMenuItem zoomToolStripMenuItem;
+        private ToolStripMenuItem fitToWindowToolStripMenuItem;
+        private ToolStripMenuItem zoom50ToolStripMenuItem;
+        private ToolStripMenuItem zoom100ToolStripMenuItem;
+        private ToolStripMenuItem zoom200ToolStripMenuItem;
     }
 }
