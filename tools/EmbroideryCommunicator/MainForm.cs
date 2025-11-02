@@ -1260,6 +1260,51 @@ namespace EmbroideryCommunicator
         }
 
         /// <summary>
+        /// Prints debug information about a downloaded embroidery file to the debug output.
+        /// Outputs extra data and preview data in hexadecimal format.
+        /// </summary>
+        /// <param name="file">The embroidery file to print debug info for</param>
+        private void PrintFileDebugInfo(EmbroideryFile file)
+        {
+            if (file == null)
+            {
+                return;
+            }
+
+            var debugMessages = new System.Text.StringBuilder();
+            debugMessages.AppendLine($"=== Debug Info for File: {file.FileName} ===");
+
+            // Print extra data if present
+            if (file.FileExtraData != null && file.FileExtraData.Length > 0)
+            {
+                debugMessages.AppendLine($"Extra Data Length: {file.FileExtraData.Length} bytes");
+                debugMessages.Append("Extra Data (Hex): ");
+                debugMessages.AppendLine(BitConverter.ToString(file.FileExtraData).Replace("-", " "));
+            }
+            else
+            {
+                debugMessages.AppendLine("Extra Data: None");
+            }
+
+            // Print preview data if present
+            if (file.PreviewImageData != null && file.PreviewImageData.Length > 0)
+            {
+                debugMessages.AppendLine($"Preview Data Length: {file.PreviewImageData.Length} bytes");
+                debugMessages.Append("Preview Data (Hex): ");
+                debugMessages.AppendLine(BitConverter.ToString(file.PreviewImageData).Replace("-", " "));
+            }
+            else
+            {
+                debugMessages.AppendLine("Preview Data: None");
+            }
+
+            debugMessages.AppendLine("=====================================");
+
+            // Send debug message via the event system
+            OnDebugMessage(this, new DebugMessageEventArgs { Message = debugMessages.ToString() });
+        }
+
+        /// <summary>
         /// Updates the local file lists and UI after a file has been deleted.
         /// Removes the deleted file from the list and decrements FileId for all subsequent files.
         /// Refreshes all EmbroideryFileControl instances to reflect the changes.
@@ -1465,6 +1510,30 @@ namespace EmbroideryCommunicator
                     return;
                 }
 
+                // Populate preview data and other metadata from the already-loaded file controls
+                List<EmbroideryFileControl>? sourceControls = location == StorageLocation.EmbroideryModuleMemory
+                    ? _embroideryFileControls
+                    : _pcCardFileControls;
+
+                if (sourceControls != null)
+                {
+                    foreach (var control in sourceControls)
+                    {
+                        var cachedFile = control.GetEmbroideryFile();
+                        if (cachedFile != null && cachedFile.FileId == embroideryFile.FileId)
+                        {
+                            // Copy preview data and other metadata from the cached file
+                            downloadedFile.PreviewImageData = cachedFile.PreviewImageData;
+                            downloadedFile.FileName = cachedFile.FileName;
+                            downloadedFile.FileAttributes = cachedFile.FileAttributes;
+                            break;
+                        }
+                    }
+                }
+
+                // Print debug information about the downloaded file
+                PrintFileDebugInfo(downloadedFile);
+
                 // Open or focus the embroidery viewer form
                 if (_embroideryViewerForm == null || _embroideryViewerForm.IsDisposed)
                 {
@@ -1561,6 +1630,30 @@ namespace EmbroideryCommunicator
                         }
                         return;
                     }
+
+                    // Populate preview data and other metadata from the already-loaded file controls
+                    List<EmbroideryFileControl>? sourceControls = location == StorageLocation.EmbroideryModuleMemory
+                        ? _embroideryFileControls
+                        : _pcCardFileControls;
+
+                    if (sourceControls != null)
+                    {
+                        foreach (var control in sourceControls)
+                        {
+                            var cachedFile = control.GetEmbroideryFile();
+                            if (cachedFile != null && cachedFile.FileId == embroideryFile.FileId)
+                            {
+                                // Copy preview data and other metadata from the cached file
+                                downloadedFile.PreviewImageData = cachedFile.PreviewImageData;
+                                downloadedFile.FileName = cachedFile.FileName;
+                                downloadedFile.FileAttributes = cachedFile.FileAttributes;
+                                break;
+                            }
+                        }
+                    }
+
+                    // Print debug information about the downloaded file
+                    PrintFileDebugInfo(downloadedFile);
 
                     // Save the file data to disk
                     File.WriteAllBytes(saveDialog.FileName, downloadedFile.FileData);
