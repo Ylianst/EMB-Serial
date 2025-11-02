@@ -19,6 +19,9 @@ namespace EmbroideryCommunicator
             userPictureBox = new PictureBox();
             alphabetPictureBox = new PictureBox();
             lockPictureBox = new PictureBox();
+            toolStripMenuItem1 = new ToolStripSeparator();
+            deleteToolStripMenuItem = new ToolStripMenuItem();
+            toolStripMenuItem2 = new ToolStripSeparator();
             ((System.ComponentModel.ISupportInitialize)pbPreview).BeginInit();
             contextMenuStrip.SuspendLayout();
             attributesPanel.SuspendLayout();
@@ -43,16 +46,16 @@ namespace EmbroideryCommunicator
             // contextMenuStrip
             // 
             contextMenuStrip.ImageScalingSize = new Size(20, 20);
-            contextMenuStrip.Items.AddRange(new ToolStripItem[] { detailsToolStripMenuItem, viewToolStripMenuItem, downloadToolStripMenuItem });
+            contextMenuStrip.Items.AddRange(new ToolStripItem[] { detailsToolStripMenuItem, toolStripMenuItem2, viewToolStripMenuItem, downloadToolStripMenuItem, toolStripMenuItem1, deleteToolStripMenuItem });
             contextMenuStrip.Name = "contextMenuStrip";
-            contextMenuStrip.Size = new Size(157, 76);
+            contextMenuStrip.Size = new Size(211, 140);
             contextMenuStrip.Opening += contextMenuStrip_Opening;
             // 
             // detailsToolStripMenuItem
             // 
             detailsToolStripMenuItem.Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
             detailsToolStripMenuItem.Name = "detailsToolStripMenuItem";
-            detailsToolStripMenuItem.Size = new Size(156, 24);
+            detailsToolStripMenuItem.Size = new Size(210, 24);
             detailsToolStripMenuItem.Text = "&Details...";
             detailsToolStripMenuItem.Click += detailsToolStripMenuItem_Click;
             // 
@@ -60,7 +63,7 @@ namespace EmbroideryCommunicator
             // 
             viewToolStripMenuItem.Enabled = false;
             viewToolStripMenuItem.Name = "viewToolStripMenuItem";
-            viewToolStripMenuItem.Size = new Size(156, 24);
+            viewToolStripMenuItem.Size = new Size(210, 24);
             viewToolStripMenuItem.Text = "&View...";
             viewToolStripMenuItem.Click += viewToolStripMenuItem_Click;
             // 
@@ -68,7 +71,7 @@ namespace EmbroideryCommunicator
             // 
             downloadToolStripMenuItem.Enabled = false;
             downloadToolStripMenuItem.Name = "downloadToolStripMenuItem";
-            downloadToolStripMenuItem.Size = new Size(156, 24);
+            downloadToolStripMenuItem.Size = new Size(210, 24);
             downloadToolStripMenuItem.Text = "D&ownload...";
             downloadToolStripMenuItem.Click += downloadToolStripMenuItem_Click;
             // 
@@ -145,6 +148,24 @@ namespace EmbroideryCommunicator
             lockPictureBox.TabStop = false;
             lockPictureBox.Visible = false;
             // 
+            // toolStripMenuItem1
+            // 
+            toolStripMenuItem1.Name = "toolStripMenuItem1";
+            toolStripMenuItem1.Size = new Size(207, 6);
+            // 
+            // deleteToolStripMenuItem
+            // 
+            deleteToolStripMenuItem.Enabled = false;
+            deleteToolStripMenuItem.Name = "deleteToolStripMenuItem";
+            deleteToolStripMenuItem.Size = new Size(210, 24);
+            deleteToolStripMenuItem.Text = "Delete";
+            deleteToolStripMenuItem.Click += deleteToolStripMenuItem_Click;
+            // 
+            // toolStripMenuItem2
+            // 
+            toolStripMenuItem2.Name = "toolStripMenuItem2";
+            toolStripMenuItem2.Size = new Size(207, 6);
+            // 
             // EmbroideryFileControl
             // 
             BackColor = Color.White;
@@ -175,5 +196,8 @@ namespace EmbroideryCommunicator
         private ToolStripMenuItem detailsToolStripMenuItem;
         private ToolStripMenuItem downloadToolStripMenuItem;
         private ToolStripMenuItem viewToolStripMenuItem;
+        private ToolStripSeparator toolStripMenuItem2;
+        private ToolStripSeparator toolStripMenuItem1;
+        private ToolStripMenuItem deleteToolStripMenuItem;
     }
 }

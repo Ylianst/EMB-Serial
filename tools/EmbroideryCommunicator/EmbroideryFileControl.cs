@@ -75,6 +75,14 @@ namespace EmbroideryCommunicator
             UpdateUI();
         }
 
+        /// <summary>
+        /// Gets the embroidery file associated with this control
+        /// </summary>
+        public EmbroideryFile? GetEmbroideryFile()
+        {
+            return _embroideryFile;
+        }
+
         private void EmbroideryFileControl_MouseDown(object? sender, MouseEventArgs e)
         {
             // On right-click, select the control before showing context menu
@@ -148,10 +156,10 @@ namespace EmbroideryCommunicator
             {
                 // Set the Tag to indicate the storage location for download/view buttons
                 detailsDialog.Tag = location;
-                
+
                 // Set the owner to the parent form for proper dialog behavior
                 detailsDialog.Owner = this.FindForm();
-                
+
                 detailsDialog.ShowDialog();
             }
         }
@@ -289,6 +297,7 @@ namespace EmbroideryCommunicator
         private void contextMenuStrip_Opening(object sender, System.ComponentModel.CancelEventArgs e)
         {
             downloadToolStripMenuItem.Enabled = viewToolStripMenuItem.Enabled = (_embroideryFile != null) && (_embroideryFile.FileAttributes & 0x08) == 0;
+            deleteToolStripMenuItem.Enabled = (_embroideryFile != null) && (_embroideryFile.FileAttributes & 0x20) == 0;
         }
         private async void downloadToolStripMenuItem_Click(object sender, EventArgs e)
         {
@@ -357,6 +366,41 @@ namespace EmbroideryCommunicator
             else
             {
                 MessageBox.Show("Cannot access parent form", "View Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private async void deleteToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            if (_embroideryFile == null)
+            {
+                MessageBox.Show("No file data available", "Delete Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            // Find the parent MainForm
+            if (this.FindForm() is MainForm mainForm)
+            {
+                // Determine storage location (check if this file control is in PC Card tab)
+                StorageLocation location = StorageLocation.EmbroideryModuleMemory;
+
+                // Check if this control's parent hierarchy contains the PC Card flow layout panel
+                Control? parent = this.Parent;
+                while (parent != null)
+                {
+                    if (parent.Name == "flowLayoutPanelPcCards")
+                    {
+                        location = StorageLocation.PCCard;
+                        break;
+                    }
+                    parent = parent.Parent;
+                }
+
+                // Call the MainForm's delete method
+                await mainForm.DeleteEmbroideryFileAsync(_embroideryFile, location);
+            }
+            else
+            {
+                MessageBox.Show("Cannot access parent form", "Delete Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
     }

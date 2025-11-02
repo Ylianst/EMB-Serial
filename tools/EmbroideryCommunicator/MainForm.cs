@@ -1259,6 +1259,79 @@ namespace EmbroideryCommunicator
             }
         }
 
+        /// <summary>
+        /// Updates the local file lists and UI after a file has been deleted.
+        /// Removes the deleted file from the list and decrements FileId for all subsequent files.
+        /// Refreshes all EmbroideryFileControl instances to reflect the changes.
+        /// </summary>
+        /// <param name="deletedFileId">The FileId of the deleted file</param>
+        /// <param name="location">Storage location (EmbroideryModuleMemory or PCCard)</param>
+        private void UpdateFileListsAfterDelete(int deletedFileId, StorageLocation location)
+        {
+            if (InvokeRequired)
+            {
+                Invoke(new Action(() => UpdateFileListsAfterDelete(deletedFileId, location)));
+                return;
+            }
+
+            // Determine which list and panel to update
+            List<EmbroideryFileControl>? fileControls = location == StorageLocation.EmbroideryModuleMemory 
+                ? _embroideryFileControls 
+                : _pcCardFileControls;
+            
+            FlowLayoutPanel? panel = location == StorageLocation.EmbroideryModuleMemory 
+                ? flowLayoutPanelFiles 
+                : flowLayoutPanelPcCards;
+
+            if (fileControls == null || panel == null)
+            {
+                return;
+            }
+
+            // Find and remove the deleted file control
+            EmbroideryFileControl? controlToRemove = null;
+            int indexToRemove = -1;
+
+            for (int i = 0; i < fileControls.Count; i++)
+            {
+                var control = fileControls[i];
+                var file = control.GetEmbroideryFile();
+                
+                if (file != null && file.FileId == deletedFileId)
+                {
+                    controlToRemove = control;
+                    indexToRemove = i;
+                    break;
+                }
+            }
+
+            if (controlToRemove != null && indexToRemove >= 0)
+            {
+                // Remove from UI
+                panel.Controls.Remove(controlToRemove);
+                controlToRemove.Dispose();
+
+                // Remove from list
+                fileControls.RemoveAt(indexToRemove);
+
+                // Update FileId for all subsequent files (decrement by 1)
+                for (int i = indexToRemove; i < fileControls.Count; i++)
+                {
+                    var control = fileControls[i];
+                    var file = control.GetEmbroideryFile();
+                    
+                    if (file != null)
+                    {
+                        // Decrement the FileId
+                        file.FileId--;
+                        
+                        // Refresh the control to reflect the new FileId
+                        control.SetEmbroideryFile(file);
+                    }
+                }
+            }
+        }
+
         private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
         {
             // Stop COM port monitoring
@@ -1503,6 +1576,89 @@ namespace EmbroideryCommunicator
                     MessageBox.Show($"Error downloading file: {ex.Message}", "Download Error",
                         MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
+            }
+        }
+
+        /// <summary>
+        /// Deletes an embroidery file from the machine after user confirmation.
+        /// Shows a warning dialog before deleting and refreshes the UI after successful deletion.
+        /// </summary>
+        /// <param name="embroideryFile">The embroidery file to delete (must have FileId and FileName set)</param>
+        /// <param name="location">Storage location (EmbroideryModuleMemory or PCCard)</param>
+        public async Task DeleteEmbroideryFileAsync(EmbroideryFile embroideryFile, StorageLocation location)
+        {
+            if (_serialStack == null || !_isConnected)
+            {
+                MessageBox.Show("Not connected to machine", "Delete Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            if (embroideryFile == null)
+            {
+                MessageBox.Show("No file data available", "Delete Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            // Check if the machine is currently busy
+            if (_serialStack.IsBusy)
+            {
+                MessageBox.Show("Machine is currently busy with another operation. Please wait for the current operation to complete.", 
+                    "Machine Busy", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            // Show confirmation dialog with warning icon
+            string locationName = location == StorageLocation.EmbroideryModuleMemory ? "Embroidery Module Memory" : "PC Card";
+            DialogResult result = MessageBox.Show(
+                $"Are you sure you want to permanently delete '{embroideryFile.FileName}' from {locationName}?\n\nThis operation cannot be undone.",
+                "Confirm Delete",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Warning,
+                MessageBoxDefaultButton.Button2);
+
+            if (result != DialogResult.Yes)
+            {
+                return;
+            }
+
+            try
+            {
+                // Show progress
+                UpdateStatus($"Deleting {embroideryFile.FileName}...");
+
+                // Delete the file from the machine
+                bool success = await _serialStack.DeleteEmbroideryFileAsync(location, embroideryFile.FileId);
+
+                if (success)
+                {
+                    UpdateStatus($"Deleted {embroideryFile.FileName}");
+                    MessageBox.Show($"File '{embroideryFile.FileName}' deleted successfully.", "Delete Complete",
+                        MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                    // Update local file lists and UI after successful deletion
+                    UpdateFileListsAfterDelete(embroideryFile.FileId, location);
+                }
+                else
+                {
+                    // Check if the failure was due to busy state
+                    if (_serialStack.IsBusy)
+                    {
+                        MessageBox.Show("Machine is currently busy with another operation. Please wait for the current operation to complete.", 
+                            "Machine Busy", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
+                    else
+                    {
+                        MessageBox.Show("Failed to delete file from machine", "Delete Error", 
+                            MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                    UpdateStatus("Delete failed");
+                }
+            }
+            catch (Exception ex)
+            {
+                UpdateStatus("Delete error");
+                MessageBox.Show($"Error deleting file: {ex.Message}", "Delete Error",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
     }

@@ -1,11 +1,7 @@
-using System;
-using System.Collections.Concurrent;
-using System.IO;
-using System.IO.Compression;
-using System.IO.Ports;
 using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
+using System.IO.Ports;
+using System.IO.Compression;
+using System.Collections.Concurrent;
 
 namespace EmbroideryCommunicator
 {
@@ -2658,8 +2654,9 @@ namespace EmbroideryCommunicator
         /// The machine responds with 0x0002 or 0x0000 in the first two bytes when the function completes.
         /// </summary>
         /// <param name="functionId">The function ID to invoke (16-bit value)</param>
+        /// <param name="delayMs">Optional delay in milliseconds between writing the function and reading back the status (default: 0)</param>
         /// <returns>CommandResult indicating success or failure</returns>
-        public async Task<CommandResult> InvokeFunctionAsync(ushort functionId)
+        public async Task<CommandResult> InvokeFunctionAsync(ushort functionId, int delayMs = 0)
         {
             // Check connection status
             if (State != ConnectionState.Connected)
@@ -2688,6 +2685,12 @@ namespace EmbroideryCommunicator
                         Success = false,
                         ErrorMessage = $"Failed to write function ID to 0xFFFED0: {writeResult.ErrorMessage}"
                     };
+                }
+
+                // Optional delay between write and read
+                if (delayMs > 0)
+                {
+                    await Task.Delay(delayMs);
                 }
 
                 // Read back from 0xFFFED0 and check the first two bytes
@@ -3954,6 +3957,185 @@ namespace EmbroideryCommunicator
                     return false;
                 }
             });
+        }
+
+        /// <summary>
+        /// Deletes an embroidery file from the specified storage location.
+        /// This operation permanently removes the file from the machine's memory.
+        /// </summary>
+        /// <param name="location">Storage location (EmbroideryModuleMemory or PCCard)</param>
+        /// <param name="FileId">The file ID (0-based) to delete</param>
+        /// <returns>True if deletion succeeded, false otherwise</returns>
+        public async Task<bool> DeleteEmbroideryFileAsync(StorageLocation location, int FileId)
+        {
+            RaiseDebugMessage($"DeleteEmbroideryFile: Starting delete for FileId {FileId} from {location}");
+            
+            // Step 1: Check connection
+            if (State != ConnectionState.Connected)
+            {
+                RaiseDebugMessage("DeleteEmbroideryFile: Not connected");
+                return false;
+            }
+
+            // Step 2: Check if already busy
+            if (IsBusy)
+            {
+                RaiseDebugMessage("DeleteEmbroideryFile: Already busy with another operation");
+                return false;
+            }
+
+            SetBusyState(true, "Deleting embroidery file");
+
+            bool sessionStarted = false;
+
+            try
+            {
+                // Step 3: Ensure we're in Embroidery Mode
+                RaiseDebugMessage("DeleteEmbroideryFile: Checking current session mode");
+                var currentMode = await GetCurrentSessionModeAsync();
+                if (currentMode == null)
+                {
+                    RaiseDebugMessage("DeleteEmbroideryFile: Failed to get session mode");
+                    return false;
+                }
+                RaiseDebugMessage($"DeleteEmbroideryFile: Current mode is {currentMode}");
+
+                // If in Sewing Machine mode, start embroidery session
+                if (currentMode == SessionMode.SewingMachine)
+                {
+                    RaiseDebugMessage("DeleteEmbroideryFile: In Sewing Machine mode, starting embroidery session");
+                    var sessionStartResult = await SessionStartAsync();
+                    if (!sessionStartResult.Success)
+                    {
+                        RaiseDebugMessage($"DeleteEmbroideryFile: Session start failed: {sessionStartResult.ErrorMessage}");
+                        return false;
+                    }
+                    sessionStarted = true;
+                    RaiseDebugMessage("DeleteEmbroideryFile: Session start successful");
+                }
+                else
+                {
+                    RaiseDebugMessage("DeleteEmbroideryFile: Already in Embroidery Module mode");
+                    sessionStarted = true;
+                }
+
+                // Step 4: Check PC Card if deleting from PC Card
+                if (location == StorageLocation.PCCard)
+                {
+                    RaiseDebugMessage("DeleteEmbroideryFile: Checking PC card status");
+                    var pcCardReadResult = await ReadAsync(0xFFFED9);
+                    
+                    if (pcCardReadResult.Success && pcCardReadResult.BinaryData != null && pcCardReadResult.BinaryData.Length > 0)
+                    {
+                        bool pcCardInserted = (pcCardReadResult.BinaryData[0] & 0x01) == 0x01;
+                        RaiseDebugMessage($"DeleteEmbroideryFile: PC card inserted: {pcCardInserted}");
+                        if (!pcCardInserted)
+                        {
+                            RaiseDebugMessage("DeleteEmbroideryFile: No PC card present");
+                            return false;
+                        }
+                    }
+                    else
+                    {
+                        RaiseDebugMessage("DeleteEmbroideryFile: Failed to read PC card status");
+                        return false;
+                    }
+                }
+
+                // Step 5: Reset the protocol
+                RaiseDebugMessage("DeleteEmbroideryFile: Resetting protocol");
+                await ProtocolResetAsync();
+
+                // Step 6: Select storage source
+                ushort storageFunction = location == StorageLocation.EmbroideryModuleMemory ? (ushort)0x00A1 : (ushort)0x0051;
+                RaiseDebugMessage($"DeleteEmbroideryFile: Selecting storage source with function 0x{storageFunction:X4}");
+                var selectStorageResult = await InvokeFunctionAsync(storageFunction);
+                if (!selectStorageResult.Success)
+                {
+                    RaiseDebugMessage($"DeleteEmbroideryFile: Failed to select storage source: {selectStorageResult.ErrorMessage}");
+                    return false;
+                }
+                RaiseDebugMessage("DeleteEmbroideryFile: Storage source selected successfully");
+
+                // Step 7: Invoke method 0x0041
+                RaiseDebugMessage("DeleteEmbroideryFile: Invoking function 0x0041");
+                var invokeFunc41Result = await InvokeFunctionAsync(0x0041);
+                if (!invokeFunc41Result.Success)
+                {
+                    RaiseDebugMessage($"DeleteEmbroideryFile: Failed to invoke function 0x0041: {invokeFunc41Result.ErrorMessage}");
+                    return false;
+                }
+                RaiseDebugMessage("DeleteEmbroideryFile: Function 0x0041 invoked successfully");
+
+                // Step 8: Set argument 2 (FileId + 1)
+                RaiseDebugMessage($"DeleteEmbroideryFile: Setting argument 2 to {FileId + 1} (FileId {FileId} + 1)");
+                var setArg2Result = await SetArgument2Async((byte)(FileId + 1));
+                if (!setArg2Result.Success)
+                {
+                    RaiseDebugMessage($"DeleteEmbroideryFile: Failed to set argument 2: {setArg2Result.ErrorMessage}");
+                    return false;
+                }
+                RaiseDebugMessage("DeleteEmbroideryFile: Argument 2 set successfully");
+
+                // Step 9: Set argument 1 to 0x01
+                RaiseDebugMessage("DeleteEmbroideryFile: Setting argument 1 to 0x01");
+                var setArg1Result = await SetArgument1Async(0x01);
+                if (!setArg1Result.Success)
+                {
+                    RaiseDebugMessage($"DeleteEmbroideryFile: Failed to set argument 1: {setArg1Result.ErrorMessage}");
+                    return false;
+                }
+                RaiseDebugMessage("DeleteEmbroideryFile: Argument 1 set successfully");
+
+                // Step 10: Invoke method 0x0801 - This performs the delete. Wait an extra 4 seconds for the operation to complete.
+                RaiseDebugMessage("DeleteEmbroideryFile: Invoking delete function 0x0801");
+                var invokeFunc801Result = await InvokeFunctionAsync(0x0801, 4000);
+                if (!invokeFunc801Result.Success)
+                {
+                    RaiseDebugMessage($"DeleteEmbroideryFile: Failed to invoke delete function 0x0801: {invokeFunc801Result.ErrorMessage}");
+                    return false;
+                }
+                RaiseDebugMessage("DeleteEmbroideryFile: Delete function 0x0801 invoked successfully - file deleted");
+
+                // Step 11: Invoke function 0x0101 for cleanup
+                RaiseDebugMessage("DeleteEmbroideryFile: Invoking cleanup function 0x0101");
+                var invokeFunc101Result = await InvokeFunctionAsync(0x0101);
+                if (!invokeFunc101Result.Success)
+                {
+                    RaiseDebugMessage($"DeleteEmbroideryFile: Warning - Failed to invoke cleanup function 0x0101: {invokeFunc101Result.ErrorMessage}");
+                    // Continue anyway - the delete operation was successful
+                }
+
+                RaiseDebugMessage("DeleteEmbroideryFile: Delete operation completed successfully");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                RaiseDebugMessage($"DeleteEmbroideryFile: Exception occurred: {ex.Message}");
+                return false;
+            }
+            finally
+            {
+                // Always attempt to close embroidery session if we started it
+                if (sessionStarted)
+                {
+                    RaiseDebugMessage("DeleteEmbroideryFile: Ending embroidery session");
+                    try
+                    {
+                        var sessionEndResult = await SessionEndAsync();
+                        if (!sessionEndResult.Success)
+                        {
+                            RaiseDebugMessage($"DeleteEmbroideryFile: Warning - Session end failed: {sessionEndResult.ErrorMessage}");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        RaiseDebugMessage($"DeleteEmbroideryFile: Warning - Exception during session end: {ex.Message}");
+                    }
+                }
+
+                SetBusyState(false);
+            }
         }
 
         public void Dispose()

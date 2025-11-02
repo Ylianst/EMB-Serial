@@ -22,6 +22,7 @@ namespace EmbroideryCommunicator
             btnOK = new Button();
             viewButton = new Button();
             downloadButton = new Button();
+            deleteButton = new Button();
             ((System.ComponentModel.ISupportInitialize)pbPreview).BeginInit();
             SuspendLayout();
             // 
@@ -60,14 +61,14 @@ namespace EmbroideryCommunicator
             lblAttributeDetails.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             lblAttributeDetails.Location = new Point(191, 62);
             lblAttributeDetails.Name = "lblAttributeDetails";
-            lblAttributeDetails.Size = new Size(254, 139);
+            lblAttributeDetails.Size = new Size(263, 139);
             lblAttributeDetails.TabIndex = 4;
             lblAttributeDetails.Text = "File Attributes:\r\n  • None";
             // 
             // btnOK
             // 
             btnOK.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
-            btnOK.Location = new Point(339, 204);
+            btnOK.Location = new Point(348, 204);
             btnOK.Margin = new Padding(3, 4, 3, 4);
             btnOK.Name = "btnOK";
             btnOK.Size = new Size(106, 31);
@@ -79,7 +80,7 @@ namespace EmbroideryCommunicator
             // viewButton
             // 
             viewButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
-            viewButton.Location = new Point(115, 204);
+            viewButton.Location = new Point(124, 204);
             viewButton.Margin = new Padding(3, 4, 3, 4);
             viewButton.Name = "viewButton";
             viewButton.Size = new Size(106, 31);
@@ -91,7 +92,7 @@ namespace EmbroideryCommunicator
             // downloadButton
             // 
             downloadButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
-            downloadButton.Location = new Point(227, 205);
+            downloadButton.Location = new Point(236, 205);
             downloadButton.Margin = new Padding(3, 4, 3, 4);
             downloadButton.Name = "downloadButton";
             downloadButton.Size = new Size(106, 31);
@@ -100,12 +101,25 @@ namespace EmbroideryCommunicator
             downloadButton.UseVisualStyleBackColor = true;
             downloadButton.Click += downloadButton_Click;
             // 
+            // deleteButton
+            // 
+            deleteButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
+            deleteButton.Location = new Point(12, 205);
+            deleteButton.Margin = new Padding(3, 4, 3, 4);
+            deleteButton.Name = "deleteButton";
+            deleteButton.Size = new Size(106, 31);
+            deleteButton.TabIndex = 8;
+            deleteButton.Text = "Delete";
+            deleteButton.UseVisualStyleBackColor = true;
+            deleteButton.Click += deleteButton_Click;
+            // 
             // EmbroideryFileDetailsDialog
             // 
             AutoScaleDimensions = new SizeF(8F, 20F);
             AutoScaleMode = AutoScaleMode.Font;
             CancelButton = btnOK;
-            ClientSize = new Size(457, 248);
+            ClientSize = new Size(466, 248);
+            Controls.Add(deleteButton);
             Controls.Add(downloadButton);
             Controls.Add(viewButton);
             Controls.Add(pbPreview);
@@ -132,5 +146,6 @@ namespace EmbroideryCommunicator
         private Button btnOK = null!;
         private Button viewButton;
         private Button downloadButton;
+        private Button deleteButton;
     }
 }
