@@ -15,7 +15,13 @@
     <Copyright>Copyright© 2025, Apache 2.0 License</Copyright>
     <Version>0.1.0.0</Version>
     <FileVersion>0.1.0.0</FileVersion>
+    <StartupObject>EmbroideryCommunicator.Program</StartupObject>
+    <ApplicationIcon>SewingMachine.ico</ApplicationIcon>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Content Include="SewingMachine.ico" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="System.IO.Ports" Version="8.0.0" />

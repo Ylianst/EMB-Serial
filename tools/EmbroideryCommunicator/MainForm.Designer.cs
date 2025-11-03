@@ -217,7 +217,7 @@
             // toolStripStatusLabel
             // 
             toolStripStatusLabel.Name = "toolStripStatusLabel";
-            toolStripStatusLabel.Size = new Size(527, 20);
+            toolStripStatusLabel.Size = new Size(686, 20);
             toolStripStatusLabel.Spring = true;
             toolStripStatusLabel.Text = "Ready";
             toolStripStatusLabel.TextAlign = ContentAlignment.MiddleLeft;
@@ -440,6 +440,7 @@
             Controls.Add(mainPanel);
             Controls.Add(menuStrip);
             Controls.Add(statusStrip);
+            Icon = (Icon)resources.GetObject("$this.Icon");
             MainMenuStrip = menuStrip;
             Margin = new Padding(3, 4, 3, 4);
             MinimumSize = new Size(880, 675);

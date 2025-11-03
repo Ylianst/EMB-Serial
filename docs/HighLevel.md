@@ -6,6 +6,8 @@ The machine uses the EXP format internally:
 https://www.appropedia.org/EXP_Embroidery_File_Format
 https://edutechwiki.unige.ch/en/Embroidery_format_EXP
 
+I noticed that the EXP files normally end with 0x8081 which is code to "Stop". If a EXP file does not end with this, the software will add it at the end of the file before uploading to the machine. It will then remove the ending 0x8081 when downloading and saving the file. We probably want to make sure the 0x8081 is present when updating to the machine.
+
 ## List Files in Internal Memory
 
 This sequence is performed when you first enter the software and reads the BIOS version and the name of all of the embroidery files. It will read both read-only and read/write files. The user will then be presented with a list of file that they can preview or download. The preview and download flows will be covered later.
@@ -434,6 +436,11 @@ We write the file data at (0x028F40 + 8) that 4406 bytes
 We write 8 zero bytes at 0x024500
 We write the preview data at 0x024508
 
+There are 3 mistery values.
+  - The first 2 bytes right at the start of the first write.
+  - The write value to 0x02409D, sometimes it's 0x00 to 0x04?
+  - Twe write value to 0x0240D5. Looks like a size of some kind.
+
 WFFFED00011? --> Write 0011 to FFFED0           (Gets the machine ready for an upload)
 RFFFED0 -->
    ASCII: .....@..........................
@@ -545,7 +552,7 @@ Completed writing the preview image
 
 W02409D01? --> Write 01 to 02409D
 W0240B9A4? --> Write A4 to 0240B9
-W0240D53131000000000000000000000000000000000000000000000000000000000000? --> Write 3131000000000000000000000000000000000000000000000000000000000000 to 0240D5
+W0240D5 3131000000000000000000000000000000000000000000000000000000000000? --> Write 3131000000000000000000000000000000000000000000000000000000000000 to 0240D5
 
 WFFFED00201? --> Write 0201 to FFFED0    (Write the new file)
 RFFFED0 -->

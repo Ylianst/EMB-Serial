@@ -28,6 +28,7 @@
         /// </summary>
         private void InitializeComponent()
         {
+            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(SerialCaptureForm));
             menuStrip = new MenuStrip();
             menuPorts = new ToolStripMenuItem();
             menuSoftwarePort = new ToolStripMenuItem();
@@ -48,6 +49,7 @@
             statusStrip1 = new StatusStrip();
             toolStripStatusLabel = new ToolStripStatusLabel();
             topPanel = new Panel();
+            clearButton = new Button();
             menuStrip.SuspendLayout();
             statusStrip1.SuspendLayout();
             topPanel.SuspendLayout();
@@ -74,13 +76,13 @@
             // menuSoftwarePort
             // 
             menuSoftwarePort.Name = "menuSoftwarePort";
-            menuSoftwarePort.Size = new Size(224, 26);
+            menuSoftwarePort.Size = new Size(181, 26);
             menuSoftwarePort.Text = "Software Port";
             // 
             // menuMachinePort
             // 
             menuMachinePort.Name = "menuMachinePort";
-            menuMachinePort.Size = new Size(224, 26);
+            menuMachinePort.Size = new Size(181, 26);
             menuMachinePort.Text = "Machine Port";
             // 
             // menuSpeed
@@ -100,7 +102,7 @@
             // 
             menuDebugMode.CheckOnClick = true;
             menuDebugMode.Name = "menuDebugMode";
-            menuDebugMode.Size = new Size(224, 26);
+            menuDebugMode.Size = new Size(180, 26);
             menuDebugMode.Text = "Debug Mode";
             menuDebugMode.CheckedChanged += menuDebugMode_CheckedChanged;
             // 
@@ -108,19 +110,19 @@
             // 
             menuShowErrors.CheckOnClick = true;
             menuShowErrors.Name = "menuShowErrors";
-            menuShowErrors.Size = new Size(224, 26);
+            menuShowErrors.Size = new Size(180, 26);
             menuShowErrors.Text = "Show Errors";
             menuShowErrors.CheckedChanged += menuShowErrors_CheckedChanged;
             // 
             // toolStripSeparator1
             // 
             toolStripSeparator1.Name = "toolStripSeparator1";
-            toolStripSeparator1.Size = new Size(221, 6);
+            toolStripSeparator1.Size = new Size(177, 6);
             // 
             // menuSetLogFile
             // 
             menuSetLogFile.Name = "menuSetLogFile";
-            menuSetLogFile.Size = new Size(224, 26);
+            menuSetLogFile.Size = new Size(180, 26);
             menuSetLogFile.Text = "Set Log File...";
             menuSetLogFile.Click += menuSetLogFile_Click;
             // 
@@ -219,6 +221,7 @@
             // 
             // topPanel
             // 
+            topPanel.Controls.Add(clearButton);
             topPanel.Controls.Add(btnBrowseLog);
             topPanel.Controls.Add(lblLogFile);
             topPanel.Controls.Add(txtLogFile);
@@ -231,6 +234,18 @@
             topPanel.Size = new Size(859, 94);
             topPanel.TabIndex = 6;
             // 
+            // clearButton
+            // 
+            clearButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            clearButton.Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point, 0);
+            clearButton.Location = new Point(491, 49);
+            clearButton.Name = "clearButton";
+            clearButton.Size = new Size(175, 35);
+            clearButton.TabIndex = 6;
+            clearButton.Text = "Clear";
+            clearButton.UseVisualStyleBackColor = true;
+            clearButton.Click += clearButton_Click;
+            // 
             // SerialCaptureForm
             // 
             AutoScaleDimensions = new SizeF(8F, 20F);
@@ -240,6 +255,7 @@
             Controls.Add(topPanel);
             Controls.Add(statusStrip1);
             Controls.Add(menuStrip);
+            Icon = (Icon)resources.GetObject("$this.Icon");
             MainMenuStrip = menuStrip;
             MinimumSize = new Size(800, 500);
             Name = "SerialCaptureForm";
@@ -278,5 +294,6 @@
         private StatusStrip statusStrip1;
         private ToolStripStatusLabel toolStripStatusLabel;
         private Panel topPanel;
+        private Button clearButton;
     }
 }

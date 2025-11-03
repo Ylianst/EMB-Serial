@@ -15,6 +15,7 @@ namespace EmbroideryCommunicator
 
         private void InitializeComponent()
         {
+            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(DebugForm));
             menuStrip = new MenuStrip();
             fileToolStripMenuItem = new ToolStripMenuItem();
             exitToolStripMenuItem = new ToolStripMenuItem();
@@ -38,6 +39,7 @@ namespace EmbroideryCommunicator
             statusStrip = new StatusStrip();
             toolStripStatusLabel = new ToolStripStatusLabel();
             controlPanel = new Panel();
+            clearButton = new Button();
             lblReadAddress = new Label();
             txtReadAddress = new TextBox();
             btnRead = new Button();
@@ -48,7 +50,6 @@ namespace EmbroideryCommunicator
             txtWriteData = new TextBox();
             btnWrite = new Button();
             txtOutput = new TextBox();
-            clearButton = new Button();
             menuStrip.SuspendLayout();
             statusStrip.SuspendLayout();
             controlPanel.SuspendLayout();
@@ -75,7 +76,7 @@ namespace EmbroideryCommunicator
             // exitToolStripMenuItem
             // 
             exitToolStripMenuItem.Name = "exitToolStripMenuItem";
-            exitToolStripMenuItem.Size = new Size(224, 26);
+            exitToolStripMenuItem.Size = new Size(116, 26);
             exitToolStripMenuItem.Text = "E&xit";
             exitToolStripMenuItem.Click += exitToolStripMenuItem_Click;
             // 
@@ -232,6 +233,17 @@ namespace EmbroideryCommunicator
             controlPanel.Size = new Size(733, 79);
             controlPanel.TabIndex = 0;
             // 
+            // clearButton
+            // 
+            clearButton.Location = new Point(635, 6);
+            clearButton.Margin = new Padding(3, 4, 3, 4);
+            clearButton.Name = "clearButton";
+            clearButton.Size = new Size(86, 31);
+            clearButton.TabIndex = 9;
+            clearButton.Text = "Clear";
+            clearButton.UseVisualStyleBackColor = true;
+            clearButton.Click += clearOutputToolStripMenuItem_Click;
+            // 
             // lblReadAddress
             // 
             lblReadAddress.AutoSize = true;
@@ -333,17 +345,6 @@ namespace EmbroideryCommunicator
             txtOutput.TabIndex = 0;
             txtOutput.WordWrap = false;
             // 
-            // clearButton
-            // 
-            clearButton.Location = new Point(635, 6);
-            clearButton.Margin = new Padding(3, 4, 3, 4);
-            clearButton.Name = "clearButton";
-            clearButton.Size = new Size(86, 31);
-            clearButton.TabIndex = 9;
-            clearButton.Text = "Clear";
-            clearButton.UseVisualStyleBackColor = true;
-            clearButton.Click += clearOutputToolStripMenuItem_Click;
-            // 
             // DebugForm
             // 
             AutoScaleDimensions = new SizeF(8F, 20F);
@@ -353,6 +354,7 @@ namespace EmbroideryCommunicator
             Controls.Add(controlPanel);
             Controls.Add(menuStrip);
             Controls.Add(statusStrip);
+            Icon = (Icon)resources.GetObject("$this.Icon");
             MainMenuStrip = menuStrip;
             Margin = new Padding(3, 4, 3, 4);
             MinimumSize = new Size(751, 445);

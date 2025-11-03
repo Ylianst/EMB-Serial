@@ -27,6 +27,13 @@ namespace EmbroideryCommunicator
         private DateTime lastSoftwareCharTime = DateTime.Now;
         private System.Threading.Timer? commandTimeoutTimer = null;
 
+        // Inactivity detection for visual separator
+        private DateTime lastActivityTime = DateTime.Now;
+        private bool hasSeenTraffic = false;
+        private bool pauseSeparatorShown = false;
+        private System.Threading.Timer? inactivityTimer = null;
+        private readonly object activityLock = new object();
+
         // Upload command state
         private bool waitingForUploadData = false;
         private StringBuilder uploadDataBuffer = new StringBuilder();
@@ -366,6 +373,12 @@ namespace EmbroideryCommunicator
                 currentCommand = null;
                 waitingForResponse = false;
                 waitingForUploadData = false;
+                hasSeenTraffic = false;
+                pauseSeparatorShown = false;
+                lastActivityTime = DateTime.Now;
+
+                // Start inactivity monitoring timer
+                inactivityTimer = new System.Threading.Timer(CheckForInactivity, null, 1000, 1000);
 
                 // Start reader threads
                 isRunning = true;
@@ -396,6 +409,12 @@ namespace EmbroideryCommunicator
         private void StopCapture()
         {
             isRunning = false;
+
+            // Stop timers
+            inactivityTimer?.Dispose();
+            inactivityTimer = null;
+            commandTimeoutTimer?.Dispose();
+            commandTimeoutTimer = null;
 
             try
             {
@@ -582,6 +601,24 @@ namespace EmbroideryCommunicator
         private void ProcessByte(byte dataByte, string sourceName)
         {
             char c = (char)dataByte;
+
+            // Track activity for pause detection
+            lock (activityLock)
+            {
+                lastActivityTime = DateTime.Now;
+                
+                // Mark that we've seen traffic
+                if (!hasSeenTraffic)
+                {
+                    hasSeenTraffic = true;
+                }
+                
+                // Reset the separator flag when new traffic arrives
+                if (pauseSeparatorShown)
+                {
+                    pauseSeparatorShown = false;
+                }
+            }
 
             if (debugMode)
             {
@@ -836,23 +873,23 @@ namespace EmbroideryCommunicator
                     // LargeRead returns raw binary data
                     // Response format: <command_echo><256_data_bytes><'O'>
                     // Command is 1 char 'N' (not including the address which is part of data)
-                    
+
                     // Debug: log the actual details
                     WriteLog($"DEBUG: command='{command}' (len={command.Length}), machineResponseBytes.Count={machineResponseBytes.Count}");
                     WriteLog($"DEBUG: First 10 response bytes as hex: {string.Join(" ", machineResponseBytes.Take(10).Select(b => b.ToString("X2")))}");
-                    
+
                     // The command is just "N" (1 char), the address is part of the response data
                     // So we skip 1 byte for 'N', take 256 bytes, and ignore the trailing 'O'
                     int dataStart = 1; // Skip only the 'N' character
                     int dataLength = 256; // We want exactly 256 bytes
-                    
+
                     if (machineResponseBytes.Count < dataStart + dataLength + 1)
                     {
                         WriteLog($"ERROR: Not enough bytes. Expected at least {dataStart + dataLength + 1}, got {machineResponseBytes.Count}");
                         machineResponseBytes.Clear();
                         return;
                     }
-                    
+
                     byte[] dataBytes = new byte[dataLength];
                     for (int i = 0; i < dataBytes.Length; i++)
                     {
@@ -953,7 +990,7 @@ namespace EmbroideryCommunicator
             WriteLog($"{command} --> Upload 256 bytes to address {address}:");
             WriteLog($"   ASCII: {ascii}");
             WriteLog($"   HEX: {hex}");
-            
+
             uploadDataBytes.Clear();
         }
 
@@ -1096,6 +1133,30 @@ namespace EmbroideryCommunicator
             }
         }
 
+        private void CheckForInactivity(object? state)
+        {
+            lock (activityLock)
+            {
+                // Only check for inactivity if we've seen traffic and haven't already shown the separator
+                if (!hasSeenTraffic || pauseSeparatorShown || !isRunning)
+                {
+                    return;
+                }
+
+                TimeSpan timeSinceLastActivity = DateTime.Now - lastActivityTime;
+                
+                // If 5 or more seconds have passed since last activity
+                if (timeSinceLastActivity.TotalSeconds >= 5.0)
+                {
+                    pauseSeparatorShown = true;
+                    
+                    string separator = "********************************************";
+                    AppendCapture(separator, Color.Orange);
+                    WriteLog(separator);
+                }
+            }
+        }
+
         private void WriteLog(string message)
         {
             logWriter?.WriteLine(message);
@@ -1140,6 +1201,11 @@ namespace EmbroideryCommunicator
                     e.Cancel = true;
                 }
             }
+        }
+
+        private void clearButton_Click(object sender, EventArgs e)
+        {
+            txtCapture.Clear();
         }
     }
 }

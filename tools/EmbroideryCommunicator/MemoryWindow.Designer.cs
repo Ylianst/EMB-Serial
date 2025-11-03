@@ -15,6 +15,7 @@ namespace EmbroideryCommunicator
         /// </summary>
         private void InitializeComponent()
         {
+            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(MemoryWindow));
             menuStrip = new MenuStrip();
             fileToolStripMenuItem = new ToolStripMenuItem();
             refreshToolStripMenuItem = new ToolStripMenuItem();
@@ -92,7 +93,7 @@ namespace EmbroideryCommunicator
             // 
             autoSumToolStripMenuItem.CheckOnClick = true;
             autoSumToolStripMenuItem.Name = "autoSumToolStripMenuItem";
-            autoSumToolStripMenuItem.Size = new Size(224, 26);
+            autoSumToolStripMenuItem.Size = new Size(159, 26);
             autoSumToolStripMenuItem.Text = "&Auto-Sum";
             autoSumToolStripMenuItem.Click += autoSumToolStripMenuItem_Click;
             // 
@@ -198,6 +199,7 @@ namespace EmbroideryCommunicator
             Controls.Add(panel1);
             Controls.Add(statusStrip);
             Controls.Add(menuStrip);
+            Icon = (Icon)resources.GetObject("$this.Icon");
             MainMenuStrip = menuStrip;
             MinimumSize = new Size(650, 400);
             Name = "MemoryWindow";
