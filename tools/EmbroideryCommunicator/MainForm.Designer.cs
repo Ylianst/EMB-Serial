@@ -38,6 +38,8 @@
             downloadMemoryDumpToolStripMenuItem = new ToolStripMenuItem();
             serialCaptureToolStripMenuItem = new ToolStripMenuItem();
             embroideryViewerToolStripMenuItem = new ToolStripMenuItem();
+            helpToolStripMenuItem = new ToolStripMenuItem();
+            aboutToolStripMenuItem = new ToolStripMenuItem();
             statusStrip = new StatusStrip();
             toolStripStatusLabel = new ToolStripStatusLabel();
             toolStripProgressBar = new ToolStripProgressBar();
@@ -75,7 +77,7 @@
             // menuStrip
             // 
             menuStrip.ImageScalingSize = new Size(20, 20);
-            menuStrip.Items.AddRange(new ToolStripItem[] { connectionToolStripMenuItem, optionsToolStripMenuItem, debugToolStripMenuItem });
+            menuStrip.Items.AddRange(new ToolStripItem[] { connectionToolStripMenuItem, optionsToolStripMenuItem, debugToolStripMenuItem, helpToolStripMenuItem });
             menuStrip.Location = new Point(0, 0);
             menuStrip.Name = "menuStrip";
             menuStrip.Padding = new Padding(7, 3, 0, 3);
@@ -202,6 +204,20 @@
             embroideryViewerToolStripMenuItem.Size = new Size(227, 26);
             embroideryViewerToolStripMenuItem.Text = "E&mbroidery Viewer...";
             embroideryViewerToolStripMenuItem.Click += embroideryViewerToolStripMenuItem_Click;
+            // 
+            // helpToolStripMenuItem
+            // 
+            helpToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { aboutToolStripMenuItem });
+            helpToolStripMenuItem.Name = "helpToolStripMenuItem";
+            helpToolStripMenuItem.Size = new Size(55, 24);
+            helpToolStripMenuItem.Text = "&Help";
+            // 
+            // aboutToolStripMenuItem
+            // 
+            aboutToolStripMenuItem.Name = "aboutToolStripMenuItem";
+            aboutToolStripMenuItem.Size = new Size(142, 26);
+            aboutToolStripMenuItem.Text = "&About...";
+            aboutToolStripMenuItem.Click += aboutToolStripMenuItem_Click;
             // 
             // statusStrip
             // 
@@ -505,5 +521,7 @@
         private FlowLayoutPanel flowLayoutPanelPcCards;
         private ToolStripMenuItem serialCaptureToolStripMenuItem;
         private ToolStripMenuItem embroideryViewerToolStripMenuItem;
+        private ToolStripMenuItem helpToolStripMenuItem;
+        private ToolStripMenuItem aboutToolStripMenuItem;
     }
 }

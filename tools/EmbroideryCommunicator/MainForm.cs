@@ -1451,6 +1451,14 @@ namespace EmbroideryCommunicator
             _embroideryViewerForm.Show();
         }
 
+        private void aboutToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            using (AboutForm aboutForm = new AboutForm())
+            {
+                aboutForm.ShowDialog(this);
+            }
+        }
+
         /// <summary>
         /// Downloads an embroidery file from the machine and opens it in the EmbroideryViewerForm.
         /// Shows progress during download.

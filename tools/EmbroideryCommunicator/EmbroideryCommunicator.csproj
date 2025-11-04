@@ -17,10 +17,20 @@
     <FileVersion>0.1.0.0</FileVersion>
     <StartupObject>EmbroideryCommunicator.Program</StartupObject>
     <ApplicationIcon>SewingMachine.ico</ApplicationIcon>
+    <PackageProjectUrl>https://github.com/Ylianst/EMB-Serial</PackageProjectUrl>
+    <PackageIcon>sewing-machine.png</PackageIcon>
+    <RepositoryUrl>https://github.com/Ylianst/EMB-Serial</RepositoryUrl>
   </PropertyGroup>
 
   <ItemGroup>
     <Content Include="SewingMachine.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\work\images\sewing-machine.png">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
   </ItemGroup>
 
   <ItemGroup>
