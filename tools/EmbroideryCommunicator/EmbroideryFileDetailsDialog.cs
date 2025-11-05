@@ -13,6 +13,85 @@ namespace EmbroideryCommunicator
             InitializeComponent();
             _embroideryFile = file;
             SetupUI();
+            
+            // Test CreateMainDataBlock and CreatePreviewDataBlock for validation
+            TestDataBlockCreation(file);
+        }
+        
+        private void TestDataBlockCreation(EmbroideryFile testFile)
+        {
+            try
+            {
+                testFile.FileData = new byte[] { 0x01, 0x02, 0x03, 0x04, 0x05 }; // 5 bytes of test data
+                testFile.FileExtraData = new byte[] { 0xAA, 0xBB }; // 2 bytes of extra data
+                
+                // Create a SerialStack instance (just for calling the methods)
+                var serialStack = new SerialStack("COM1"); // Dummy port name
+                
+                // Test CreateMainDataBlock
+                System.Diagnostics.Debug.WriteLine("=== Testing CreateMainDataBlock ===");
+                byte[] mainBlock = serialStack.CreateMainDataBlock(testFile);
+                System.Diagnostics.Debug.WriteLine($"Main block size: {mainBlock.Length} bytes (expected: {176 + 5 + 2} = 183)");
+                System.Diagnostics.Debug.WriteLine($"Main block hex: {BitConverter.ToString(mainBlock).Replace("-", " ")}");
+                System.Diagnostics.Debug.WriteLine("");
+                
+                // Test CreatePreviewDataBlock
+                System.Diagnostics.Debug.WriteLine("=== Testing CreatePreviewDataBlock ===");
+                byte[] previewBlock = serialStack.CreatePreviewDataBlock(testFile);
+                System.Diagnostics.Debug.WriteLine($"Preview block size: {previewBlock.Length} bytes (expected: {174 + 558} = 732)");
+                System.Diagnostics.Debug.WriteLine($"Preview block hex (first 200 bytes): {BitConverter.ToString(previewBlock, 0, Math.Min(200, previewBlock.Length)).Replace("-", " ")}");
+                System.Diagnostics.Debug.WriteLine($"Preview block hex (last 50 bytes): {BitConverter.ToString(previewBlock, Math.Max(0, previewBlock.Length - 50), Math.Min(50, previewBlock.Length)).Replace("-", " ")}");
+                System.Diagnostics.Debug.WriteLine("");
+                
+                // Verify the structure of MainDataBlock
+                System.Diagnostics.Debug.WriteLine("=== MainDataBlock Structure Verification ===");
+                int offset = 0;
+                
+                // First 2 bytes: FileData.length * 5 (5 * 5 = 25 = 0x0019)
+                int multipliedLength = (mainBlock[offset] << 8) | mainBlock[offset + 1];
+                System.Diagnostics.Debug.WriteLine($"Bytes 0-1 (FileData.length * 5): 0x{multipliedLength:X4} = {multipliedLength} (expected: {testFile.FileData.Length * 5})");
+                offset += 2;
+                
+                // Skip 166 null bytes
+                offset += 166;
+                
+                // Next 4 bytes: FileData.length
+                int fileDataLength = (mainBlock[offset] << 24) | (mainBlock[offset + 1] << 16) | (mainBlock[offset + 2] << 8) | mainBlock[offset + 3];
+                System.Diagnostics.Debug.WriteLine($"Bytes 168-171 (FileData.length): 0x{fileDataLength:X8} = {fileDataLength} (expected: {testFile.FileData.Length})");
+                offset += 4;
+                
+                // Next 4 bytes: FileExtraData.length
+                int fileExtraDataLength = (mainBlock[offset] << 24) | (mainBlock[offset + 1] << 16) | (mainBlock[offset + 2] << 8) | mainBlock[offset + 3];
+                System.Diagnostics.Debug.WriteLine($"Bytes 172-175 (FileExtraData.length): 0x{fileExtraDataLength:X8} = {fileExtraDataLength} (expected: {testFile.FileExtraData.Length})");
+                offset += 4;
+                
+                System.Diagnostics.Debug.WriteLine($"FileData starts at offset {offset}: {BitConverter.ToString(mainBlock, offset, Math.Min(10, mainBlock.Length - offset)).Replace("-", " ")}");
+                System.Diagnostics.Debug.WriteLine("");
+                
+                // Verify the structure of PreviewDataBlock
+                System.Diagnostics.Debug.WriteLine("=== PreviewDataBlock Structure Verification ===");
+                offset = 0;
+                
+                // First 5 bytes: 0x0000093EFF
+                long headerValue = ((long)previewBlock[offset] << 32) | ((long)previewBlock[offset + 1] << 24) | 
+                                   ((long)previewBlock[offset + 2] << 16) | ((long)previewBlock[offset + 3] << 8) | 
+                                   previewBlock[offset + 4];
+                System.Diagnostics.Debug.WriteLine($"Bytes 0-4 (header): 0x{headerValue:X10} (expected: 0x0000093EFF)");
+                offset += 5;
+                
+                // Skip 169 null bytes
+                offset += 169;
+                
+                System.Diagnostics.Debug.WriteLine($"PreviewImageData starts at offset {offset}: {BitConverter.ToString(previewBlock, offset, Math.Min(20, previewBlock.Length - offset)).Replace("-", " ")}");
+                System.Diagnostics.Debug.WriteLine("");
+                
+                System.Diagnostics.Debug.WriteLine("=== Test Complete ===");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Test failed with exception: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
+            }
         }
 
         private void SetupUI()

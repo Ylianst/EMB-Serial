@@ -4138,6 +4138,398 @@ namespace EmbroideryCommunicator
             }
         }
 
+        /// <summary>
+        /// Writes an embroidery file to the specified storage location.
+        /// This method uploads both the main file data and preview image to the machine.
+        /// </summary>
+        /// <param name="file">The embroidery file to write (must have FileName, FileData, and PreviewImageData populated)</param>
+        /// <param name="location">Storage location to write to (EmbroideryModuleMemory or PCCard)</param>
+        /// <param name="progress">Optional progress callback for the write operation</param>
+        /// <returns>True if write succeeded, false otherwise</returns>
+        public async Task<bool> WriteEmbroideryFileAsync(EmbroideryFile file, StorageLocation location, Action<int, int>? progress = null)
+        {
+            RaiseDebugMessage($"WriteEmbroideryFile: Starting write of '{file?.FileName}' to {location}");
+            
+            // Validate input
+            if (file == null)
+            {
+                RaiseDebugMessage("WriteEmbroideryFile: File is null");
+                return false;
+            }
+
+            if (string.IsNullOrEmpty(file.FileName))
+            {
+                RaiseDebugMessage("WriteEmbroideryFile: FileName is null or empty");
+                return false;
+            }
+
+            if (file.FileData == null || file.FileData.Length == 0)
+            {
+                RaiseDebugMessage("WriteEmbroideryFile: FileData is null or empty");
+                return false;
+            }
+
+            if (file.PreviewImageData == null || file.PreviewImageData.Length == 0)
+            {
+                RaiseDebugMessage("WriteEmbroideryFile: PreviewImageData is null or empty");
+                return false;
+            }
+
+            // Step 1: Create data blocks
+            RaiseDebugMessage("WriteEmbroideryFile: Creating data blocks");
+            byte[] mainDataBlock;
+            byte[] previewDataBlock;
+            
+            try
+            {
+                mainDataBlock = CreateMainDataBlock(file);
+                previewDataBlock = CreatePreviewDataBlock(file);
+                RaiseDebugMessage($"WriteEmbroideryFile: Main block size: {mainDataBlock.Length} bytes, Preview block size: {previewDataBlock.Length} bytes");
+            }
+            catch (Exception ex)
+            {
+                RaiseDebugMessage($"WriteEmbroideryFile: Failed to create data blocks: {ex.Message}");
+                return false;
+            }
+
+            // Step 2: Check connection
+            if (State != ConnectionState.Connected)
+            {
+                RaiseDebugMessage("WriteEmbroideryFile: Not connected");
+                return false;
+            }
+
+            // Step 3: Check if already busy
+            if (IsBusy)
+            {
+                RaiseDebugMessage("WriteEmbroideryFile: Already busy with another operation");
+                return false;
+            }
+
+            SetBusyState(true, "Writing embroidery file");
+
+            bool sessionStarted = false;
+
+            try
+            {
+                // Step 4: Ensure we're in Embroidery Mode
+                RaiseDebugMessage("WriteEmbroideryFile: Checking current session mode");
+                var currentMode = await GetCurrentSessionModeAsync();
+                if (currentMode == null)
+                {
+                    RaiseDebugMessage("WriteEmbroideryFile: Failed to get session mode");
+                    return false;
+                }
+                RaiseDebugMessage($"WriteEmbroideryFile: Current mode is {currentMode}");
+
+                // If in Sewing Machine mode, start embroidery session
+                if (currentMode == SessionMode.SewingMachine)
+                {
+                    RaiseDebugMessage("WriteEmbroideryFile: In Sewing Machine mode, starting embroidery session");
+                    var sessionStartResult = await SessionStartAsync();
+                    if (!sessionStartResult.Success)
+                    {
+                        RaiseDebugMessage($"WriteEmbroideryFile: Session start failed: {sessionStartResult.ErrorMessage}");
+                        return false;
+                    }
+                    sessionStarted = true;
+                    RaiseDebugMessage("WriteEmbroideryFile: Session start successful");
+                }
+                else
+                {
+                    RaiseDebugMessage("WriteEmbroideryFile: Already in Embroidery Module mode");
+                    sessionStarted = true;
+                }
+
+                // Step 5: Check PC Card if writing to PC Card
+                if (location == StorageLocation.PCCard)
+                {
+                    RaiseDebugMessage("WriteEmbroideryFile: Checking PC card status");
+                    var pcCardReadResult = await ReadAsync(0xFFFED9);
+                    
+                    if (pcCardReadResult.Success && pcCardReadResult.BinaryData != null && pcCardReadResult.BinaryData.Length > 0)
+                    {
+                        bool pcCardInserted = (pcCardReadResult.BinaryData[0] & 0x01) == 0x01;
+                        RaiseDebugMessage($"WriteEmbroideryFile: PC card inserted: {pcCardInserted}");
+                        if (!pcCardInserted)
+                        {
+                            RaiseDebugMessage("WriteEmbroideryFile: No PC card present");
+                            return false;
+                        }
+                    }
+                    else
+                    {
+                        RaiseDebugMessage("WriteEmbroideryFile: Failed to read PC card status");
+                        return false;
+                    }
+                }
+
+                // Step 6: Reset the protocol
+                RaiseDebugMessage("WriteEmbroideryFile: Resetting protocol");
+                await ProtocolResetAsync();
+
+                // Step 7: Select storage source
+                ushort storageFunction = location == StorageLocation.EmbroideryModuleMemory ? (ushort)0x00A1 : (ushort)0x0051;
+                RaiseDebugMessage($"WriteEmbroideryFile: Selecting storage source with function 0x{storageFunction:X4}");
+                var selectStorageResult = await InvokeFunctionAsync(storageFunction);
+                if (!selectStorageResult.Success)
+                {
+                    RaiseDebugMessage($"WriteEmbroideryFile: Failed to select storage source: {selectStorageResult.ErrorMessage}");
+                    return false;
+                }
+                RaiseDebugMessage("WriteEmbroideryFile: Storage source selected successfully");
+
+                // Step 8: Write the main data block to 0x028E98
+                RaiseDebugMessage($"WriteEmbroideryFile: Writing main data block ({mainDataBlock.Length} bytes) to 0x028E98");
+                var writeMainResult = await WriteMemoryBlockAsync(0x028E98, mainDataBlock, progress);
+                if (!writeMainResult.Success)
+                {
+                    RaiseDebugMessage($"WriteEmbroideryFile: Failed to write main data block: {writeMainResult.ErrorMessage}");
+                    return false;
+                }
+                RaiseDebugMessage("WriteEmbroideryFile: Main data block written successfully");
+
+                // Step 9: Write the preview data block to 0x024480
+                RaiseDebugMessage($"WriteEmbroideryFile: Writing preview data block ({previewDataBlock.Length} bytes) to 0x024480");
+                var writePreviewResult = await WriteMemoryBlockAsync(0x024480, previewDataBlock, progress);
+                if (!writePreviewResult.Success)
+                {
+                    RaiseDebugMessage($"WriteEmbroideryFile: Failed to write preview data block: {writePreviewResult.ErrorMessage}");
+                    return false;
+                }
+                RaiseDebugMessage("WriteEmbroideryFile: Preview data block written successfully");
+
+                // Step 10: Write 0x01 to 0x02409D (block size value, may be changed in the future)
+                RaiseDebugMessage("WriteEmbroideryFile: Writing block size value 0x01 to 0x02409D");
+                var writeBlockSizeResult = await WriteAsync(0x02409D, new byte[] { 0x01 });
+                if (!writeBlockSizeResult.Success)
+                {
+                    RaiseDebugMessage($"WriteEmbroideryFile: Failed to write block size: {writeBlockSizeResult.ErrorMessage}");
+                    return false;
+                }
+
+                // Step 11: Write 0xA4 to 0x0240B9
+                RaiseDebugMessage("WriteEmbroideryFile: Writing 0xA4 to 0x0240B9");
+                var writeAttributeResult = await WriteAsync(0x0240B9, new byte[] { 0xA4 });
+                if (!writeAttributeResult.Success)
+                {
+                    RaiseDebugMessage($"WriteEmbroideryFile: Failed to write attribute: {writeAttributeResult.ErrorMessage}");
+                    return false;
+                }
+
+                // Step 12: Write the filename to 0x0240D5 (32 bytes, padded with 0x00)
+                RaiseDebugMessage($"WriteEmbroideryFile: Writing filename '{file.FileName}' to 0x0240D5");
+                byte[] filenameBytes = Encoding.UTF8.GetBytes(file.FileName);
+                
+                // Check filename length
+                if (filenameBytes.Length > 31)
+                {
+                    RaiseDebugMessage($"WriteEmbroideryFile: Filename too long ({filenameBytes.Length} bytes UTF-8, max 31)");
+                    return false;
+                }
+                
+                // Create 32-byte padded filename buffer
+                byte[] filenameBuffer = new byte[32];
+                Array.Copy(filenameBytes, 0, filenameBuffer, 0, filenameBytes.Length);
+                // Remaining bytes are already 0x00 from array initialization
+                
+                var writeFilenameResult = await WriteAsync(0x0240D5, filenameBuffer);
+                if (!writeFilenameResult.Success)
+                {
+                    RaiseDebugMessage($"WriteEmbroideryFile: Failed to write filename: {writeFilenameResult.ErrorMessage}");
+                    return false;
+                }
+                RaiseDebugMessage("WriteEmbroideryFile: Filename written successfully");
+
+                // Step 13: Invoke method 0x0201 (with 4 second delay for machine to store data)
+                RaiseDebugMessage("WriteEmbroideryFile: Invoking store function 0x0201 (waiting 4 seconds)");
+                var invokeStoreResult = await InvokeFunctionAsync(0x0201, 4000);
+                if (!invokeStoreResult.Success)
+                {
+                    RaiseDebugMessage($"WriteEmbroideryFile: Failed to invoke store function 0x0201: {invokeStoreResult.ErrorMessage}");
+                    return false;
+                }
+                RaiseDebugMessage("WriteEmbroideryFile: Store function 0x0201 invoked successfully");
+
+                RaiseDebugMessage("WriteEmbroideryFile: File written successfully");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                RaiseDebugMessage($"WriteEmbroideryFile: Exception occurred: {ex.Message}");
+                return false;
+            }
+            finally
+            {
+                // Always attempt to close embroidery session if we started it
+                if (sessionStarted)
+                {
+                    RaiseDebugMessage("WriteEmbroideryFile: Ending embroidery session");
+                    try
+                    {
+                        var sessionEndResult = await SessionEndAsync();
+                        if (!sessionEndResult.Success)
+                        {
+                            RaiseDebugMessage($"WriteEmbroideryFile: Warning - Session end failed: {sessionEndResult.ErrorMessage}");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        RaiseDebugMessage($"WriteEmbroideryFile: Warning - Exception during session end: {ex.Message}");
+                    }
+                }
+
+                SetBusyState(false);
+            }
+        }
+
+        /// <summary>
+        /// Creates the main data block for uploading an embroidery file.
+        /// Format: 2 bytes (FileData.length / 5) + 166 null bytes + 4 bytes FileData.length + 4 bytes FileExtraData.length + FileData + FileExtraData
+        /// Total size: 176 bytes + FileData.length + FileExtraData.length
+        /// Note: FileData must end with 0x80 0x81. If it doesn't, these bytes are automatically appended.
+        /// </summary>
+        /// <param name="file">The embroidery file to create the data block for</param>
+        /// <returns>Byte array containing the main data block</returns>
+        /// <exception cref="ArgumentNullException">Thrown when file is null</exception>
+        /// <exception cref="ArgumentException">Thrown when FileData is null or empty</exception>
+        public byte[] CreateMainDataBlock(EmbroideryFile file)
+        {
+            if (file == null)
+            {
+                throw new ArgumentNullException(nameof(file));
+            }
+
+            if (file.FileData == null || file.FileData.Length == 0)
+            {
+                throw new ArgumentException("FileData must not be null or empty", nameof(file));
+            }
+
+            // Ensure FileData ends with 0x80 0x81
+            byte[] FileDataEx = file.FileData;
+            
+            // Check if the last two bytes are 0x80 0x81
+            bool needsTerminator = FileDataEx.Length < 2 || 
+                                   FileDataEx[FileDataEx.Length - 2] != 0x80 || 
+                                   FileDataEx[FileDataEx.Length - 1] != 0x81;
+            
+            if (needsTerminator)
+            {
+                // Create new buffer with 2 extra bytes
+                byte[] newBuffer = new byte[FileDataEx.Length + 2];
+                Array.Copy(FileDataEx, 0, newBuffer, 0, FileDataEx.Length);
+                newBuffer[newBuffer.Length - 2] = 0x80;
+                newBuffer[newBuffer.Length - 1] = 0x81;
+                FileDataEx = newBuffer;
+            }
+
+            // Calculate lengths using FileDataEx
+            int fileDataLength = FileDataEx.Length;
+            int fileExtraDataLength = file.FileExtraData?.Length ?? 0;
+            int totalSize = 176 + fileDataLength + fileExtraDataLength;
+
+            // Create output buffer
+            byte[] result = new byte[totalSize];
+            int offset = 0;
+
+            // Write first 2 bytes: (FileData.length / 5) in network byte order (big-endian)
+            int dividedLength = fileDataLength / 5;
+            result[offset++] = (byte)((dividedLength >> 8) & 0xFF);
+            result[offset++] = (byte)(dividedLength & 0xFF);
+
+            // Write 166 null bytes
+            for (int i = 0; i < 166; i++)
+            {
+                result[offset++] = 0x00;
+            }
+
+            // Write FileData.length (4 bytes, network byte order)
+            result[offset++] = (byte)((fileDataLength >> 24) & 0xFF);
+            result[offset++] = (byte)((fileDataLength >> 16) & 0xFF);
+            result[offset++] = (byte)((fileDataLength >> 8) & 0xFF);
+            result[offset++] = (byte)(fileDataLength & 0xFF);
+
+            // Write FileExtraData.length (4 bytes, network byte order)
+            result[offset++] = (byte)((fileExtraDataLength >> 24) & 0xFF);
+            result[offset++] = (byte)((fileExtraDataLength >> 16) & 0xFF);
+            result[offset++] = (byte)((fileExtraDataLength >> 8) & 0xFF);
+            result[offset++] = (byte)(fileExtraDataLength & 0xFF);
+
+            // Write FileDataEx (FileData with guaranteed 0x80 0x81 terminator)
+            Array.Copy(FileDataEx, 0, result, offset, fileDataLength);
+            offset += fileDataLength;
+
+            // Write FileExtraData if present
+            if (fileExtraDataLength > 0)
+            {
+                Array.Copy(file.FileExtraData!, 0, result, offset, fileExtraDataLength);
+                offset += fileExtraDataLength;
+            }
+
+            // Verify the size is correct
+            if (result.Length != totalSize || offset != totalSize)
+            {
+                throw new InvalidOperationException($"Size mismatch: expected {totalSize}, got {result.Length} (offset: {offset})");
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Creates the preview data block for uploading an embroidery file preview image.
+        /// Format: 5 bytes (0x0000093EFF) + 169 null bytes + PreviewImageData
+        /// Total size: 174 bytes + PreviewImageData.length
+        /// </summary>
+        /// <param name="file">The embroidery file to create the preview data block for</param>
+        /// <returns>Byte array containing the preview data block</returns>
+        /// <exception cref="ArgumentNullException">Thrown when file is null</exception>
+        /// <exception cref="ArgumentException">Thrown when PreviewImageData is null or empty</exception>
+        public byte[] CreatePreviewDataBlock(EmbroideryFile file)
+        {
+            if (file == null)
+            {
+                throw new ArgumentNullException(nameof(file));
+            }
+
+            if (file.PreviewImageData == null || file.PreviewImageData.Length == 0)
+            {
+                throw new ArgumentException("PreviewImageData must not be null or empty", nameof(file));
+            }
+
+            // Calculate lengths
+            int previewImageLength = file.PreviewImageData.Length;
+            int totalSize = 174 + previewImageLength;
+
+            // Create output buffer
+            byte[] result = new byte[totalSize];
+            int offset = 0;
+
+            // Write first 5 bytes: 0x0000093EFF in network byte order (big-endian)
+            result[offset++] = 0x00;
+            result[offset++] = 0x00;
+            result[offset++] = 0x09;
+            result[offset++] = 0x3E;
+            result[offset++] = 0xFF;
+
+            // Write 169 null bytes
+            for (int i = 0; i < 169; i++)
+            {
+                result[offset++] = 0x00;
+            }
+
+            // Write PreviewImageData
+            Array.Copy(file.PreviewImageData, 0, result, offset, previewImageLength);
+            offset += previewImageLength;
+
+            // Verify the size is correct
+            if (result.Length != totalSize || offset != totalSize)
+            {
+                throw new InvalidOperationException($"Size mismatch: expected {totalSize}, got {result.Length} (offset: {offset})");
+            }
+
+            return result;
+        }
+
         public void Dispose()
         {
             Close();

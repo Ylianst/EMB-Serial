@@ -427,7 +427,12 @@ It ends with:
    00 02 00 FD 00 02 FF 00 01 00 00 01 80 04 EE 32 80 81
 
 Preview Data Length: 558 bytes
-Preview Data (Hex): 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 0F 00 00 03 00 00 00 00 00 1F 80 38 07 C0 00 00 00 00 1F E0 7F 0F E0 00 00 00 00 1F B9 FF 8F E0 00 00 00 00 1F 0F FF DC 70 00 00 00 00 1E 07 EF D8 70 00 00 00 3E 1E 07 C1 FF E0 00 00 00 3F 0E 17 71 FF CE 00 00 00 7F 07 F7 3B F7 FB 80 00 00 7F 03 F6 7B F1 CE 40 00 00 7E 00 76 7B F3 3F E0 00 00 3E 01 F6 41 62 FF E0 00 00 1F C7 E3 F8 65 9F E0 00 03 E7 FE E7 BE 6F FD E0 00 0F F8 F1 CE FB DF F9 A0 00 0F D8 06 DA EC DD F9 E0 00 1F 08 1D D7 FD F9 C1 F0 00 1E 08 F7 9F FF 73 80 5E 00 3E 1F 9F FF 0F F1 80 8F 00 3E 38 F3 F9 FB 91 FF 07 00 3E 7F 87 F0 1F 10 38 07 80 1E 00 0F F7 7E 15 04 07 80 1F 80 3D FF F2 17 CC 07 80 1F C1 FF E6 FE 17 C8 07 80 0F FF FF ED E7 D6 F8 0F 00 03 FF BB EF FF D0 F8 1F 00 01 FE 3B CF EC B0 F8 3F 00 07 F8 7B CF FA 31 F8 7E E0 1F FC 77 C1 F7 63 F7 FF F8 3F 3E F7 C3 FF 47 C9 FF FC 3C 1F F7 CF E6 DF 8D FF FC 3C 0E E7 F9 E3 FF E7 FF FE 3C 07 EF F1 EF FE 7B F0 1E 3C 0F EF 9F FF FD FE 00 0E 3C FF DF 03 F6 03 FB FF 8C 3C 7F FE 07 E7 FF F0 00 88 1E 1F BC 0F C7 FF C0 00 18 0F FF 30 1B C0 FE 00 00 00 07 FE 00 17 80 00 00 00 00 01 F8 00 16 00 00 00 00 00 00 00 00 18 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+Preview Data (Hex):
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 0F 00 00 03 00 00 00 00 00 1F 80 38 07 C0 00 00 00 00 1F E0 7F 0F E0 00 00 00 00 1F B9 FF 8F E0 00 00 00 00 1F 0F FF DC 70 00 00 00 00 1E 07 EF D8 70 00 00 00 3E 1E 07 C1 FF E0 00 00 00 3F 0E 17 71 FF CE 00 00 00 7F 07 F7 3B F7 FB 80 00 00 7F 03 F6 7B F1 CE 40 00 00 7E 00 76 7B F3 3F E0 00 00 3E 01 F6 41 62 FF E0 00 00 1F C7 E3 F8 65 9F E0 00 03 E7 FE E7 BE 6F FD E0 00 0F F8 F1 CE FB DF F9 A0 00 0F D8 06 DA EC DD F9 E0 00 1F 08 1D D7 FD F9 C1 F0 00 1E 08 F7 9F FF 73 80 5E 00 3E 1F 9F FF 0F F1 80 8F 00 3E 38 F3 F9 FB 91 FF 07 00 3E 7F 87 F0 1F 10 38 07 80 1E 00 0F F7 7E 15 04 07 80 1F 80 3D FF F2 17 CC 07 80 1F C1 FF E6 FE 17 C8 07 80 0F FF FF ED E7 D6 F8 0F 00 03 FF BB EF FF D0 F8 1F 00 01 FE 3B CF EC B0 F8 3F 00 07 F8 7B CF FA 31 F8 7E E0 1F FC 77 C1 F7 63 F7 FF F8 3F 3E F7 C3 FF 47 C9 FF FC 3C 1F F7 CF E6 DF 8D FF FC 3C 0E E7 F9 E3 FF E7 FF FE 3C 07 EF F1 EF FE 7B F0 1E 3C 0F EF 9F FF FD FE 00 0E 3C FF DF 03 F6 03 FB FF 8C 3C 7F FE 07 E7 FF F0 00 88 1E 1F BC 0F C7 FF C0 00 18 0F FF 30 1B C0 FE 00 00 00 07 FE 00 17 80 00 00 00 00 01 F8 00 16 00 00 00 00 00 00 00 00 18 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+
+This is the extra data, Length: 316 bytes which includes 8 bytes at the front that has the length in small-endian. The H8 architecture employs big-endian byte ordering so, it's likely this data is not being used by the embroidery module.
+
+00 00 3C 01 00 00 00 00 8F 1C 44 67 96 03 F4 CE 20 05 5B D7 3F B5 F2 61 39 1A EB 7E B8 82 5D 49 17 9B 73 C8 8F 2D 44 67 96 03 C5 FF 20 34 6A E6 0E B5 F2 50 39 1A EB 7E B8 82 5D 49 17 9B 73 C8 8F 2D 44 67 96 03 C5 FF 20 34 6A E6 0E B5 F2 50 39 1A EB 7E B8 82 5D 49 17 9B 73 C8 8F 2D 44 67 96 03 C5 FF 20 34 6A E6 0E B5 F2 50 39 1A EB 7E B8 82 5D 49 17 9B 73 C8 8F 2D 44 67 96 03 C5 FF 20 34 6A E6 0E B5 F2 50 39 1A EB 7E B8 82 5D 49 17 9B 73 C8 8F 2D 44 67 96 03 C5 FF 20 34 6A E6 0E B5 F2 50 39 1A EB 7E B8 82 5D 49 17 9B 73 C8 8F 2D 44 67 96 03 C5 FF 20 34 6A E6 0E B5 F2 50 39 1A EB 7E B8 82 5D 49 17 9B 73 C8 8F 2D 44 67 96 03 C5 FF 20 34 6A E6 0E B5 F2 50 39 1A EB 7E B8 82 5D 49 17 9B 73 C8 8F 2D 44 67 96 03 C5 FF 20 34 6A E6 0E B5 F2 50 39 1A EB 7E B8 82 5D 49 17 9B 73 C8 8F 2D 44 67 96 03 C5 FF 20 34 6A E6 0E B5 F2 50 39 1A EB 7E B8 82 5D 49 15 9B 73 CA 8E 2F 44 66 96 00 C7 FD 22 37 6A E5 0C B5 F1 51 3A 18 E8 7E 34 82 B6 C4 4D FF 73 79
 
 The header writes starts at 0x028E98 with 0x0359 (857) - I don't know what that is.
 We write the length of the file 0x00001136 at 0x028F40
@@ -436,15 +441,22 @@ We write the file data at (0x028F40 + 8) that 4406 bytes
 We write 8 zero bytes at 0x024500
 We write the preview data at 0x024508
 
-There are 3 mistery values.
+There are 2 mistery values.
   - The first 2 bytes right at the start of the first write.
-  - The write value to 0x02409D, sometimes it's 0x00 to 0x04?
-  - Twe write value to 0x0240D5. Looks like a size of some kind.
+  - The write value to 0x02409D, sometimes it's 0x00 to 0x08?
 
 WFFFED00011? --> Write 0011 to FFFED0           (Gets the machine ready for an upload)
 RFFFED0 -->
    ASCII: .....@..........................
    HEX: 00 02 00 00 00 40 00 00 00 82 00 00 00 00 00 00 00 00 00 00 00 00 00 00 03 00 00 01 10 00 00 00
+
+(Write to 0x028E98 the main header, 176 bytes total)
+  - 2 bytes (Some unknown length, around 5x the length of EXP)
+  - 166 0x00 bytes
+  - 4 bytes EXP file length (Must end with 0x8081)
+  - 4 bytes Extra data length (316 bytes normally)
+  - EXP file
+  - Extra data
 
 W028E98 0359000000000000000000000000000000000000000000000000000000000000? --> Write 0359000000000000000000000000000000000000000000000000000000000000 to 028E98
 W028EB8 0000000000000000000000000000000000000000000000000000000000000000? --> Write 0000000000000000000000000000000000000000000000000000000000000000 to 028EB8
@@ -453,7 +465,7 @@ W028EF8 0000000000000000? --> Write 0000000000000000 to 028EF8
 PS028F --> Machine ready (OE), waiting for upload data
 PS028F --> Upload 256 bytes to address 028F:
    ASCII: ...................................................................6...<..8...8.8...............................................................................................................................................................................
-   HEX: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 11 36 00 00 01 3C 80 04 38 EE 80 04 38 EE 38 EE FF FF 00 01 0B FC 0B FC F3 05 F4 06 F4 FD F5 FD F7 FC F7 FC 0E 03 0D 03 0C 02 0C 03 07 FD 07 FD 03 FA FA 05 F9 05 F5 00 F5 00 0C 00 09 FE 09 FE 07 F8 01 F7 FB F6 F7 F7 00 FF 06 05 05 07 02 05 FF 01 04 00 F9 04 08 00 F6 03 0B 02 F6 00 09 04 F4 FD 0B 06 F7 FC 08 08 F5 F8 09 0C F5 F5 09 0E F5 F3 09 10 F7 F3 05 0E F8 F0 05 11 FB F3 01 0E FB EF 02 13 FB ED 01 14 FC EC 00 14 FE EC FE 13 FF ED FD 12 00 EE FC 11 02 EF FA 10 03 EF F9 0F 04 F1 F9 0E 03 F0 FA 0E 02 F1 FB 0E 01 F1 FC 0E 00 F1 FC 0D 00 F2 FC 0D 00 F3 FD 0C FF F3
+   HEX: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 11 36 00 00 01 3C*80 04 38 EE 80 04 38 EE 38 EE FF FF 00 01 0B FC 0B FC F3 05 F4 06 F4 FD F5 FD F7 FC F7 FC 0E 03 0D 03 0C 02 0C 03 07 FD 07 FD 03 FA FA 05 F9 05 F5 00 F5 00 0C 00 09 FE 09 FE 07 F8 01 F7 FB F6 F7 F7 00 FF 06 05 05 07 02 05 FF 01 04 00 F9 04 08 00 F6 03 0B 02 F6 00 09 04 F4 FD 0B 06 F7 FC 08 08 F5 F8 09 0C F5 F5 09 0E F5 F3 09 10 F7 F3 05 0E F8 F0 05 11 FB F3 01 0E FB EF 02 13 FB ED 01 14 FC EC 00 14 FE EC FE 13 FF ED FD 12 00 EE FC 11 02 EF FA 10 03 EF F9 0F 04 F1 F9 0E 03 F0 FA 0E 02 F1 FB 0E 01 F1 FC 0E 00 F1 FC 0D 00 F2 FC 0D 00 F3 FD 0C FF F3
 PS0290 --> Machine ready (OE), waiting for upload data
 PS0290 --> Upload 256 bytes to address 0290:
    ASCII: ................................................................................................................................................................................................................................................................
@@ -529,6 +541,15 @@ W02A160 5D49179B73C88F2D44679603C5FF20346AE60EB5F250391AEB7EB8825D49179B? --> Wr
 W02A180 73C88F2D44679603C5FF20346AE60EB5F250391AEB7EB8825D49159B73CA8E2F? --> Write 73C88F2D44679603C5FF20346AE60EB5F250391AEB7EB8825D49159B73CA8E2F to 02A180
 W02A1A0 44669600C7FD22376AE50CB5F1513A18E87E3482B6C44DFF7379?             --> Write 44669600C7FD22376AE50CB5F1513A18E87E3482B6C44DFF7379 to 02A1A0
 
+This ends the large block that has the header + exp + extra
+
+We write the preview image in a different file starting at 0x024480
+  - Write the header which is 174 bytes.
+    - Write 0x0000093E (2366) this could indicate the type of the preview, 72x64 black & white.
+    - Write 0xFF
+    - Write 0x00 169 times.
+  - Write the preview image
+
 W024480 0000093EFF000000000000000000000000000000000000000000000000000000? --> Write 0000093EFF000000000000000000000000000000000000000000000000000000 to 024480
 W0244A0 0000000000000000000000000000000000000000000000000000000000000000? --> Write 0000000000000000000000000000000000000000000000000000000000000000 to 0244A0
 W0244C0 0000000000000000000000000000000000000000000000000000000000000000? --> Write 0000000000000000000000000000000000000000000000000000000000000000 to 0244C0
@@ -544,16 +565,17 @@ PS0246 --> Machine ready (OE), waiting for upload data
 PS0246 --> Upload 256 bytes to address 0246:
    ASCII: ..e........o...................................s.^.>........>8.......>.....8......~......=...................................;....?...{..1.~...w..c...?>...G...<........<........<.....{..<........<........<...................0...............................
    HEX: E3 F8 65 9F E0 00 03 E7 FE E7 BE 6F FD E0 00 0F F8 F1 CE FB DF F9 A0 00 0F D8 06 DA EC DD F9 E0 00 1F 08 1D D7 FD F9 C1 F0 00 1E 08 F7 9F FF 73 80 5E 00 3E 1F 9F FF 0F F1 80 8F 00 3E 38 F3 F9 FB 91 FF 07 00 3E 7F 87 F0 1F 10 38 07 80 1E 00 0F F7 7E 15 04 07 80 1F 80 3D FF F2 17 CC 07 80 1F C1 FF E6 FE 17 C8 07 80 0F FF FF ED E7 D6 F8 0F 00 03 FF BB EF FF D0 F8 1F 00 01 FE 3B CF EC B0 F8 3F 00 07 F8 7B CF FA 31 F8 7E E0 1F FC 77 C1 F7 63 F7 FF F8 3F 3E F7 C3 FF 47 C9 FF FC 3C 1F F7 CF E6 DF 8D FF FC 3C 0E E7 F9 E3 FF E7 FF FE 3C 07 EF F1 EF FE 7B F0 1E 3C 0F EF 9F FF FD FE 00 0E 3C FF DF 03 F6 03 FB FF 8C 3C 7F FE 07 E7 FF F0 00 88 1E 1F BC 0F C7 FF C0 00 18 0F FF 30 1B C0 FE 00 00 00 07 FE 00 17 80 00 00 00 00 01 F8 00 16 00 00 00 00 00 00 00 00 18 00 00 00
+   
 W024700 0000000000000000000000000000000000000000000000000000000000000000? --> Write 0000000000000000000000000000000000000000000000000000000000000000 to 024700
 W024720 0000000000000000000000000000000000000000000000000000000000000000? --> Write 0000000000000000000000000000000000000000000000000000000000000000 to 024720
 W024740 00000000000000000000000000000000000000000000000000000000? --> Write 00000000000000000000000000000000000000000000000000000000 to 024740
 
 Completed writing the preview image
 
-W02409D01? --> Write 01 to 02409D
-W0240B9A4? --> Write A4 to 0240B9
+W02409D01? --> Write 01 to 02409D       (This looks like the file size, but not sure what the units are??)
+W0240B9A4? --> Write A4 to 0240B9       (This is always 0xA4)
 
-Here, we write the name of the file. In this case "3131" is "11"
+Here, we write the name of the file at 0x0240D5. In this case "3131" is "11"
 
 W0240D5 3131000000000000000000000000000000000000000000000000000000000000? --> Write 3131000000000000000000000000000000000000000000000000000000000000 to 0240D5
 
@@ -659,3 +681,54 @@ WFFFED00101? --> Write 0101 to FFFED0
 RFFFED0 -->
    ASCII: .....@.....c....................
    HEX: 00 00 00 00 00 40 00 00 00 82 00 63 00 00 00 00 00 00 00 00 00 00 00 00 FF 00 00 01 00 00 00 00
+
+# Prompts
+
+## Create the Main Upload Block
+
+In SerialStack.cs, I want to create a new method called "CreateMainDataBlock" that takes a EmbroideryFile and returns a byte[].
+
+ - The 2 first bytes is (EmbroideryFile.FileData.length / 5) in network byte order.
+ - Write 166 null characters
+ - The next 4 bytes are the length EmbroideryFile.FileData.length in network byte order.
+ - The next 4 bytes are the length EmbroideryFile.FileExtraData.length in network byte order, put 0x00000000 is FileExtraData is empty of null.
+ - Write the entire EmbroideryFile.FileData
+ - Write the entire EmbroideryFile.FileExtraData if present.
+
+Note that EmbroideryFile.FileData must not be null and not be empty. The resulting byte[] size must be 176 bytes + EmbroideryFile.FileData.length + EmbroideryFile.FileExtraData.length. Double check this before exit.
+
+## Create the Image Preview Upload Block
+
+In SerialStack.cs, I want to create a new method called "CreatePreviewDataBlock" that takes a EmbroideryFile and returns a byte[].
+
+ - Write 0x0000093EFF as the first 5 bytes in network byte order
+ - Write 0x00 169 times.
+ - Write the preview image EmbroideryFile.PreviewImageData
+
+Note that EmbroideryFile.PreviewImageData must not be null and not be empty. The resulting byte[] size must be 174 bytes + EmbroideryFile.PreviewImageData.length. Double check this before exit.
+
+## Create the Upload Method
+
+In SerialStack.cs, I want to create a new method that will write a file to the embroidery module using the serial port. The method header looks like this:
+
+        public async Task<bool> WriteEmbroideryFileAsync(EmbroideryFile file, StorageLocation location, Action<int, int>? progress = null)
+
+This method will start looking a lot like ReadEmbroideryFileAsync() we do the following:
+
+ - Use CreateMainDataBlock() to create the "main data block"
+ - Use CreatePreviewDataBlock() to create the "preview data block"
+ - Check that we are connected
+ - Check that we are not busy
+ - Set busy state
+ - Ensure we are in embroidery mode, if not, change to embroidery mode.
+ - If the location is PC Card, check if a PC card is present.
+ - Do a protocol reset
+ - Select the storage source (Embroidery Module or PC Card)
+ - Write the "main data block" to 0x028E98
+ - Write the "preview data block" to 0x024480
+ - Write 0x01 to 0x02409D, write a comment that this is a block size value and may be changed in the future.
+ - Write 0xA4 to 0x0240B9.
+ - Write the filename to 0x0240D5. We must pad the data with 0x00 so that it's 32 bytes long. The file name can't be more than 31 bytes long in UTF-8.
+ - Invoke method 0x0201. Put a 4 second wait on the method invocation for the machine to have time to store the data.
+
+If everything is a success, return true.

@@ -1762,5 +1762,161 @@ namespace EmbroideryCommunicator
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
+
+        /// <summary>
+        /// Uploads an embroidery file to the Embroidery Module memory.
+        /// Shows progress during upload and refreshes the UI after successful upload.
+        /// </summary>
+        /// <param name="embroideryFile">The embroidery file to upload (must have FileName, FileData, and PreviewImageData set)</param>
+        public async Task UploadEmbroideryFileAsync(EmbroideryFile embroideryFile)
+        {
+            if (_serialStack == null || !_isConnected)
+            {
+                MessageBox.Show("Not connected to machine", "Upload Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            if (embroideryFile == null)
+            {
+                MessageBox.Show("No file data available", "Upload Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            // Validate required fields
+            if (string.IsNullOrEmpty(embroideryFile.FileName))
+            {
+                MessageBox.Show("File name is required", "Upload Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            if (embroideryFile.FileData == null || embroideryFile.FileData.Length == 0)
+            {
+                MessageBox.Show("File data is empty", "Upload Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            if (embroideryFile.PreviewImageData == null || embroideryFile.PreviewImageData.Length == 0)
+            {
+                MessageBox.Show("Preview image data is required", "Upload Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            // Check if the machine is currently busy
+            if (_serialStack.IsBusy)
+            {
+                MessageBox.Show("Machine is currently busy with another operation. Please wait for the current operation to complete.", 
+                    "Machine Busy", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            // Check if embroidery module is present
+            if (_embroideryModuleFirmwareInfo == null)
+            {
+                MessageBox.Show("Embroidery module not detected. Please ensure the embroidery module is attached and try reconnecting.", 
+                    "Embroidery Module Not Found", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            try
+            {
+                // Show progress bar
+                ShowProgressBar(true, $"Uploading {embroideryFile.FileName}...");
+
+                // Upload the file to the machine
+                bool success = await _serialStack.WriteEmbroideryFileAsync(
+                    embroideryFile,
+                    StorageLocation.EmbroideryModuleMemory,
+                    (current, total) => UpdateProgress(current, total, false)
+                );
+
+                // Hide progress bar
+                ShowProgressBar(false);
+
+                if (success)
+                {
+                    UpdateStatus($"Uploaded {embroideryFile.FileName}");
+                    MessageBox.Show($"File '{embroideryFile.FileName}' uploaded successfully to the Embroidery Module.", "Upload Complete",
+                        MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                    // Refresh the embroidery files list to show the new file
+                    UpdateStatus("Refreshing file list...");
+                    await RefreshEmbroideryFilesAsync();
+                }
+                else
+                {
+                    // Check if the failure was due to busy state
+                    if (_serialStack.IsBusy)
+                    {
+                        MessageBox.Show("Machine is currently busy with another operation. Please wait for the current operation to complete.", 
+                            "Machine Busy", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
+                    else
+                    {
+                        MessageBox.Show("Failed to upload file to machine", "Upload Error", 
+                            MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                    UpdateStatus("Upload failed");
+                }
+            }
+            catch (Exception ex)
+            {
+                // Hide progress bar on error
+                ShowProgressBar(false);
+                
+                UpdateStatus("Upload error");
+                MessageBox.Show($"Error uploading file: {ex.Message}", "Upload Error",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        /// <summary>
+        /// Refreshes the embroidery files list from the machine.
+        /// </summary>
+        private async Task RefreshEmbroideryFilesAsync()
+        {
+            if (_serialStack == null || !_isConnected || _embroideryModuleFirmwareInfo == null)
+            {
+                return;
+            }
+
+            try
+            {
+                ShowProgressBar(true, "Refreshing embroidery files...");
+
+                // Clear existing files
+                ClearEmbroideryFiles();
+                _embroideryFileControls = new List<EmbroideryFileControl>();
+
+                // Determine fast cache lookup based on icon cache mode
+                bool useFastCacheLookup = (_iconCacheMode == IconCacheMode.Fast);
+
+                var embroideryFiles = await _serialStack.ReadEmbroideryFilesAsync(
+                    StorageLocation.EmbroideryModuleMemory,
+                    true,
+                    (current, total) => UpdateProgress(current, total, false),
+                    (file) => AddFileToUIRealTime(file),
+                    useFastCacheLookup,
+                    true
+                );
+
+                ShowProgressBar(false);
+
+                if (embroideryFiles != null)
+                {
+                    UpdateStatus($"Loaded {embroideryFiles.Count} embroidery files");
+                    UpdateMachineInfoFileCount(embroideryFiles.Count);
+                    await SavePreviewCacheToRegistryAsync();
+                }
+                else
+                {
+                    UpdateStatus("Failed to refresh embroidery files");
+                }
+            }
+            catch (Exception ex)
+            {
+                ShowProgressBar(false);
+                UpdateStatus($"Error refreshing files: {ex.Message}");
+            }
+        }
     }
 }

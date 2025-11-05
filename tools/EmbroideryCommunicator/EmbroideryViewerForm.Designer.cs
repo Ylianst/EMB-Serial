@@ -40,6 +40,8 @@ namespace EmbroideryCommunicator
             dimensionsLabel = new ToolStripStatusLabel();
             renderPanel = new Panel();
             trackBar = new TrackBar();
+            uploadToolStripMenuItem = new ToolStripMenuItem();
+            toEmbroideryModuleToolStripMenuItem = new ToolStripMenuItem();
             menuStrip.SuspendLayout();
             statusStrip.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)trackBar).BeginInit();
@@ -48,7 +50,7 @@ namespace EmbroideryCommunicator
             // menuStrip
             // 
             menuStrip.ImageScalingSize = new Size(20, 20);
-            menuStrip.Items.AddRange(new ToolStripItem[] { fileToolStripMenuItem, viewToolStripMenuItem, zoomToolStripMenuItem });
+            menuStrip.Items.AddRange(new ToolStripItem[] { fileToolStripMenuItem, viewToolStripMenuItem, zoomToolStripMenuItem, uploadToolStripMenuItem });
             menuStrip.Location = new Point(0, 0);
             menuStrip.Name = "menuStrip";
             menuStrip.Padding = new Padding(7, 3, 0, 3);
@@ -67,7 +69,7 @@ namespace EmbroideryCommunicator
             // 
             openToolStripMenuItem.Name = "openToolStripMenuItem";
             openToolStripMenuItem.ShortcutKeys = Keys.Control | Keys.O;
-            openToolStripMenuItem.Size = new Size(202, 26);
+            openToolStripMenuItem.Size = new Size(224, 26);
             openToolStripMenuItem.Text = "&Open...";
             openToolStripMenuItem.Click += openToolStripMenuItem_Click;
             // 
@@ -76,7 +78,7 @@ namespace EmbroideryCommunicator
             saveAsToolStripMenuItem.Enabled = false;
             saveAsToolStripMenuItem.Name = "saveAsToolStripMenuItem";
             saveAsToolStripMenuItem.ShortcutKeys = Keys.Control | Keys.S;
-            saveAsToolStripMenuItem.Size = new Size(202, 26);
+            saveAsToolStripMenuItem.Size = new Size(224, 26);
             saveAsToolStripMenuItem.Text = "&Save As...";
             saveAsToolStripMenuItem.Click += saveAsToolStripMenuItem_Click;
             // 
@@ -84,19 +86,19 @@ namespace EmbroideryCommunicator
             // 
             closeToolStripMenuItem.Enabled = false;
             closeToolStripMenuItem.Name = "closeToolStripMenuItem";
-            closeToolStripMenuItem.Size = new Size(202, 26);
+            closeToolStripMenuItem.Size = new Size(224, 26);
             closeToolStripMenuItem.Text = "&Close";
             closeToolStripMenuItem.Click += closeToolStripMenuItem_Click;
             // 
             // toolStripSeparator1
             // 
             toolStripSeparator1.Name = "toolStripSeparator1";
-            toolStripSeparator1.Size = new Size(199, 6);
+            toolStripSeparator1.Size = new Size(221, 6);
             // 
             // exitToolStripMenuItem
             // 
             exitToolStripMenuItem.Name = "exitToolStripMenuItem";
-            exitToolStripMenuItem.Size = new Size(202, 26);
+            exitToolStripMenuItem.Size = new Size(224, 26);
             exitToolStripMenuItem.Text = "E&xit";
             exitToolStripMenuItem.Click += exitToolStripMenuItem_Click;
             // 
@@ -111,7 +113,7 @@ namespace EmbroideryCommunicator
             // 
             previewImageToolStripMenuItem.CheckOnClick = true;
             previewImageToolStripMenuItem.Name = "previewImageToolStripMenuItem";
-            previewImageToolStripMenuItem.Size = new Size(189, 26);
+            previewImageToolStripMenuItem.Size = new Size(224, 26);
             previewImageToolStripMenuItem.Text = "&Preview Image";
             previewImageToolStripMenuItem.Click += previewImageToolStripMenuItem_Click;
             // 
@@ -121,7 +123,7 @@ namespace EmbroideryCommunicator
             jumpsToolStripMenuItem.CheckOnClick = true;
             jumpsToolStripMenuItem.CheckState = CheckState.Checked;
             jumpsToolStripMenuItem.Name = "jumpsToolStripMenuItem";
-            jumpsToolStripMenuItem.Size = new Size(189, 26);
+            jumpsToolStripMenuItem.Size = new Size(224, 26);
             jumpsToolStripMenuItem.Text = "&Jumps";
             jumpsToolStripMenuItem.Click += jumpsToolStripMenuItem_Click;
             // 
@@ -131,7 +133,7 @@ namespace EmbroideryCommunicator
             stitchLinesToolStripMenuItem.CheckOnClick = true;
             stitchLinesToolStripMenuItem.CheckState = CheckState.Checked;
             stitchLinesToolStripMenuItem.Name = "stitchLinesToolStripMenuItem";
-            stitchLinesToolStripMenuItem.Size = new Size(189, 26);
+            stitchLinesToolStripMenuItem.Size = new Size(224, 26);
             stitchLinesToolStripMenuItem.Text = "Stitch &Lines";
             stitchLinesToolStripMenuItem.Click += stitchLinesToolStripMenuItem_Click;
             // 
@@ -139,7 +141,7 @@ namespace EmbroideryCommunicator
             // 
             stitchPointsToolStripMenuItem.CheckOnClick = true;
             stitchPointsToolStripMenuItem.Name = "stitchPointsToolStripMenuItem";
-            stitchPointsToolStripMenuItem.Size = new Size(189, 26);
+            stitchPointsToolStripMenuItem.Size = new Size(224, 26);
             stitchPointsToolStripMenuItem.Text = "Stitch &Points";
             stitchPointsToolStripMenuItem.Click += stitchPointsToolStripMenuItem_Click;
             // 
@@ -241,6 +243,20 @@ namespace EmbroideryCommunicator
             trackBar.Size = new Size(1000, 56);
             trackBar.TabIndex = 0;
             // 
+            // uploadToolStripMenuItem
+            // 
+            uploadToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { toEmbroideryModuleToolStripMenuItem });
+            uploadToolStripMenuItem.Name = "uploadToolStripMenuItem";
+            uploadToolStripMenuItem.Size = new Size(72, 24);
+            uploadToolStripMenuItem.Text = "&Upload";
+            // 
+            // toEmbroideryModuleToolStripMenuItem
+            // 
+            toEmbroideryModuleToolStripMenuItem.Name = "toEmbroideryModuleToolStripMenuItem";
+            toEmbroideryModuleToolStripMenuItem.Size = new Size(253, 26);
+            toEmbroideryModuleToolStripMenuItem.Text = "To Embroidery Module...";
+            toEmbroideryModuleToolStripMenuItem.Click += toEmbroideryModuleToolStripMenuItem_Click;
+            // 
             // EmbroideryViewerForm
             // 
             AllowDrop = true;
@@ -294,5 +310,7 @@ namespace EmbroideryCommunicator
         private ToolStripMenuItem zoom50ToolStripMenuItem;
         private ToolStripMenuItem zoom100ToolStripMenuItem;
         private ToolStripMenuItem zoom200ToolStripMenuItem;
+        private ToolStripMenuItem uploadToolStripMenuItem;
+        private ToolStripMenuItem toEmbroideryModuleToolStripMenuItem;
     }
 }

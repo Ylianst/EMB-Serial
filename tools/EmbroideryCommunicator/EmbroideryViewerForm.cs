@@ -18,7 +18,7 @@ namespace EmbroideryCommunicator
         private float _baseScale = 1.0f; // Base scale to fit pattern in window
         private byte[]? _currentFileData = null; // Store current file data for saving
         private string? _currentFileName = null; // Store current filename
-        
+
         // Colors to rotate through for different thread segments
         private readonly Color[] _threadColors = new Color[]
         {
@@ -38,7 +38,7 @@ namespace EmbroideryCommunicator
         public EmbroideryViewerForm()
         {
             InitializeComponent();
-            
+
             // Enable double buffering on the render panel
             typeof(Panel).InvokeMember("DoubleBuffered",
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.SetProperty,
@@ -94,7 +94,7 @@ namespace EmbroideryCommunicator
         {
             if (_currentFileData == null || _currentFileData.Length == 0)
             {
-                MessageBox.Show("No file data available to save", "Save Error", 
+                MessageBox.Show("No file data available to save", "Save Error",
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
@@ -111,7 +111,7 @@ namespace EmbroideryCommunicator
                     try
                     {
                         File.WriteAllBytes(saveDialog.FileName, _currentFileData);
-                        MessageBox.Show($"File saved successfully to:\n{saveDialog.FileName}", 
+                        MessageBox.Show($"File saved successfully to:\n{saveDialog.FileName}",
                             "Save Complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     }
                     catch (Exception ex)
@@ -302,19 +302,19 @@ namespace EmbroideryCommunicator
             _currentFileName = null;
             closeToolStripMenuItem.Enabled = false;
             saveAsToolStripMenuItem.Enabled = false;
-            
+
             // Reset trackbar
             trackBar.Minimum = 0;
             trackBar.Maximum = 0;
             trackBar.Value = 0;
             trackBar.Enabled = false;
-            
+
             // Reset window title
             this.Text = "Embroidery Viewer";
-            
+
             // Reset scroll bars
             renderPanel.AutoScrollMinSize = Size.Empty;
-            
+
             UpdateStatus();
             renderPanel.Invalidate();
         }
@@ -333,7 +333,7 @@ namespace EmbroideryCommunicator
                 fileNameLabel.Text = $"File: {_pattern.FileName}";
                 stitchCountLabel.Text = $"Stitches: {_pattern.TotalStitches} | Jumps: {_pattern.JumpCount} | Color Changes: {_pattern.ColorChangeCount}";
                 zoomLabel.Text = $"Zoom: {_zoomFactor * 100:F0}%";
-                
+
                 var dims = _pattern.GetDimensionsMm();
                 dimensionsLabel.Text = $"Dimensions: {dims.Width:F1} × {dims.Height:F1} mm";
             }
@@ -366,17 +366,17 @@ namespace EmbroideryCommunicator
 
             // Apply zoom
             float scale = _baseScale * _zoomFactor;
-            
+
             // Calculate pattern size in screen coordinates
             float patternScreenWidth = bounds.Width * scale;
             float patternScreenHeight = bounds.Height * scale;
 
             // Get scroll position
             Point scrollPos = renderPanel.AutoScrollPosition;
-            
+
             // Position calculation depends on whether scroll bars are active
             float drawX, drawY;
-            
+
             if (renderPanel.AutoScrollMinSize.IsEmpty)
             {
                 // No scroll bars - center the pattern in the viewport
@@ -394,7 +394,7 @@ namespace EmbroideryCommunicator
             // Apply transformations
             float patternCenterX = bounds.Left + bounds.Width / 2;
             float patternCenterY = bounds.Top + bounds.Height / 2;
-            
+
             // Move to draw position and account for pattern center
             g.TranslateTransform(drawX + patternScreenWidth / 2, drawY + patternScreenHeight / 2);
             g.ScaleTransform(scale, -scale); // Negative Y scale to flip vertically
@@ -409,11 +409,11 @@ namespace EmbroideryCommunicator
 
             // Draw stitches (only up to the max specified by trackbar)
             int stitchesToDraw = Math.Min(_maxStitchesToDisplay, _pattern.Stitches.Count);
-            
+
             // Reset color index for drawing
             int colorIndex = 0;
             Color currentThreadColor = _threadColors[colorIndex];
-            
+
             using (Pen jumpPen = new Pen(Color.FromArgb(255, 100, 100), 0.5f) { DashStyle = DashStyle.Dash }) // Light red for jumps
             using (Brush colorChangeBrush = new SolidBrush(Color.Gold)) // Gold marker for color changes
             {
@@ -451,7 +451,7 @@ namespace EmbroideryCommunicator
                         {
                             continue;
                         }
-                        
+
                         // Draw stitch lines if enabled
                         if (_showStitchLines)
                         {
@@ -460,7 +460,7 @@ namespace EmbroideryCommunicator
                             {
                                 // Draw line from previous to current stitch
                                 Pen pen = currStitch.Type == StitchType.Jump ? jumpPen : normalPen;
-                                
+
                                 // Skip drawing if previous was a special command
                                 if (prevStitch.Type != StitchType.ColorChange && prevStitch.Type != StitchType.End)
                                 {
@@ -468,7 +468,7 @@ namespace EmbroideryCommunicator
                                 }
                             }
                         }
-                        
+
                         // Draw stitch point if enabled
                         if (_showStitchPoints)
                         {
@@ -494,10 +494,10 @@ namespace EmbroideryCommunicator
             const int previewHeight = 64;
             const int margin = 10;
             const int scale = 2; // Scale up for better visibility
-            
+
             int scaledWidth = previewWidth * scale;
             int scaledHeight = previewHeight * scale;
-            
+
             // Position in top-right corner
             int x = renderPanel.Width - scaledWidth - margin;
             int y = margin;
@@ -524,20 +524,20 @@ namespace EmbroideryCommunicator
                 {
                     int byteIndex = (py * previewWidth + px) / 8;
                     int bitIndex = 7 - ((py * previewWidth + px) % 8);
-                    
+
                     if (byteIndex < _previewImageData.Length)
                     {
                         bool pixelSet = (_previewImageData[byteIndex] & (1 << bitIndex)) != 0;
-                        
+
                         if (pixelSet)
                         {
                             // Draw black pixel (scaled up)
                             using (Brush pixelBrush = new SolidBrush(Color.Black))
                             {
-                                g.FillRectangle(pixelBrush, 
-                                    x + px * scale, 
-                                    y + py * scale, 
-                                    scale, 
+                                g.FillRectangle(pixelBrush,
+                                    x + px * scale,
+                                    y + py * scale,
+                                    scale,
                                     scale);
                             }
                         }
@@ -662,7 +662,7 @@ namespace EmbroideryCommunicator
 
             // Update the number of stitches to display based on trackbar value
             _maxStitchesToDisplay = trackBar.Value;
-            
+
             // Trigger repaint to show the updated stitches
             renderPanel.Invalidate();
         }
@@ -695,7 +695,7 @@ namespace EmbroideryCommunicator
         {
             float size = 3f;
             float halfSize = size / 2;
-            
+
             switch (stitch.Type)
             {
                 case StitchType.Normal:
@@ -705,7 +705,7 @@ namespace EmbroideryCommunicator
                         g.FillEllipse(normalBrush, stitch.X - halfSize, stitch.Y - halfSize, size, size);
                     }
                     break;
-                    
+
                 case StitchType.Jump:
                     // Jump: hollow red square
                     using (Pen jumpPointPen = new Pen(Color.Red, 0.5f))
@@ -713,7 +713,7 @@ namespace EmbroideryCommunicator
                         g.DrawRectangle(jumpPointPen, stitch.X - halfSize, stitch.Y - halfSize, size, size);
                     }
                     break;
-                    
+
                 case StitchType.ColorChange:
                     // Color change: solid gold diamond
                     PointF[] diamond = new PointF[]
@@ -728,13 +728,13 @@ namespace EmbroideryCommunicator
                         g.FillPolygon(colorChangeBrush, diamond);
                     }
                     break;
-                    
+
                 case StitchType.End:
                     // End/Cut: solid red X (cross)
                     using (Pen endPen = new Pen(Color.Red, 1f))
                     {
                         float crossSize = size * 1.2f;
-                        g.DrawLine(endPen, 
+                        g.DrawLine(endPen,
                             stitch.X - crossSize, stitch.Y - crossSize,
                             stitch.X + crossSize, stitch.Y + crossSize);
                         g.DrawLine(endPen,
@@ -751,15 +751,15 @@ namespace EmbroideryCommunicator
                 return 1.0f;
 
             RectangleF bounds = _pattern.GetBounds();
-            
+
             // Calculate scale to fit pattern in panel with some margin
             float marginPercent = 0.1f; // 10% margin
             float availableWidth = renderPanel.ClientSize.Width * (1 - 2 * marginPercent);
             float availableHeight = renderPanel.ClientSize.Height * (1 - 2 * marginPercent);
-            
+
             float scaleX = availableWidth / bounds.Width;
             float scaleY = availableHeight / bounds.Height;
-            
+
             return Math.Min(scaleX, scaleY);
         }
 
@@ -770,25 +770,25 @@ namespace EmbroideryCommunicator
 
             // Store the old zoom factor
             float oldZoomFactor = _zoomFactor;
-            
+
             // Update to new zoom
             _zoomFactor = Math.Max(0.1f, Math.Min(newZoomFactor, 20f));
             _panOffset = new PointF(0, 0); // Reset pan when setting specific zoom
-            
+
             // Get pattern bounds and calculate sizes
             RectangleF bounds = _pattern.GetBounds();
             float scale = _baseScale * _zoomFactor;
             float oldScale = _baseScale * oldZoomFactor;
-            
+
             int newPatternWidth = (int)Math.Ceiling(bounds.Width * scale);
             int newPatternHeight = (int)Math.Ceiling(bounds.Height * scale);
             int oldPatternWidth = (int)Math.Ceiling(bounds.Width * oldScale);
             int oldPatternHeight = (int)Math.Ceiling(bounds.Height * oldScale);
-            
+
             // Check if we need scroll bars at the new zoom level
             bool needsHorizontalScroll = newPatternWidth > renderPanel.ClientSize.Width;
             bool needsVerticalScroll = newPatternHeight > renderPanel.ClientSize.Height;
-            
+
             // If we had scroll bars before and will have them after, maintain center
             if (!renderPanel.AutoScrollMinSize.IsEmpty && (needsHorizontalScroll || needsVerticalScroll))
             {
@@ -796,11 +796,11 @@ namespace EmbroideryCommunicator
                 Point currentScroll = new Point(
                     -renderPanel.AutoScrollPosition.X,
                     -renderPanel.AutoScrollPosition.Y);
-                
+
                 // Calculate what percentage of the pattern we're scrolled to
                 float scrollPercentX = 0.5f; // Default to center
                 float scrollPercentY = 0.5f;
-                
+
                 if (oldPatternWidth > renderPanel.ClientSize.Width)
                 {
                     scrollPercentX = (currentScroll.X + renderPanel.ClientSize.Width / 2.0f) / oldPatternWidth;
@@ -809,10 +809,10 @@ namespace EmbroideryCommunicator
                 {
                     scrollPercentY = (currentScroll.Y + renderPanel.ClientSize.Height / 2.0f) / oldPatternHeight;
                 }
-                
+
                 // Update scroll bars
                 UpdateScrollBars();
-                
+
                 // Calculate new scroll position to maintain the same center
                 if (needsHorizontalScroll)
                 {
@@ -820,7 +820,7 @@ namespace EmbroideryCommunicator
                     newScrollX = Math.Max(0, Math.Min(newScrollX, newPatternWidth - renderPanel.ClientSize.Width));
                     renderPanel.AutoScrollPosition = new Point(-newScrollX, renderPanel.AutoScrollPosition.Y);
                 }
-                
+
                 if (needsVerticalScroll)
                 {
                     int newScrollY = (int)(scrollPercentY * newPatternHeight - renderPanel.ClientSize.Height / 2.0f);
@@ -833,7 +833,7 @@ namespace EmbroideryCommunicator
                 // No scroll bars before or after, just update normally
                 UpdateScrollBars();
             }
-            
+
             UpdateStatus();
             renderPanel.Invalidate();
         }
@@ -875,7 +875,7 @@ namespace EmbroideryCommunicator
 
             // Set the AutoScrollMinSize to enable scroll bars
             renderPanel.AutoScrollMinSize = new Size(scrollWidth, scrollHeight);
-            
+
             // When scrolling is enabled, reset pan offset to avoid double-offsetting
             _panOffset = new PointF(0, 0);
         }
@@ -889,7 +889,7 @@ namespace EmbroideryCommunicator
         {
             if (_pattern == null)
                 return;
-            
+
             _baseScale = CalculateBaseScale();
             SetZoom(0.5f);
         }
@@ -898,7 +898,7 @@ namespace EmbroideryCommunicator
         {
             if (_pattern == null)
                 return;
-            
+
             _baseScale = CalculateBaseScale();
             SetZoom(1.0f);
         }
@@ -907,7 +907,7 @@ namespace EmbroideryCommunicator
         {
             if (_pattern == null)
                 return;
-            
+
             _baseScale = CalculateBaseScale();
             SetZoom(2.0f);
         }
@@ -918,9 +918,9 @@ namespace EmbroideryCommunicator
             if (e.Data != null && e.Data.GetDataPresent(DataFormats.FileDrop))
             {
                 string[]? files = e.Data.GetData(DataFormats.FileDrop) as string[];
-                
+
                 // Check if exactly one file is being dragged and it's an .exp file
-                if (files != null && files.Length == 1 && 
+                if (files != null && files.Length == 1 &&
                     Path.GetExtension(files[0]).Equals(".exp", StringComparison.OrdinalIgnoreCase))
                 {
                     e.Effect = DragDropEffects.Copy;
@@ -941,11 +941,11 @@ namespace EmbroideryCommunicator
             if (e.Data != null && e.Data.GetDataPresent(DataFormats.FileDrop))
             {
                 string[]? files = e.Data.GetData(DataFormats.FileDrop) as string[];
-                
+
                 if (files != null && files.Length == 1)
                 {
                     string filePath = files[0];
-                    
+
                     // Check if it's an .exp file
                     if (Path.GetExtension(filePath).Equals(".exp", StringComparison.OrdinalIgnoreCase))
                     {
@@ -954,11 +954,76 @@ namespace EmbroideryCommunicator
                         {
                             CloseFile();
                         }
-                        
+
                         // Load the dropped file
                         LoadFile(filePath);
                     }
                 }
+            }
+        }
+
+        private void toEmbroideryModuleToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            // Check if we have a loaded pattern
+            if (_pattern == null || _currentFileData == null || _currentFileName == null)
+            {
+                MessageBox.Show("No embroidery pattern loaded. Please open a file first.", "No Pattern Loaded",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            // Confirm with the user
+            string fileName = Path.GetFileNameWithoutExtension(_currentFileName);
+            DialogResult confirmResult = MessageBox.Show(
+                $"Do you want to upload '{fileName}' to the Embroidery Module?\n\n" +
+                "This will transfer the pattern to the machine's memory.",
+                "Confirm Upload",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Question);
+
+            if (confirmResult != DialogResult.Yes)
+            {
+                return;
+            }
+
+            try
+            {
+                // Create preview image from the current file data
+                byte[]? previewData = ExpFileParser.GeneratePreviewImage(_currentFileData);
+                
+                if (previewData == null || previewData.Length == 0)
+                {
+                    MessageBox.Show("Failed to generate preview image for upload.", "Upload Error",
+                        MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+
+                // Create EmbroideryFile object
+                EmbroideryFile fileToUpload = new EmbroideryFile
+                {
+                    FileName = fileName,
+                    FileData = _currentFileData,
+                    PreviewImageData = previewData,
+                    FileExtraData = null // No extra data for now
+                };
+
+                // Find the MainForm and call the upload method
+                MainForm? mainForm = Application.OpenForms.OfType<MainForm>().FirstOrDefault();
+                
+                if (mainForm == null)
+                {
+                    MessageBox.Show("Main form not found. Please ensure the application is running correctly.", "Upload Error",
+                        MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+
+                // Call the upload method on the main form
+                _ = mainForm.UploadEmbroideryFileAsync(fileToUpload);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error preparing file for upload: {ex.Message}", "Upload Error",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
     }
