@@ -477,9 +477,10 @@ namespace EmbroideryCommunicator
 
         /// <summary>
         /// Sends a Write command (W + 6 hex chars + data + ?)
+        /// Maximum of 32 bytes can be written at a time.
         /// </summary>
         /// <param name="address">The address to write to</param>
-        /// <param name="data">The data bytes to write (will be hex encoded)</param>
+        /// <param name="data">The data bytes to write (will be hex encoded, max 32 bytes)</param>
         public async Task<CommandResult> WriteAsync(int address, byte[] data)
         {
             if (data == null || data.Length == 0)
@@ -488,6 +489,15 @@ namespace EmbroideryCommunicator
                 {
                     Success = false,
                     ErrorMessage = "Data cannot be null or empty"
+                };
+            }
+
+            if (data.Length > 32)
+            {
+                return new CommandResult
+                {
+                    Success = false,
+                    ErrorMessage = $"Data length {data.Length} exceeds maximum of 32 bytes"
                 };
             }
 
@@ -656,14 +666,92 @@ namespace EmbroideryCommunicator
         }
 
         /// <summary>
-        /// Writes a block of memory by efficiently combining Write and Upload commands
-        /// Uses Write command for unaligned portions and Upload command for 256-byte aligned blocks
+        /// Writes a block of memory using only Write commands (32 bytes at a time).
+        /// This is slower but more reliable than WriteMemoryBlockFastAsync which uses Upload commands.
         /// </summary>
         /// <param name="address">The starting address to write to</param>
         /// <param name="data">The data bytes to write</param>
         /// <param name="progress">Optional progress callback (current bytes written, total bytes)</param>
         /// <returns>CommandResult indicating success or failure</returns>
         public async Task<CommandResult> WriteMemoryBlockAsync(int address, byte[] data, Action<int, int>? progress = null)
+        {
+            if (data == null || data.Length == 0)
+            {
+                return new CommandResult
+                {
+                    Success = false,
+                    ErrorMessage = "Data cannot be null or empty"
+                };
+            }
+
+            if (State != ConnectionState.Connected)
+            {
+                return new CommandResult
+                {
+                    Success = false,
+                    ErrorMessage = "Not connected"
+                };
+            }
+
+            try
+            {
+                int totalLength = data.Length;
+                int bytesWritten = 0;
+                int currentAddress = address;
+
+                while (bytesWritten < totalLength)
+                {
+                    int remainingBytes = totalLength - bytesWritten;
+                    
+                    // Write 32 bytes at a time (max for WriteAsync)
+                    int bytesToWrite = Math.Min(32, remainingBytes);
+                    
+                    byte[] writeData = new byte[bytesToWrite];
+                    Array.Copy(data, bytesWritten, writeData, 0, bytesToWrite);
+                    
+                    var result = await WriteAsync(currentAddress, writeData);
+                    if (!result.Success)
+                    {
+                        return new CommandResult
+                        {
+                            Success = false,
+                            ErrorMessage = $"Write failed at address 0x{currentAddress:X6}: {result.ErrorMessage}"
+                        };
+                    }
+                    
+                    bytesWritten += bytesToWrite;
+                    currentAddress += bytesToWrite;
+
+                    // Report progress
+                    progress?.Invoke(bytesWritten, totalLength);
+                }
+
+                return new CommandResult
+                {
+                    Success = true,
+                    Response = $"Wrote {totalLength} bytes to 0x{address:X6}"
+                };
+            }
+            catch (Exception ex)
+            {
+                return new CommandResult
+                {
+                    Success = false,
+                    ErrorMessage = $"Memory block write error: {ex.Message}"
+                };
+            }
+        }
+
+        /// <summary>
+        /// Writes a block of memory by efficiently combining Write and Upload commands.
+        /// Uses Write command for unaligned portions and Upload command for 256-byte aligned blocks.
+        /// This is faster but less reliable than WriteMemoryBlockAsync which only uses Write commands.
+        /// </summary>
+        /// <param name="address">The starting address to write to</param>
+        /// <param name="data">The data bytes to write</param>
+        /// <param name="progress">Optional progress callback (current bytes written, total bytes)</param>
+        /// <returns>CommandResult indicating success or failure</returns>
+        public async Task<CommandResult> WriteMemoryBlockFastAsync(int address, byte[] data, Action<int, int>? progress = null)
         {
             if (data == null || data.Length == 0)
             {
