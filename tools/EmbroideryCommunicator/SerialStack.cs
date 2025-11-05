@@ -4542,7 +4542,7 @@ namespace EmbroideryCommunicator
             int offset = 0;
 
             // Write first 2 bytes: (FileData.length / 5) in network byte order (big-endian)
-            int dividedLength = 0x0359; //fileDataLength / 5;
+            int dividedLength = 0; // 0x0359; //fileDataLength / 5;
             result[offset++] = (byte)((dividedLength >> 8) & 0xFF);
             result[offset++] = (byte)(dividedLength & 0xFF);
 
