@@ -173,7 +173,7 @@ namespace EmbroideryCommunicator
         public static byte[] GeneratePreviewImage(byte[] expFileData)
         {
             const int previewWidth = 72;
-            const int previewHeight = 64;
+            const int previewHeight = 62;
             const int totalBytes = (previewWidth * previewHeight) / 8; // 1 bit per pixel = 576 bytes
             
             byte[] imageData = new byte[totalBytes];

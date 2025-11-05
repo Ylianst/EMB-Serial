@@ -228,7 +228,7 @@ namespace EmbroideryCommunicator
             }
 
             const int width = 72;
-            const int height = 64;
+            const int height = 62;
             const int bytesPerRow = width / 8; // 9 bytes per row (72 pixels / 8)
 
             // Create bitmap with alpha channel support

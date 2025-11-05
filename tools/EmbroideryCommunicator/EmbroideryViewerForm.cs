@@ -1004,7 +1004,7 @@ namespace EmbroideryCommunicator
                     FileName = fileName,
                     FileData = _currentFileData,
                     PreviewImageData = previewData,
-                    FileExtraData = null // No extra data for now
+                    FileExtraData = null
                 };
 
                 // Find the MainForm and call the upload method

@@ -506,6 +506,14 @@ namespace EmbroideryCommunicator
             {
                 hexData.Append(b.ToString("X2"));
             }
+            
+            RaiseDebugMessage($"WriteAsync: {data.Length}b to 0x{address:X6}: {hexData}");
+
+            hexData.Clear();
+            foreach (byte b in data)
+            {
+                hexData.Append(b.ToString("X2"));
+            }
 
             string command = $"W{address:X6}{hexData}?";
             return await EnqueueCommandAsync(command);
@@ -2756,6 +2764,8 @@ namespace EmbroideryCommunicator
                 };
             }
 
+            RaiseDebugMessage($"InvokeFunctionAsync: Invoking function 0x{functionId:X4}");
+
             try
             {
                 // Write the function ID to 0xFFFED0 as a 16-bit value
@@ -2775,18 +2785,18 @@ namespace EmbroideryCommunicator
                     };
                 }
 
-                // Optional delay between write and read
-                if (delayMs > 0)
-                {
-                    await Task.Delay(delayMs);
-                }
-
                 // Read back from 0xFFFED0 and check the first two bytes
                 const int maxRetries = 5;
                 const int retryDelayMs = 100;
 
                 for (int attempt = 0; attempt <= maxRetries; attempt++)
                 {
+                    // Optional delay between write and read
+                    if (delayMs > 0)
+                    {
+                        await Task.Delay(delayMs);
+                    }
+
                     var readResult = await ReadAsync(0xFFFED0);
                     
                     if (!readResult.Success)
@@ -2809,7 +2819,8 @@ namespace EmbroideryCommunicator
 
                     // Check if first two bytes are 0x0002 or 0x0000
                     ushort responseValue = (ushort)((readResult.BinaryData[0] << 8) | readResult.BinaryData[1]);
-                    
+                    RaiseDebugMessage($"InvokeFunctionAsync: Received response 0x{responseValue:X4}");
+
                     if (responseValue == 0x0002 || responseValue == 0x0000)
                     {
                         return new CommandResult
@@ -4367,6 +4378,16 @@ namespace EmbroideryCommunicator
                 }
                 RaiseDebugMessage("WriteEmbroideryFile: Storage source selected successfully");
 
+                // Step 7a: Get the module ready for an upload
+                RaiseDebugMessage($"WriteEmbroideryFile: Ready the embroidery module for an upload");
+                var readyUploadResult = await InvokeFunctionAsync(0x0011);
+                if (!readyUploadResult.Success)
+                {
+                    RaiseDebugMessage($"WriteEmbroideryFile: Failed to ready module for upload: {readyUploadResult.ErrorMessage}");
+                    return false;
+                }
+                RaiseDebugMessage("WriteEmbroideryFile: Embroidery module ready for upload");
+
                 // Step 8: Write the main data block to 0x028E98
                 RaiseDebugMessage($"WriteEmbroideryFile: Writing main data block ({mainDataBlock.Length} bytes) to 0x028E98");
                 var writeMainResult = await WriteMemoryBlockAsync(0x028E98, mainDataBlock, progress);
@@ -4521,7 +4542,7 @@ namespace EmbroideryCommunicator
             int offset = 0;
 
             // Write first 2 bytes: (FileData.length / 5) in network byte order (big-endian)
-            int dividedLength = fileDataLength / 5;
+            int dividedLength = 0x0359; //fileDataLength / 5;
             result[offset++] = (byte)((dividedLength >> 8) & 0xFF);
             result[offset++] = (byte)(dividedLength & 0xFF);
 
