@@ -108,20 +108,6 @@ namespace EmbroideryCommunicator
             this.Focus();
         }
 
-        /*
-        private void EmbroideryFileControl_MouseUp(object? sender, MouseEventArgs e)
-        {
-            if (e.Button == MouseButtons.Right)
-            {
-                // Show context menu
-                ContextMenuStrip contextMenu = new ContextMenuStrip();
-                ToolStripMenuItem detailsItem = new ToolStripMenuItem("Details...", null, (s, args) => ShowDetails());
-                contextMenu.Items.Add(detailsItem);
-                contextMenu.Show(this, e.Location);
-            }
-        }
-        */
-
         private void EmbroideryFileControl_DoubleClick(object? sender, EventArgs e)
         {
             // Show details on double-click

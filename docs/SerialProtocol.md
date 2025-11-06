@@ -156,7 +156,7 @@ If you move into embroidery mode and read all 0xFF, the embroidery module was no
 R57FF80 --> FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF  (Session Open, No initialized)
 ```
 
-## Emboidery Module Session End
+## Embroidery Module Session End
 
 To close the session, send the "TrME" command. You can see how R57FF80 looks before and after the command: 
 

@@ -1542,6 +1542,9 @@ namespace EmbroideryCommunicator
                 // Print debug information about the downloaded file
                 PrintFileDebugInfo(downloadedFile);
 
+                // Show progress bar
+                ShowProgressBar(false, "Download Completed");
+
                 // Open or focus the embroidery viewer form
                 if (_embroideryViewerForm == null || _embroideryViewerForm.IsDisposed)
                 {
@@ -1733,8 +1736,6 @@ namespace EmbroideryCommunicator
                 if (success)
                 {
                     UpdateStatus($"Deleted {embroideryFile.FileName}");
-                    MessageBox.Show($"File '{embroideryFile.FileName}' deleted successfully.", "Delete Complete",
-                        MessageBoxButtons.OK, MessageBoxIcon.Information);
 
                     // Update local file lists and UI after successful deletion
                     UpdateFileListsAfterDelete(embroideryFile.FileId, location);
@@ -1817,6 +1818,9 @@ namespace EmbroideryCommunicator
                 return;
             }
 
+            // Set the user file attribute
+            embroideryFile.FileAttributes = 0x02;
+
             try
             {
                 // Show progress bar
@@ -1835,12 +1839,9 @@ namespace EmbroideryCommunicator
                 if (success)
                 {
                     UpdateStatus($"Uploaded {embroideryFile.FileName}");
-                    MessageBox.Show($"File '{embroideryFile.FileName}' uploaded successfully to the Embroidery Module.", "Upload Complete",
-                        MessageBoxButtons.OK, MessageBoxIcon.Information);
 
-                    // Refresh the embroidery files list to show the new file
-                    UpdateStatus("Refreshing file list...");
-                    await RefreshEmbroideryFilesAsync();
+                    // Add the new file to the appropriate list and update filenames if needed
+                    await AddUploadedFileAndVerifyAsync(embroideryFile, StorageLocation.EmbroideryModuleMemory);
                 }
                 else
                 {
@@ -1866,6 +1867,130 @@ namespace EmbroideryCommunicator
                 UpdateStatus("Upload error");
                 MessageBox.Show($"Error uploading file: {ex.Message}", "Upload Error",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        /// <summary>
+        /// Adds an uploaded file to the appropriate list and verifies the filename.
+        /// The machine may have changed the filename, so we do a lightweight refresh to check.
+        /// </summary>
+        /// <param name="uploadedFile">The file that was uploaded</param>
+        /// <param name="location">Storage location where the file was uploaded</param>
+        private async Task AddUploadedFileAndVerifyAsync(EmbroideryFile uploadedFile, StorageLocation location)
+        {
+            if (_serialStack == null || !_isConnected)
+            {
+                return;
+            }
+
+            // Determine which list to work with
+            List<EmbroideryFileControl>? fileControls = location == StorageLocation.EmbroideryModuleMemory 
+                ? _embroideryFileControls 
+                : _pcCardFileControls;
+            
+            FlowLayoutPanel? panel = location == StorageLocation.EmbroideryModuleMemory 
+                ? flowLayoutPanelFiles 
+                : flowLayoutPanelPcCards;
+
+            if (fileControls == null || panel == null)
+            {
+                return;
+            }
+
+            // Determine the next FileId by finding the highest FileId in the current list
+            int nextFileId = 0;
+            foreach (var control in fileControls)
+            {
+                var file = control.GetEmbroideryFile();
+                if (file != null && file.FileId >= nextFileId)
+                {
+                    nextFileId = file.FileId + 1;
+                }
+            }
+
+            // Set the FileId for the new file
+            uploadedFile.FileId = nextFileId;
+
+            // Add the file to the UI immediately
+            if (InvokeRequired)
+            {
+                Invoke(new Action(() =>
+                {
+                    var fileControl = new EmbroideryFileControl();
+                    fileControl.SetEmbroideryFile(uploadedFile);
+                    panel.Controls.Add(fileControl);
+                    fileControls.Add(fileControl);
+                }));
+            }
+            else
+            {
+                var fileControl = new EmbroideryFileControl();
+                fileControl.SetEmbroideryFile(uploadedFile);
+                panel.Controls.Add(fileControl);
+                fileControls.Add(fileControl);
+            }
+
+            // Now do a lightweight refresh to get filenames without preview images
+            UpdateStatus("Verifying filename...");
+            
+            try
+            {
+                // Read file list without preview images
+                var updatedFiles = await _serialStack.ReadEmbroideryFilesAsync(
+                    location,
+                    false, // No preview images
+                    null,  // No progress callback
+                    null,  // No real-time callback
+                    false  // No fast cache lookup
+                );
+
+                if (updatedFiles != null)
+                {
+                    // Check each file in the updated list and update if filename or attributes changed
+                    foreach (var updatedFile in updatedFiles)
+                    {
+                        // Find the corresponding control by FileId
+                        foreach (var control in fileControls)
+                        {
+                            var currentFile = control.GetEmbroideryFile();
+                            if (currentFile != null && currentFile.FileId == updatedFile.FileId)
+                            {
+                                bool needsUpdate = false;
+                                
+                                // Check if filename changed
+                                if (currentFile.FileName != updatedFile.FileName)
+                                {
+                                    // Update the filename in the current file object
+                                    currentFile.FileName = updatedFile.FileName;
+                                    needsUpdate = true;
+                                    UpdateStatus($"Filename updated: {uploadedFile.FileName} -> {updatedFile.FileName}");
+                                }
+                                
+                                // Check if file attributes changed
+                                if (currentFile.FileAttributes != updatedFile.FileAttributes)
+                                {
+                                    // Update the attributes in the current file object
+                                    currentFile.FileAttributes = updatedFile.FileAttributes;
+                                    needsUpdate = true;
+                                    UpdateStatus($"File attributes updated for {currentFile.FileName}");
+                                }
+                                
+                                // Refresh the control if anything changed
+                                if (needsUpdate)
+                                {
+                                    control.SetEmbroideryFile(currentFile);
+                                }
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                UpdateStatus("File added successfully");
+            }
+            catch (Exception ex)
+            {
+                UpdateStatus($"Error verifying filename: {ex.Message}");
             }
         }
 

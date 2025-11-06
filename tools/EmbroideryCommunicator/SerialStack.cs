@@ -681,7 +681,7 @@ namespace EmbroideryCommunicator
         /// <param name="data">The data bytes to write</param>
         /// <param name="progress">Optional progress callback (current bytes written, total bytes)</param>
         /// <returns>CommandResult indicating success or failure</returns>
-        public async Task<CommandResult> WriteMemoryBlockAsync(int address, byte[] data, Action<int, int>? progress = null)
+        public async Task<CommandResult> WriteMemoryBlockSlowAsync(int address, byte[] data, Action<int, int>? progress = null)
         {
             if (data == null || data.Length == 0)
             {
@@ -752,14 +752,14 @@ namespace EmbroideryCommunicator
 
         /// <summary>
         /// Writes a block of memory by efficiently combining Write and Upload commands.
-        /// Uses Write command for unaligned portions and Upload command for 256-byte aligned blocks.
+        /// Uses Write command (32 bytes max) for unaligned portions and Upload command (256 bytes) for aligned blocks.
         /// This is faster but less reliable than WriteMemoryBlockAsync which only uses Write commands.
         /// </summary>
         /// <param name="address">The starting address to write to</param>
         /// <param name="data">The data bytes to write</param>
         /// <param name="progress">Optional progress callback (current bytes written, total bytes)</param>
         /// <returns>CommandResult indicating success or failure</returns>
-        public async Task<CommandResult> WriteMemoryBlockFastAsync(int address, byte[] data, Action<int, int>? progress = null)
+        public async Task<CommandResult> WriteMemoryBlockAsync(int address, byte[] data, Action<int, int>? progress = null)
         {
             if (data == null || data.Length == 0)
             {
@@ -785,17 +785,59 @@ namespace EmbroideryCommunicator
                 int bytesWritten = 0;
                 int currentAddress = address;
 
+                // Calculate bytes until first 256-byte boundary
+                int bytesToFirstBoundary = 256 - (currentAddress & 0xFF);
+                
+                // Determine if we'll ever use Upload (need to reach a boundary and have 256+ bytes after that)
+                bool willUseUpload = (totalLength > bytesToFirstBoundary) && 
+                                     ((totalLength - bytesToFirstBoundary) >= 256);
+
+                // If we won't use Upload, just use WriteAsync throughout (simpler path)
+                if (!willUseUpload)
+                {
+                    while (bytesWritten < totalLength)
+                    {
+                        int remainingBytes = totalLength - bytesWritten;
+                        int bytesToWrite = Math.Min(32, remainingBytes);
+                        
+                        byte[] writeData = new byte[bytesToWrite];
+                        Array.Copy(data, bytesWritten, writeData, 0, bytesToWrite);
+                        
+                        var result = await WriteAsync(currentAddress, writeData);
+                        if (!result.Success)
+                        {
+                            return new CommandResult
+                            {
+                                Success = false,
+                                ErrorMessage = $"Write failed at address 0x{currentAddress:X6}: {result.ErrorMessage}"
+                            };
+                        }
+                        
+                        bytesWritten += bytesToWrite;
+                        currentAddress += bytesToWrite;
+                        
+                        // Report progress
+                        progress?.Invoke(bytesWritten, totalLength);
+                    }
+                    
+                    return new CommandResult
+                    {
+                        Success = true,
+                        Response = $"Wrote {totalLength} bytes to 0x{address:X6}"
+                    };
+                }
+
+                // Optimized path: Use combination of Write and Upload
                 while (bytesWritten < totalLength)
                 {
                     int remainingBytes = totalLength - bytesWritten;
 
-                    // Calculate bytes until next 256-byte boundary
-                    int bytesToBoundary = 256 - (currentAddress & 0xFF);
+                    // Check if we're at a 256-byte boundary
+                    bool atBoundary = (currentAddress & 0xFF) == 0;
                     
-                    // If we're at a 256-byte boundary and have at least 256 bytes remaining, use Upload command
-                    if ((currentAddress & 0xFF) == 0 && remainingBytes >= 256)
+                    // If at boundary and have at least 256 bytes remaining, use Upload
+                    if (atBoundary && remainingBytes >= 256)
                     {
-                        // Use Upload command for 256 bytes
                         byte[] uploadData = new byte[256];
                         Array.Copy(data, bytesWritten, uploadData, 0, 256);
                         
@@ -814,11 +856,13 @@ namespace EmbroideryCommunicator
                     }
                     else
                     {
-                        // Use Write command for bytes until boundary or remaining bytes (whichever is smaller)
-                        int bytesToWrite = Math.Min(bytesToBoundary, remainingBytes);
+                        // Use Write command (max 32 bytes at a time)
+                        // Write up to boundary or remaining bytes, whichever is smaller
+                        int bytesToBoundary = 256 - (currentAddress & 0xFF);
+                        int maxWrite = Math.Min(32, Math.Min(bytesToBoundary, remainingBytes));
                         
-                        byte[] writeData = new byte[bytesToWrite];
-                        Array.Copy(data, bytesWritten, writeData, 0, bytesToWrite);
+                        byte[] writeData = new byte[maxWrite];
+                        Array.Copy(data, bytesWritten, writeData, 0, maxWrite);
                         
                         var result = await WriteAsync(currentAddress, writeData);
                         if (!result.Success)
@@ -830,8 +874,8 @@ namespace EmbroideryCommunicator
                             };
                         }
                         
-                        bytesWritten += bytesToWrite;
-                        currentAddress += bytesToWrite;
+                        bytesWritten += maxWrite;
+                        currentAddress += maxWrite;
                     }
 
                     // Report progress
@@ -1681,12 +1725,16 @@ namespace EmbroideryCommunicator
                 return isComplete;
             }
 
-            // For Upload commands (PS + 4 hex) - expect command echo + "OE"
+            // For Upload commands (PS + 4 hex) - machine echoes the command and then sends "OE"
             if (command.StartsWith("PS") && command.Length == 6)
             {
-                int expectedLength = command.Length + 2; // Command echo + "OE"
-                bool isComplete = response.Length >= expectedLength && response.Contains("OE");
-                //RaiseDebugMessage($"IsResponseComplete: Upload command - expected>={expectedLength}, actual={response.Length}, containsOE={response.Contains("OE")}, result={isComplete}");
+                // Machine echoes the command (6 chars) and then sends "OE" (2 chars)
+                // Total expected: 6 + 2 = 8 characters
+                int expectedLength = command.Length + 2; // Command (6) + "OE" (2) = 8
+                bool isComplete = response.Length == expectedLength && 
+                                 response.StartsWith(command) && 
+                                 response.EndsWith("OE");
+                //RaiseDebugMessage($"IsResponseComplete: Upload command - expected={expectedLength}, actual={response.Length}, startsWithCmd={response.StartsWith(command)}, endsWithOE={response.EndsWith("OE")}, result={isComplete}");
                 return isComplete;
             }
 
@@ -2000,6 +2048,24 @@ namespace EmbroideryCommunicator
                     await Task.Delay(20);
                 }
 
+                // CRITICAL: Mark transmission as complete so BlockingReadLoopAsync will check IsResponseComplete
+                _transmissionComplete = true;
+
+                // Give a tiny moment for any buffered data to be processed
+                await Task.Delay(10);
+
+                // Check if response is already complete (OE may have arrived immediately)
+                string currentResponse = _responseBuffer.ToString();
+                RaiseDebugMessage($"ExecuteUploadCommand: After transmission, buffer contains: '{currentResponse}' (len={currentResponse.Length})");
+                
+                if (!string.IsNullOrEmpty(currentResponse) && IsResponseComplete(command, currentResponse))
+                {
+                    // Response already complete - process it immediately
+                    RaiseDebugMessage($"ExecuteUploadCommand: Response already complete, processing immediately");
+                    CompleteCurrentCommand(currentResponse);
+                    _responseBuffer.Clear();
+                }
+
                 // Wait for "OE" response (command echo + "OE")
                 var timeoutTask = Task.Delay(5000);
                 var completedTask = await Task.WhenAny(phaseOneCommand.CompletionSource.Task, timeoutTask);
@@ -2007,39 +2073,44 @@ namespace EmbroideryCommunicator
                 if (completedTask == timeoutTask)
                 {
                     _currentCommand = null;
+                    string bufferContent = _responseBuffer.ToString();
+                    RaiseDebugMessage($"ExecuteUploadCommand: Timeout! Buffer contains: '{bufferContent}' (len={bufferContent.Length})");
                     await RecoverFromErrorAsync();
                     return new CommandResult
                     {
                         Success = false,
-                        ErrorMessage = "Upload command timeout waiting for OE"
+                        ErrorMessage = $"Upload command timeout waiting for OE. Buffer: '{bufferContent}'"
                     };
                 }
 
                 var phaseOneResult = await phaseOneCommand.CompletionSource.Task;
                 _currentCommand = null;
+                _transmissionComplete = false;
 
                 if (!phaseOneResult.Success)
                 {
+                    RaiseDebugMessage($"ExecuteUploadCommand: Phase 1 failed: {phaseOneResult.ErrorMessage}");
                     await RecoverFromErrorAsync();
                     return phaseOneResult;
                 }
 
-                // Verify we got "OE" response
-                if (phaseOneResult.Response == null || !phaseOneResult.Response.Contains("OE"))
+                // Verify we got "OE" response (should be in format "PS****OE" where **** is hex address)
+                if (phaseOneResult.Response == null || !phaseOneResult.Response.EndsWith("OE"))
                 {
+                    RaiseDebugMessage($"ExecuteUploadCommand: Invalid phase 1 response: '{phaseOneResult.Response}'");
                     await RecoverFromErrorAsync();
                     return new CommandResult
                     {
                         Success = false,
-                        ErrorMessage = $"Expected OE response, got: {phaseOneResult.Response}"
+                        ErrorMessage = $"Expected response ending with OE, got: {phaseOneResult.Response}"
                     };
                 }
+                
+                RaiseDebugMessage($"ExecuteUploadCommand: Phase 1 complete, received: '{phaseOneResult.Response}'");
 
                 // Phase 2: Send 256 bytes of binary data and wait for "O"
                 _responseBuffer.Clear();
-                
-                // Create a completion source for phase 2
-                var phaseTwoCompletion = new TaskCompletionSource<bool>();
+                RaiseDebugMessage($"ExecuteUploadCommand: Phase 2 - sending 256 bytes of data");
                 
                 // Send all 256 bytes
                 _serialPort.Write(data, 0, data.Length);
@@ -2048,6 +2119,7 @@ namespace EmbroideryCommunicator
                 
                 // Track bytes sent
                 Interlocked.Add(ref _bytesSent, data.Length);
+                RaiseDebugMessage($"ExecuteUploadCommand: Data sent, waiting for 'O' confirmation");
 
                 // Wait for "O" confirmation
                 var waitStart = DateTime.Now;
@@ -2056,6 +2128,7 @@ namespace EmbroideryCommunicator
                     string currentBuffer = _responseBuffer.ToString();
                     if (currentBuffer.Contains("O"))
                     {
+                        RaiseDebugMessage($"ExecuteUploadCommand: Received 'O' confirmation, upload successful");
                         return new CommandResult
                         {
                             Success = true,
@@ -2065,6 +2138,7 @@ namespace EmbroideryCommunicator
                     else if (currentBuffer.Contains("Q"))
                     {
                         // Error - try to recover
+                        RaiseDebugMessage($"ExecuteUploadCommand: Machine reported error 'Q' during data upload");
                         await RecoverFromErrorAsync();
                         return new CommandResult
                         {
@@ -2076,11 +2150,13 @@ namespace EmbroideryCommunicator
                 }
 
                 // Timeout waiting for confirmation
+                string finalBuffer = _responseBuffer.ToString();
+                RaiseDebugMessage($"ExecuteUploadCommand: Timeout waiting for 'O' confirmation. Buffer: '{finalBuffer}'");
                 await RecoverFromErrorAsync();
                 return new CommandResult
                 {
                     Success = false,
-                    ErrorMessage = "Timeout waiting for O confirmation after sending data"
+                    ErrorMessage = $"Timeout waiting for O confirmation after sending data. Buffer: '{finalBuffer}'"
                 };
             }
             catch (Exception ex)
@@ -4188,7 +4264,7 @@ namespace EmbroideryCommunicator
 
                 // Step 10: Invoke method 0x0801 - This performs the delete. Wait an extra 4 seconds for the operation to complete.
                 RaiseDebugMessage("DeleteEmbroideryFile: Invoking delete function 0x0801");
-                var invokeFunc801Result = await InvokeFunctionAsync(0x0801, 4000);
+                var invokeFunc801Result = await InvokeFunctionAsync(0x0801, 2000);
                 if (!invokeFunc801Result.Success)
                 {
                     RaiseDebugMessage($"DeleteEmbroideryFile: Failed to invoke delete function 0x0801: {invokeFunc801Result.ErrorMessage}");
@@ -4452,7 +4528,7 @@ namespace EmbroideryCommunicator
 
                 // Step 13: Invoke method 0x0201 (with 4 second delay for machine to store data)
                 RaiseDebugMessage("WriteEmbroideryFile: Invoking store function 0x0201 (waiting 4 seconds)");
-                var invokeStoreResult = await InvokeFunctionAsync(0x0201, 4000);
+                var invokeStoreResult = await InvokeFunctionAsync(0x0201, 2000);
                 if (!invokeStoreResult.Success)
                 {
                     RaiseDebugMessage($"WriteEmbroideryFile: Failed to invoke store function 0x0201: {invokeStoreResult.ErrorMessage}");

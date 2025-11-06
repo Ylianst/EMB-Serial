@@ -32,9 +32,18 @@ namespace EmbroideryCommunicator
         {
             try
             {
-                System.Diagnostics.Process.Start("https://github.com/Ylianst/EMB-Serial");
+                var psi = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "https://github.com/Ylianst/EMB-Serial",
+                    UseShellExecute = true
+                };
+                System.Diagnostics.Process.Start(psi);
             }
-            catch (Exception) { }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Unable to open link: {ex.Message}", "Error", 
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
     }
 }
