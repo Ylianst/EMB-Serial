@@ -18,6 +18,7 @@ namespace EmbroideryCommunicator
         private float _baseScale = 1.0f; // Base scale to fit pattern in window
         private byte[]? _currentFileData = null; // Store current file data for saving
         private string? _currentFileName = null; // Store current filename
+        private StorageLocation? _intendedStorageLocation = null; // Intended upload location (null = no upload)
 
         // Colors to rotate through for different thread segments
         private readonly Color[] _threadColors = new Color[]
@@ -53,6 +54,9 @@ namespace EmbroideryCommunicator
 
             // Handle double-click on render panel to open file
             renderPanel.DoubleClick += renderPanel_DoubleClick;
+
+            // Wire up PC Card upload menu item
+            toPCCardToolStripMenuItem.Click += ToPCCardToolStripMenuItem_Click;
         }
 
         private void renderPanel_DoubleClick(object? sender, EventArgs e)
@@ -66,6 +70,16 @@ namespace EmbroideryCommunicator
 
         private void EmbroideryViewerForm_Resize(object sender, EventArgs e)
         {
+            // If fit-to-window is enabled, recalculate the base scale and reset zoom
+            if (fitToWindowToolStripMenuItem.Checked && _pattern != null)
+            {
+                _baseScale = CalculateBaseScale();
+                _zoomFactor = 1.0f;
+                _panOffset = new PointF(0, 0);
+                UpdateScrollBars();
+                UpdateStatus();
+            }
+
             // Force repaint when form is resized
             renderPanel.Invalidate();
         }
@@ -206,7 +220,8 @@ namespace EmbroideryCommunicator
         /// </summary>
         /// <param name="fileName">The name of the file (without path)</param>
         /// <param name="fileData">The raw .EXP file data</param>
-        public void LoadFileFromMemory(string fileName, byte[] fileData)
+        /// <param name="intendedLocation">The intended storage location for upload (null = no upload buttons shown)</param>
+        public void LoadFileFromMemory(string fileName, byte[] fileData, StorageLocation? intendedLocation = null)
         {
             try
             {
@@ -224,9 +239,13 @@ namespace EmbroideryCommunicator
                     return;
                 }
 
-                // Store file data and filename
+                // Store file data, filename, and intended location
                 _currentFileData = fileData;
                 _currentFileName = fileName;
+                _intendedStorageLocation = intendedLocation;
+
+                // Configure upload button and menu based on intended location
+                ConfigureUploadControls();
 
                 // Parse the file data directly
                 _pattern = ExpFileParser.ParseFromBytes(fileData, fileName);
@@ -302,6 +321,10 @@ namespace EmbroideryCommunicator
             _currentFileName = null;
             closeToolStripMenuItem.Enabled = false;
             saveAsToolStripMenuItem.Enabled = false;
+
+            // Hide upload controls
+            uploadButton.Visible = false;
+            uploadToolStripMenuItem.Visible = false;
 
             // Reset trackbar
             trackBar.Minimum = 0;
@@ -447,7 +470,7 @@ namespace EmbroideryCommunicator
                     else
                     {
                         // Skip drawing jump stitches if jumps are hidden
-                        if (currStitch.Type == StitchType.Jump && !_showJumps)
+                        if (((currStitch.Type == StitchType.Jump) || (prevStitch.Type == StitchType.Jump)) && !_showJumps)
                         {
                             continue;
                         }
@@ -459,7 +482,7 @@ namespace EmbroideryCommunicator
                             using (Pen normalPen = new Pen(currentThreadColor, 0.5f))
                             {
                                 // Draw line from previous to current stitch
-                                Pen pen = currStitch.Type == StitchType.Jump ? jumpPen : normalPen;
+                                Pen pen = ((currStitch.Type == StitchType.Jump) || (prevStitch.Type == StitchType.Jump)) ? jumpPen : normalPen;
 
                                 // Skip drawing if previous was a special command
                                 if (prevStitch.Type != StitchType.ColorChange && prevStitch.Type != StitchType.End)
@@ -560,6 +583,9 @@ namespace EmbroideryCommunicator
 
             if (newZoom != _zoomFactor)
             {
+                // Disable fit-to-window mode when manually zooming
+                fitToWindowToolStripMenuItem.Checked = false;
+
                 // Zoom towards mouse position
                 Point mousePos = renderPanel.PointToClient(Cursor.Position);
                 float zoomRatio = newZoom / _zoomFactor;
@@ -624,6 +650,9 @@ namespace EmbroideryCommunicator
             {
                 if (e.KeyCode == Keys.Oemplus || e.KeyCode == Keys.Add)
                 {
+                    // Disable fit-to-window mode when manually zooming
+                    fitToWindowToolStripMenuItem.Checked = false;
+
                     // Zoom in
                     float newZoom = _zoomFactor * 1.2f;
                     _zoomFactor = Math.Min(newZoom, 20f);
@@ -634,6 +663,9 @@ namespace EmbroideryCommunicator
                 }
                 else if (e.KeyCode == Keys.OemMinus || e.KeyCode == Keys.Subtract)
                 {
+                    // Disable fit-to-window mode when manually zooming
+                    fitToWindowToolStripMenuItem.Checked = false;
+
                     // Zoom out
                     float newZoom = _zoomFactor * 0.8f;
                     _zoomFactor = Math.Max(newZoom, 0.1f);
@@ -644,13 +676,8 @@ namespace EmbroideryCommunicator
                 }
                 else if (e.KeyCode == Keys.D0 || e.KeyCode == Keys.NumPad0)
                 {
-                    // Reset zoom
-                    _zoomFactor = 1.0f;
-                    _panOffset = new PointF(0, 0);
-                    UpdateScrollBars();
-                    UpdateStatus();
-                    renderPanel.Invalidate();
-                    e.Handled = true;
+                    // Ctrl+0 toggles fit-to-window, handled by menu item
+                    // Don't process here to avoid double-handling
                 }
             }
         }
@@ -882,13 +909,21 @@ namespace EmbroideryCommunicator
 
         private void fitToWindowToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            SetZoom(1.0f);
+            // When toggling fit-to-window on, recalculate the fit
+            if (fitToWindowToolStripMenuItem.Checked && _pattern != null)
+            {
+                _baseScale = CalculateBaseScale();
+                SetZoom(1.0f);
+            }
         }
 
         private void zoom50ToolStripMenuItem_Click(object sender, EventArgs e)
         {
             if (_pattern == null)
                 return;
+
+            // Disable fit-to-window mode when selecting specific zoom level
+            fitToWindowToolStripMenuItem.Checked = false;
 
             _baseScale = CalculateBaseScale();
             SetZoom(0.5f);
@@ -899,6 +934,9 @@ namespace EmbroideryCommunicator
             if (_pattern == null)
                 return;
 
+            // Disable fit-to-window mode when selecting specific zoom level
+            fitToWindowToolStripMenuItem.Checked = false;
+
             _baseScale = CalculateBaseScale();
             SetZoom(1.0f);
         }
@@ -907,6 +945,9 @@ namespace EmbroideryCommunicator
         {
             if (_pattern == null)
                 return;
+
+            // Disable fit-to-window mode when selecting specific zoom level
+            fitToWindowToolStripMenuItem.Checked = false;
 
             _baseScale = CalculateBaseScale();
             SetZoom(2.0f);
@@ -962,7 +1003,59 @@ namespace EmbroideryCommunicator
             }
         }
 
+        private void ConfigureUploadControls()
+        {
+            // If no intended storage location, hide upload controls
+            if (_intendedStorageLocation == null)
+            {
+                uploadButton.Visible = false;
+                uploadToolStripMenuItem.Visible = false;
+                return;
+            }
+
+            // Show upload button and menu
+            uploadButton.Visible = true;
+            uploadToolStripMenuItem.Visible = true;
+
+            // Configure text and visible menu items based on intended location
+            if (_intendedStorageLocation == StorageLocation.PCCard)
+            {
+                uploadButton.Text = "Upload to PC Card";
+                toEmbroideryModuleToolStripMenuItem.Visible = false;
+                toPCCardToolStripMenuItem.Visible = true;
+            }
+            else // EmbroideryModuleMemory
+            {
+                uploadButton.Text = "Upload to Embroidery Module";
+                toEmbroideryModuleToolStripMenuItem.Visible = true;
+                toPCCardToolStripMenuItem.Visible = false;
+            }
+        }
+
+        private void UploadButton_Click(object? sender, EventArgs e)
+        {
+            // Delegate to the appropriate menu item click handler
+            if (_intendedStorageLocation == StorageLocation.PCCard)
+            {
+                ToPCCardToolStripMenuItem_Click(sender, e);
+            }
+            else
+            {
+                toEmbroideryModuleToolStripMenuItem_Click(sender, e);
+            }
+        }
+
         private void toEmbroideryModuleToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            PerformUpload(StorageLocation.EmbroideryModuleMemory);
+        }
+
+        private void ToPCCardToolStripMenuItem_Click(object? sender, EventArgs e)
+        {
+            PerformUpload(StorageLocation.PCCard);
+        }
+
+        private void PerformUpload(StorageLocation targetLocation)
         {
             // Check if we have a loaded pattern
             if (_pattern == null || _currentFileData == null || _currentFileName == null)
@@ -972,10 +1065,13 @@ namespace EmbroideryCommunicator
                 return;
             }
 
+            // Determine the location name
+            string locationName = targetLocation == StorageLocation.PCCard ? "PC Card" : "Embroidery Module";
+
             // Confirm with the user
             string fileName = Path.GetFileNameWithoutExtension(_currentFileName);
             DialogResult confirmResult = MessageBox.Show(
-                $"Do you want to upload '{fileName}' to the Embroidery Module?\n\n" +
+                $"Do you want to upload '{fileName}' to the {locationName}?\n\n" +
                 "This will transfer the pattern to the machine's memory.",
                 "Confirm Upload",
                 MessageBoxButtons.YesNo,
@@ -990,7 +1086,7 @@ namespace EmbroideryCommunicator
             {
                 // Create preview image from the current file data
                 byte[]? previewData = ExpFileParser.GeneratePreviewImage(_currentFileData);
-                
+
                 if (previewData == null || previewData.Length == 0)
                 {
                     MessageBox.Show("Failed to generate preview image for upload.", "Upload Error",
@@ -1009,7 +1105,7 @@ namespace EmbroideryCommunicator
 
                 // Find the MainForm and call the upload method
                 MainForm? mainForm = Application.OpenForms.OfType<MainForm>().FirstOrDefault();
-                
+
                 if (mainForm == null)
                 {
                     MessageBox.Show("Main form not found. Please ensure the application is running correctly.", "Upload Error",
@@ -1019,6 +1115,9 @@ namespace EmbroideryCommunicator
 
                 // Call the upload method on the main form
                 _ = mainForm.UploadEmbroideryFileAsync(fileToUpload);
+
+                // Close this viewer form after initiating upload
+                this.Close();
             }
             catch (Exception ex)
             {

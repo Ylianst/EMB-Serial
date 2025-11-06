@@ -33,6 +33,11 @@
             iconCacheNormalToolStripMenuItem = new ToolStripMenuItem();
             iconCacheFastToolStripMenuItem = new ToolStripMenuItem();
             pcCardRefreshToolStripMenuItem = new ToolStripMenuItem();
+            toolStripMenuItem2 = new ToolStripSeparator();
+            uploadToEmbroideryModuleToolStripMenuItem = new ToolStripMenuItem();
+            uploadToPCCardToolStripMenuItem = new ToolStripMenuItem();
+            toolStripMenuItem1 = new ToolStripSeparator();
+            deleteToolStripMenuItem = new ToolStripMenuItem();
             debugToolStripMenuItem = new ToolStripMenuItem();
             showDeveloperDebugToolStripMenuItem = new ToolStripMenuItem();
             downloadMemoryDumpToolStripMenuItem = new ToolStripMenuItem();
@@ -55,9 +60,9 @@
             machineImageStatePanel = new Panel();
             pictureBox1 = new PictureBox();
             embroideryTabPage = new TabPage();
-            flowLayoutPanelFiles = new FlowLayoutPanel();
+            flowLayoutPanelInternalFiles = new FlowLayoutPanel();
             pcCardTabPage = new TabPage();
-            flowLayoutPanelPcCards = new FlowLayoutPanel();
+            flowLayoutPanelPcCardFiles = new FlowLayoutPanel();
             mainPanel = new Panel();
             btnConnect = new Button();
             bannerPictureBox = new PictureBox();
@@ -127,7 +132,7 @@
             // 
             // optionsToolStripMenuItem
             // 
-            optionsToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { iconCacheToolStripMenuItem, pcCardRefreshToolStripMenuItem });
+            optionsToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { iconCacheToolStripMenuItem, pcCardRefreshToolStripMenuItem, toolStripMenuItem2, uploadToEmbroideryModuleToolStripMenuItem, uploadToPCCardToolStripMenuItem, toolStripMenuItem1, deleteToolStripMenuItem });
             optionsToolStripMenuItem.Name = "optionsToolStripMenuItem";
             optionsToolStripMenuItem.Size = new Size(75, 24);
             optionsToolStripMenuItem.Text = "&Options";
@@ -136,7 +141,7 @@
             // 
             iconCacheToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { iconCacheNoneToolStripMenuItem, iconCacheNormalToolStripMenuItem, iconCacheFastToolStripMenuItem });
             iconCacheToolStripMenuItem.Name = "iconCacheToolStripMenuItem";
-            iconCacheToolStripMenuItem.Size = new Size(197, 26);
+            iconCacheToolStripMenuItem.Size = new Size(304, 26);
             iconCacheToolStripMenuItem.Text = "Icon Cache";
             // 
             // iconCacheNoneToolStripMenuItem
@@ -166,9 +171,43 @@
             // 
             pcCardRefreshToolStripMenuItem.Enabled = false;
             pcCardRefreshToolStripMenuItem.Name = "pcCardRefreshToolStripMenuItem";
-            pcCardRefreshToolStripMenuItem.Size = new Size(197, 26);
-            pcCardRefreshToolStripMenuItem.Text = "&PC Card Refresh";
+            pcCardRefreshToolStripMenuItem.Size = new Size(304, 26);
+            pcCardRefreshToolStripMenuItem.Text = "PC Card &Refresh";
             pcCardRefreshToolStripMenuItem.Click += pcCardRefreshToolStripMenuItem_Click;
+            // 
+            // toolStripMenuItem2
+            // 
+            toolStripMenuItem2.Name = "toolStripMenuItem2";
+            toolStripMenuItem2.Size = new Size(301, 6);
+            // 
+            // uploadToEmbroideryModuleToolStripMenuItem
+            // 
+            uploadToEmbroideryModuleToolStripMenuItem.Enabled = false;
+            uploadToEmbroideryModuleToolStripMenuItem.Name = "uploadToEmbroideryModuleToolStripMenuItem";
+            uploadToEmbroideryModuleToolStripMenuItem.Size = new Size(304, 26);
+            uploadToEmbroideryModuleToolStripMenuItem.Text = "Upload to &Embroidery Module...";
+            uploadToEmbroideryModuleToolStripMenuItem.Click += uploadToEmbroideryModuleToolStripMenuItem_Click;
+            // 
+            // uploadToPCCardToolStripMenuItem
+            // 
+            uploadToPCCardToolStripMenuItem.Enabled = false;
+            uploadToPCCardToolStripMenuItem.Name = "uploadToPCCardToolStripMenuItem";
+            uploadToPCCardToolStripMenuItem.Size = new Size(304, 26);
+            uploadToPCCardToolStripMenuItem.Text = "Upload to &PC Card...";
+            uploadToPCCardToolStripMenuItem.Click += uploadToPCCardToolStripMenuItem_Click;
+            // 
+            // toolStripMenuItem1
+            // 
+            toolStripMenuItem1.Name = "toolStripMenuItem1";
+            toolStripMenuItem1.Size = new Size(301, 6);
+            // 
+            // deleteToolStripMenuItem
+            // 
+            deleteToolStripMenuItem.Enabled = false;
+            deleteToolStripMenuItem.Name = "deleteToolStripMenuItem";
+            deleteToolStripMenuItem.Size = new Size(304, 26);
+            deleteToolStripMenuItem.Text = "&Delete...";
+            deleteToolStripMenuItem.Click += deleteToolStripMenuItem_Click;
             // 
             // debugToolStripMenuItem
             // 
@@ -370,7 +409,7 @@
             // 
             // embroideryTabPage
             // 
-            embroideryTabPage.Controls.Add(flowLayoutPanelFiles);
+            embroideryTabPage.Controls.Add(flowLayoutPanelInternalFiles);
             embroideryTabPage.Location = new Point(4, 29);
             embroideryTabPage.Margin = new Padding(0);
             embroideryTabPage.Name = "embroideryTabPage";
@@ -379,20 +418,20 @@
             embroideryTabPage.Text = "Embroidery Module";
             embroideryTabPage.UseVisualStyleBackColor = true;
             // 
-            // flowLayoutPanelFiles
+            // flowLayoutPanelInternalFiles
             // 
-            flowLayoutPanelFiles.AutoScroll = true;
-            flowLayoutPanelFiles.BackColor = SystemColors.Control;
-            flowLayoutPanelFiles.Dock = DockStyle.Fill;
-            flowLayoutPanelFiles.Location = new Point(0, 0);
-            flowLayoutPanelFiles.Margin = new Padding(0);
-            flowLayoutPanelFiles.Name = "flowLayoutPanelFiles";
-            flowLayoutPanelFiles.Size = new Size(842, 463);
-            flowLayoutPanelFiles.TabIndex = 0;
+            flowLayoutPanelInternalFiles.AutoScroll = true;
+            flowLayoutPanelInternalFiles.BackColor = SystemColors.Control;
+            flowLayoutPanelInternalFiles.Dock = DockStyle.Fill;
+            flowLayoutPanelInternalFiles.Location = new Point(0, 0);
+            flowLayoutPanelInternalFiles.Margin = new Padding(0);
+            flowLayoutPanelInternalFiles.Name = "flowLayoutPanelInternalFiles";
+            flowLayoutPanelInternalFiles.Size = new Size(842, 463);
+            flowLayoutPanelInternalFiles.TabIndex = 0;
             // 
             // pcCardTabPage
             // 
-            pcCardTabPage.Controls.Add(flowLayoutPanelPcCards);
+            pcCardTabPage.Controls.Add(flowLayoutPanelPcCardFiles);
             pcCardTabPage.Location = new Point(4, 29);
             pcCardTabPage.Name = "pcCardTabPage";
             pcCardTabPage.Size = new Size(842, 463);
@@ -400,16 +439,16 @@
             pcCardTabPage.Text = "PC Card";
             pcCardTabPage.UseVisualStyleBackColor = true;
             // 
-            // flowLayoutPanelPcCards
+            // flowLayoutPanelPcCardFiles
             // 
-            flowLayoutPanelPcCards.AutoScroll = true;
-            flowLayoutPanelPcCards.BackColor = SystemColors.Control;
-            flowLayoutPanelPcCards.Dock = DockStyle.Fill;
-            flowLayoutPanelPcCards.Location = new Point(0, 0);
-            flowLayoutPanelPcCards.Margin = new Padding(0);
-            flowLayoutPanelPcCards.Name = "flowLayoutPanelPcCards";
-            flowLayoutPanelPcCards.Size = new Size(842, 463);
-            flowLayoutPanelPcCards.TabIndex = 1;
+            flowLayoutPanelPcCardFiles.AutoScroll = true;
+            flowLayoutPanelPcCardFiles.BackColor = SystemColors.Control;
+            flowLayoutPanelPcCardFiles.Dock = DockStyle.Fill;
+            flowLayoutPanelPcCardFiles.Location = new Point(0, 0);
+            flowLayoutPanelPcCardFiles.Margin = new Padding(0);
+            flowLayoutPanelPcCardFiles.Name = "flowLayoutPanelPcCardFiles";
+            flowLayoutPanelPcCardFiles.Size = new Size(842, 463);
+            flowLayoutPanelPcCardFiles.TabIndex = 1;
             // 
             // mainPanel
             // 
@@ -505,7 +544,7 @@
         private Panel panelMain;
         private Panel mainPanel;
         private Button btnConnect;
-        private FlowLayoutPanel flowLayoutPanelFiles;
+        private FlowLayoutPanel flowLayoutPanelInternalFiles;
         private TabControl mainTabControl;
         private TabPage generalTabPage;
         private TabPage embroideryTabPage;
@@ -518,10 +557,15 @@
         private PictureBox bannerPictureBox;
         private ToolStripStatusLabel toolStripStatusLabelBusy;
         private TabPage pcCardTabPage;
-        private FlowLayoutPanel flowLayoutPanelPcCards;
+        private FlowLayoutPanel flowLayoutPanelPcCardFiles;
         private ToolStripMenuItem serialCaptureToolStripMenuItem;
         private ToolStripMenuItem embroideryViewerToolStripMenuItem;
         private ToolStripMenuItem helpToolStripMenuItem;
         private ToolStripMenuItem aboutToolStripMenuItem;
+        private ToolStripMenuItem uploadToEmbroideryModuleToolStripMenuItem;
+        private ToolStripMenuItem uploadToPCCardToolStripMenuItem;
+        private ToolStripSeparator toolStripMenuItem2;
+        private ToolStripSeparator toolStripMenuItem1;
+        private ToolStripMenuItem deleteToolStripMenuItem;
     }
 }

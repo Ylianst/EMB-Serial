@@ -188,7 +188,6 @@ namespace EmbroideryCommunicator
                 float currentX = 0;
                 float currentY = 0;
                 bool inJump = false;
-                bool hadJump = false;
                 
                 for (int i = 0; i < expFileData.Length - 1; i += 2)
                 {
@@ -200,9 +199,14 @@ namespace EmbroideryCommunicator
                     {
                         if (byte2 == 4)
                         {
-                            // Jump command - next coordinate will be a jump, skip it
+                            // Jump command - next coordinate will be a jump
+                            // End current segment before the jump
+                            if (currentSegment.Count > 0)
+                            {
+                                segments.Add(currentSegment);
+                                currentSegment = new List<(float x, float y)>();
+                            }
                             inJump = true;
-                            hadJump = true;
                         }
                         else if (byte2 == 1 || byte2 == 128)
                         {
@@ -230,20 +234,13 @@ namespace EmbroideryCommunicator
                     // Handle jumps and segments
                     if (inJump)
                     {
-                        // We're in a jump, skip this point and start a new segment after
+                        // This is a jump point - don't add it to any segment
+                        // The next normal stitch will start a new segment
                         inJump = false;
                     }
                     else
                     {
-                        // If we just had a jump, start a new segment
-                        if (hadJump && currentSegment.Count > 0)
-                        {
-                            segments.Add(currentSegment);
-                            currentSegment = new List<(float x, float y)>();
-                            hadJump = false;
-                        }
-                        
-                        // Add point to current segment
+                        // Normal stitch - add to current segment
                         currentSegment.Add((currentX, currentY));
                     }
                 }

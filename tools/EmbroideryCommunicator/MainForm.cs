@@ -18,6 +18,7 @@ namespace EmbroideryCommunicator
         private const string PreviewCacheValueName = "PreviewCache";
         private List<EmbroideryFileControl>? _embroideryFileControls = null;
         private List<EmbroideryFileControl>? _pcCardFileControls = null;
+        private EmbroideryFileControl? _selectedFileControl = null;
         private string[]? _previousPortList = null;
         private string? _lastAskedAboutPort = null;
         private IconCacheMode _iconCacheMode = IconCacheMode.Normal;
@@ -81,6 +82,16 @@ namespace EmbroideryCommunicator
                 mainTabControl.TabPages.Remove(pcCardTabPage);
             }
 
+            // Enable drag & drop for flowLayoutPanelInternalFiles
+            flowLayoutPanelInternalFiles.AllowDrop = true;
+            flowLayoutPanelInternalFiles.DragEnter += FlowLayoutPanelInternalFiles_DragEnter;
+            flowLayoutPanelInternalFiles.DragDrop += FlowLayoutPanelInternalFiles_DragDrop;
+
+            // Enable drag & drop for flowLayoutPanelPcCardFiles
+            flowLayoutPanelPcCardFiles.AllowDrop = true;
+            flowLayoutPanelPcCardFiles.DragEnter += FlowLayoutPanelPcCardFiles_DragEnter;
+            flowLayoutPanelPcCardFiles.DragDrop += FlowLayoutPanelPcCardFiles_DragDrop;
+
             // Start monitoring for COM port changes
             try
             {
@@ -93,6 +104,8 @@ namespace EmbroideryCommunicator
                 System.Diagnostics.Debug.WriteLine($"Failed to start COM port monitor: {ex.Message}");
                 // Continue even if monitor fails - the app can still work with manual refresh
             }
+
+            UpdateUploadMenuItemStates();
         }
 
         private void ComPortMonitor_ComPortsChanged(object? sender, EventArgs e)
@@ -288,7 +301,7 @@ namespace EmbroideryCommunicator
             // Check if serial capture form is open
             if (_serialCaptureForm != null && !_serialCaptureForm.IsDisposed)
             {
-                MessageBox.Show("Cannot connect to the machine while the Serial Capture tool is running. Please close the Serial Capture window first.", 
+                MessageBox.Show("Cannot connect to the machine while the Serial Capture tool is running. Please close the Serial Capture window first.",
                     "Connection Error",
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
@@ -432,6 +445,7 @@ namespace EmbroideryCommunicator
                             {
                                 mainTabControl.TabPages.Add(pcCardTabPage);
                             }
+                            UpdateUploadMenuItemStates();
 
                             var pcCardFiles = await _serialStack.ReadEmbroideryFilesAsync(
                                 StorageLocation.PCCard,
@@ -562,6 +576,7 @@ namespace EmbroideryCommunicator
 
             UpdateStatus("Disconnected");
             UpdateConnectionStatus("Disconnected", false);
+            UpdateUploadMenuItemStates();
         }
 
         private void showDeveloperDebugToolStripMenuItem_Click(object sender, EventArgs e)
@@ -747,7 +762,7 @@ namespace EmbroideryCommunicator
             {
                 var fileControl = new EmbroideryFileControl();
                 fileControl.SetEmbroideryFile(file);
-                flowLayoutPanelFiles.Controls.Add(fileControl);
+                flowLayoutPanelInternalFiles.Controls.Add(fileControl);
                 _embroideryFileControls.Add(fileControl);
             }
         }
@@ -760,7 +775,7 @@ namespace EmbroideryCommunicator
                 return;
             }
 
-            flowLayoutPanelFiles.Controls.Clear();
+            flowLayoutPanelInternalFiles.Controls.Clear();
             if (_embroideryFileControls != null)
             {
                 foreach (var control in _embroideryFileControls)
@@ -779,7 +794,7 @@ namespace EmbroideryCommunicator
                 return;
             }
 
-            flowLayoutPanelPcCards.Controls.Clear();
+            flowLayoutPanelPcCardFiles.Controls.Clear();
             if (_pcCardFileControls != null)
             {
                 foreach (var control in _pcCardFileControls)
@@ -807,15 +822,18 @@ namespace EmbroideryCommunicator
             // Create a new control for this file
             var fileControl = new EmbroideryFileControl();
             fileControl.SetEmbroideryFile(file);
+            fileControl.SelectionChanged += FileControl_SelectionChanged;
 
             // Add to PC Card flow layout panel (will appear immediately)
-            flowLayoutPanelPcCards.Controls.Add(fileControl);
+            flowLayoutPanelPcCardFiles.Controls.Add(fileControl);
 
             // Track the control
             if (_pcCardFileControls != null)
             {
                 _pcCardFileControls.Add(fileControl);
             }
+
+            UpdateUploadMenuItemStates();
         }
 
         private void ShowProgressBar(bool visible, string message = "")
@@ -881,9 +899,10 @@ namespace EmbroideryCommunicator
             // Create a new control for this file
             var fileControl = new EmbroideryFileControl();
             fileControl.SetEmbroideryFile(file);
+            fileControl.SelectionChanged += FileControl_SelectionChanged;
 
             // Add to flow layout panel (will appear immediately)
-            flowLayoutPanelFiles.Controls.Add(fileControl);
+            flowLayoutPanelInternalFiles.Controls.Add(fileControl);
 
             // Track the control
             if (_embroideryFileControls != null)
@@ -893,6 +912,7 @@ namespace EmbroideryCommunicator
 
             // Don't auto-scroll - let user control the scroll position
             // flowLayoutPanelFiles.ScrollControlIntoView(fileControl);
+            UpdateUploadMenuItemStates();
         }
 
         private void connectToolStripMenuItem_Click(object sender, EventArgs e)
@@ -1035,6 +1055,7 @@ namespace EmbroideryCommunicator
                         mainTabControl.TabPages.Remove(pcCardTabPage);
                     }
                 }
+                UpdateUploadMenuItemStates();
 
                 // Save the preview cache to registry after refreshing
                 await SavePreviewCacheToRegistryAsync();
@@ -1320,13 +1341,13 @@ namespace EmbroideryCommunicator
             }
 
             // Determine which list and panel to update
-            List<EmbroideryFileControl>? fileControls = location == StorageLocation.EmbroideryModuleMemory 
-                ? _embroideryFileControls 
+            List<EmbroideryFileControl>? fileControls = location == StorageLocation.EmbroideryModuleMemory
+                ? _embroideryFileControls
                 : _pcCardFileControls;
-            
-            FlowLayoutPanel? panel = location == StorageLocation.EmbroideryModuleMemory 
-                ? flowLayoutPanelFiles 
-                : flowLayoutPanelPcCards;
+
+            FlowLayoutPanel? panel = location == StorageLocation.EmbroideryModuleMemory
+                ? flowLayoutPanelInternalFiles
+                : flowLayoutPanelPcCardFiles;
 
             if (fileControls == null || panel == null)
             {
@@ -1341,7 +1362,7 @@ namespace EmbroideryCommunicator
             {
                 var control = fileControls[i];
                 var file = control.GetEmbroideryFile();
-                
+
                 if (file != null && file.FileId == deletedFileId)
                 {
                     controlToRemove = control;
@@ -1364,12 +1385,12 @@ namespace EmbroideryCommunicator
                 {
                     var control = fileControls[i];
                     var file = control.GetEmbroideryFile();
-                    
+
                     if (file != null)
                     {
                         // Decrement the FileId
                         file.FileId--;
-                        
+
                         // Refresh the control to reflect the new FileId
                         control.SetEmbroideryFile(file);
                     }
@@ -1419,13 +1440,13 @@ namespace EmbroideryCommunicator
 
             // Create new serial capture form
             _serialCaptureForm = new SerialCaptureForm();
-            
+
             // Subscribe to FormClosed event to reset the reference when the form is closed
             _serialCaptureForm.FormClosed += (s, args) =>
             {
                 _serialCaptureForm = null;
             };
-            
+
             _serialCaptureForm.Show();
         }
 
@@ -1441,13 +1462,13 @@ namespace EmbroideryCommunicator
 
             // Create new embroidery viewer form
             _embroideryViewerForm = new EmbroideryViewerForm();
-            
+
             // Subscribe to FormClosed event to reset the reference when the form is closed
             _embroideryViewerForm.FormClosed += (s, args) =>
             {
                 _embroideryViewerForm = null;
             };
-            
+
             _embroideryViewerForm.Show();
         }
 
@@ -1457,6 +1478,108 @@ namespace EmbroideryCommunicator
             {
                 aboutForm.ShowDialog(this);
             }
+        }
+
+        private void uploadToEmbroideryModuleToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            // Show file selection dialog for .exp files
+            using (OpenFileDialog openFileDialog = new OpenFileDialog())
+            {
+                openFileDialog.Filter = "Embroidery Files (*.exp)|*.exp|All Files (*.*)|*.*";
+                openFileDialog.Title = "Select File to Upload to Embroidery Module";
+                openFileDialog.RestoreDirectory = true;
+
+                if (openFileDialog.ShowDialog() == DialogResult.OK)
+                {
+                    try
+                    {
+                        // Read the file data
+                        byte[] fileData = File.ReadAllBytes(openFileDialog.FileName);
+                        string fileName = Path.GetFileName(openFileDialog.FileName);
+
+                        // Open or focus the embroidery viewer form
+                        if (_embroideryViewerForm == null || _embroideryViewerForm.IsDisposed)
+                        {
+                            _embroideryViewerForm = new EmbroideryViewerForm();
+
+                            // Subscribe to FormClosed event to reset the reference when the form is closed
+                            _embroideryViewerForm.FormClosed += (s, args) =>
+                            {
+                                _embroideryViewerForm = null;
+                            };
+                        }
+
+                        // Load the file with Embroidery Module as the intended location
+                        _embroideryViewerForm.LoadFileFromMemory(fileName, fileData, StorageLocation.EmbroideryModuleMemory);
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show($"Error loading file: {ex.Message}", "Load Error",
+                            MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                }
+            }
+        }
+
+        private void uploadToPCCardToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            // Show file selection dialog for .exp files
+            using (OpenFileDialog openFileDialog = new OpenFileDialog())
+            {
+                openFileDialog.Filter = "Embroidery Files (*.exp)|*.exp|All Files (*.*)|*.*";
+                openFileDialog.Title = "Select File to Upload to PC Card";
+                openFileDialog.RestoreDirectory = true;
+
+                if (openFileDialog.ShowDialog() == DialogResult.OK)
+                {
+                    try
+                    {
+                        // Read the file data
+                        byte[] fileData = File.ReadAllBytes(openFileDialog.FileName);
+                        string fileName = Path.GetFileName(openFileDialog.FileName);
+
+                        // Open or focus the embroidery viewer form
+                        if (_embroideryViewerForm == null || _embroideryViewerForm.IsDisposed)
+                        {
+                            _embroideryViewerForm = new EmbroideryViewerForm();
+
+                            // Subscribe to FormClosed event to reset the reference when the form is closed
+                            _embroideryViewerForm.FormClosed += (s, args) =>
+                            {
+                                _embroideryViewerForm = null;
+                            };
+                        }
+
+                        // Load the file with PC Card as the intended location
+                        _embroideryViewerForm.LoadFileFromMemory(fileName, fileData, StorageLocation.PCCard);
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show($"Error loading file: {ex.Message}", "Load Error",
+                            MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Updates the enabled state of upload menu items based on tab visibility.
+        /// </summary>
+        private void UpdateUploadMenuItemStates()
+        {
+            if (InvokeRequired)
+            {
+                Invoke(new Action(() => UpdateUploadMenuItemStates()));
+                return;
+            }
+
+            // Enable uploadToEmbroideryModuleToolStripMenuItem if embroidery tab is visible
+            uploadToEmbroideryModuleToolStripMenuItem.Enabled =
+                embroideryTabPage != null && mainTabControl.TabPages.Contains(embroideryTabPage);
+
+            // Enable uploadToPCCardToolStripMenuItem if PC Card tab is visible
+            uploadToPCCardToolStripMenuItem.Enabled =
+                pcCardTabPage != null && mainTabControl.TabPages.Contains(pcCardTabPage);
         }
 
         /// <summary>
@@ -1482,7 +1605,7 @@ namespace EmbroideryCommunicator
             // Check if the machine is currently busy
             if (_serialStack.IsBusy)
             {
-                MessageBox.Show("Machine is currently busy with another operation. Please wait for the current operation to complete.", 
+                MessageBox.Show("Machine is currently busy with another operation. Please wait for the current operation to complete.",
                     "Machine Busy", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
@@ -1507,12 +1630,12 @@ namespace EmbroideryCommunicator
                     // Check if the failure was due to busy state
                     if (_serialStack.IsBusy)
                     {
-                        MessageBox.Show("Machine is currently busy with another operation. Please wait for the current operation to complete.", 
+                        MessageBox.Show("Machine is currently busy with another operation. Please wait for the current operation to complete.",
                             "Machine Busy", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     }
                     else
                     {
-                        MessageBox.Show("Failed to read file from machine", "View Error", 
+                        MessageBox.Show("Failed to read file from machine", "View Error",
                             MessageBoxButtons.OK, MessageBoxIcon.Error);
                     }
                     return;
@@ -1549,7 +1672,7 @@ namespace EmbroideryCommunicator
                 if (_embroideryViewerForm == null || _embroideryViewerForm.IsDisposed)
                 {
                     _embroideryViewerForm = new EmbroideryViewerForm();
-                    
+
                     // Subscribe to FormClosed event to reset the reference when the form is closed
                     _embroideryViewerForm.FormClosed += (s, args) =>
                     {
@@ -1557,14 +1680,14 @@ namespace EmbroideryCommunicator
                     };
                 }
 
-                // Load the file data into the viewer
+                // Load the file data into the viewer (no intended location = no upload buttons)
                 _embroideryViewerForm.LoadFileFromMemory(embroideryFile.FileName, downloadedFile.FileData);
             }
             catch (Exception ex)
             {
                 // Hide progress bar on error
                 ShowProgressBar(false);
-                
+
                 MessageBox.Show($"Error viewing file: {ex.Message}", "View Error",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
@@ -1593,7 +1716,7 @@ namespace EmbroideryCommunicator
             // Check if the machine is currently busy
             if (_serialStack.IsBusy)
             {
-                MessageBox.Show("Machine is currently busy with another operation. Please wait for the current operation to complete.", 
+                MessageBox.Show("Machine is currently busy with another operation. Please wait for the current operation to complete.",
                     "Machine Busy", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
@@ -1631,12 +1754,12 @@ namespace EmbroideryCommunicator
                         // Check if the failure was due to busy state
                         if (_serialStack.IsBusy)
                         {
-                            MessageBox.Show("Machine is currently busy with another operation. Please wait for the current operation to complete.", 
+                            MessageBox.Show("Machine is currently busy with another operation. Please wait for the current operation to complete.",
                                 "Machine Busy", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                         }
                         else
                         {
-                            MessageBox.Show("Failed to read file from machine", "Download Error", 
+                            MessageBox.Show("Failed to read file from machine", "Download Error",
                                 MessageBoxButtons.OK, MessageBoxIcon.Error);
                         }
                         return;
@@ -1676,7 +1799,7 @@ namespace EmbroideryCommunicator
                 {
                     // Hide progress bar on error
                     ShowProgressBar(false);
-                    
+
                     MessageBox.Show($"Error downloading file: {ex.Message}", "Download Error",
                         MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
@@ -1706,7 +1829,7 @@ namespace EmbroideryCommunicator
             // Check if the machine is currently busy
             if (_serialStack.IsBusy)
             {
-                MessageBox.Show("Machine is currently busy with another operation. Please wait for the current operation to complete.", 
+                MessageBox.Show("Machine is currently busy with another operation. Please wait for the current operation to complete.",
                     "Machine Busy", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
@@ -1745,12 +1868,12 @@ namespace EmbroideryCommunicator
                     // Check if the failure was due to busy state
                     if (_serialStack.IsBusy)
                     {
-                        MessageBox.Show("Machine is currently busy with another operation. Please wait for the current operation to complete.", 
+                        MessageBox.Show("Machine is currently busy with another operation. Please wait for the current operation to complete.",
                             "Machine Busy", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     }
                     else
                     {
-                        MessageBox.Show("Failed to delete file from machine", "Delete Error", 
+                        MessageBox.Show("Failed to delete file from machine", "Delete Error",
                             MessageBoxButtons.OK, MessageBoxIcon.Error);
                     }
                     UpdateStatus("Delete failed");
@@ -1805,7 +1928,7 @@ namespace EmbroideryCommunicator
             // Check if the machine is currently busy
             if (_serialStack.IsBusy)
             {
-                MessageBox.Show("Machine is currently busy with another operation. Please wait for the current operation to complete.", 
+                MessageBox.Show("Machine is currently busy with another operation. Please wait for the current operation to complete.",
                     "Machine Busy", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
@@ -1813,7 +1936,7 @@ namespace EmbroideryCommunicator
             // Check if embroidery module is present
             if (_embroideryModuleFirmwareInfo == null)
             {
-                MessageBox.Show("Embroidery module not detected. Please ensure the embroidery module is attached and try reconnecting.", 
+                MessageBox.Show("Embroidery module not detected. Please ensure the embroidery module is attached and try reconnecting.",
                     "Embroidery Module Not Found", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
@@ -1848,12 +1971,12 @@ namespace EmbroideryCommunicator
                     // Check if the failure was due to busy state
                     if (_serialStack.IsBusy)
                     {
-                        MessageBox.Show("Machine is currently busy with another operation. Please wait for the current operation to complete.", 
+                        MessageBox.Show("Machine is currently busy with another operation. Please wait for the current operation to complete.",
                             "Machine Busy", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     }
                     else
                     {
-                        MessageBox.Show("Failed to upload file to machine", "Upload Error", 
+                        MessageBox.Show("Failed to upload file to machine", "Upload Error",
                             MessageBoxButtons.OK, MessageBoxIcon.Error);
                     }
                     UpdateStatus("Upload failed");
@@ -1863,7 +1986,7 @@ namespace EmbroideryCommunicator
             {
                 // Hide progress bar on error
                 ShowProgressBar(false);
-                
+
                 UpdateStatus("Upload error");
                 MessageBox.Show($"Error uploading file: {ex.Message}", "Upload Error",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
@@ -1884,13 +2007,13 @@ namespace EmbroideryCommunicator
             }
 
             // Determine which list to work with
-            List<EmbroideryFileControl>? fileControls = location == StorageLocation.EmbroideryModuleMemory 
-                ? _embroideryFileControls 
+            List<EmbroideryFileControl>? fileControls = location == StorageLocation.EmbroideryModuleMemory
+                ? _embroideryFileControls
                 : _pcCardFileControls;
-            
-            FlowLayoutPanel? panel = location == StorageLocation.EmbroideryModuleMemory 
-                ? flowLayoutPanelFiles 
-                : flowLayoutPanelPcCards;
+
+            FlowLayoutPanel? panel = location == StorageLocation.EmbroideryModuleMemory
+                ? flowLayoutPanelInternalFiles
+                : flowLayoutPanelPcCardFiles;
 
             if (fileControls == null || panel == null)
             {
@@ -1932,7 +2055,7 @@ namespace EmbroideryCommunicator
 
             // Now do a lightweight refresh to get filenames without preview images
             UpdateStatus("Verifying filename...");
-            
+
             try
             {
                 // Read file list without preview images
@@ -1956,7 +2079,7 @@ namespace EmbroideryCommunicator
                             if (currentFile != null && currentFile.FileId == updatedFile.FileId)
                             {
                                 bool needsUpdate = false;
-                                
+
                                 // Check if filename changed
                                 if (currentFile.FileName != updatedFile.FileName)
                                 {
@@ -1965,7 +2088,7 @@ namespace EmbroideryCommunicator
                                     needsUpdate = true;
                                     UpdateStatus($"Filename updated: {uploadedFile.FileName} -> {updatedFile.FileName}");
                                 }
-                                
+
                                 // Check if file attributes changed
                                 if (currentFile.FileAttributes != updatedFile.FileAttributes)
                                 {
@@ -1974,7 +2097,7 @@ namespace EmbroideryCommunicator
                                     needsUpdate = true;
                                     UpdateStatus($"File attributes updated for {currentFile.FileName}");
                                 }
-                                
+
                                 // Refresh the control if anything changed
                                 if (needsUpdate)
                                 {
@@ -2042,6 +2165,214 @@ namespace EmbroideryCommunicator
                 ShowProgressBar(false);
                 UpdateStatus($"Error refreshing files: {ex.Message}");
             }
+        }
+
+        private void FlowLayoutPanelInternalFiles_DragEnter(object? sender, DragEventArgs e)
+        {
+            // Check if the data being dragged is a file
+            if (e.Data != null && e.Data.GetDataPresent(DataFormats.FileDrop))
+            {
+                string[]? files = e.Data.GetData(DataFormats.FileDrop) as string[];
+
+                // Check if exactly one file is being dragged and it's an .exp file
+                if (files != null && files.Length == 1 &&
+                    Path.GetExtension(files[0]).Equals(".exp", StringComparison.OrdinalIgnoreCase))
+                {
+                    e.Effect = DragDropEffects.Copy;
+                }
+                else
+                {
+                    e.Effect = DragDropEffects.None;
+                }
+            }
+            else
+            {
+                e.Effect = DragDropEffects.None;
+            }
+        }
+
+        private void FlowLayoutPanelInternalFiles_DragDrop(object? sender, DragEventArgs e)
+        {
+            if (e.Data != null && e.Data.GetDataPresent(DataFormats.FileDrop))
+            {
+                string[]? files = e.Data.GetData(DataFormats.FileDrop) as string[];
+
+                if (files != null && files.Length == 1)
+                {
+                    string filePath = files[0];
+
+                    // Check if it's an .exp file
+                    if (Path.GetExtension(filePath).Equals(".exp", StringComparison.OrdinalIgnoreCase))
+                    {
+                        // Read the file data
+                        try
+                        {
+                            byte[] fileData = File.ReadAllBytes(filePath);
+                            string fileName = Path.GetFileName(filePath);
+
+                            // Open or focus the embroidery viewer form
+                            if (_embroideryViewerForm == null || _embroideryViewerForm.IsDisposed)
+                            {
+                                _embroideryViewerForm = new EmbroideryViewerForm();
+
+                                // Subscribe to FormClosed event to reset the reference when the form is closed
+                                _embroideryViewerForm.FormClosed += (s, args) =>
+                                {
+                                    _embroideryViewerForm = null;
+                                };
+                            }
+
+                            // Load the file with Embroidery Module as the intended location
+                            _embroideryViewerForm.LoadFileFromMemory(fileName, fileData, StorageLocation.EmbroideryModuleMemory);
+                        }
+                        catch (Exception ex)
+                        {
+                            MessageBox.Show($"Error loading file: {ex.Message}", "Load Error",
+                                MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        }
+                    }
+                }
+            }
+        }
+
+        private void FlowLayoutPanelPcCardFiles_DragEnter(object? sender, DragEventArgs e)
+        {
+            // Check if the data being dragged is a file
+            if (e.Data != null && e.Data.GetDataPresent(DataFormats.FileDrop))
+            {
+                string[]? files = e.Data.GetData(DataFormats.FileDrop) as string[];
+
+                // Check if exactly one file is being dragged and it's an .exp file
+                if (files != null && files.Length == 1 &&
+                    Path.GetExtension(files[0]).Equals(".exp", StringComparison.OrdinalIgnoreCase))
+                {
+                    e.Effect = DragDropEffects.Copy;
+                }
+                else
+                {
+                    e.Effect = DragDropEffects.None;
+                }
+            }
+            else
+            {
+                e.Effect = DragDropEffects.None;
+            }
+        }
+
+        private void FlowLayoutPanelPcCardFiles_DragDrop(object? sender, DragEventArgs e)
+        {
+            if (e.Data != null && e.Data.GetDataPresent(DataFormats.FileDrop))
+            {
+                string[]? files = e.Data.GetData(DataFormats.FileDrop) as string[];
+
+                if (files != null && files.Length == 1)
+                {
+                    string filePath = files[0];
+
+                    // Check if it's an .exp file
+                    if (Path.GetExtension(filePath).Equals(".exp", StringComparison.OrdinalIgnoreCase))
+                    {
+                        // Read the file data
+                        try
+                        {
+                            byte[] fileData = File.ReadAllBytes(filePath);
+                            string fileName = Path.GetFileName(filePath);
+
+                            // Open or focus the embroidery viewer form
+                            if (_embroideryViewerForm == null || _embroideryViewerForm.IsDisposed)
+                            {
+                                _embroideryViewerForm = new EmbroideryViewerForm();
+
+                                // Subscribe to FormClosed event to reset the reference when the form is closed
+                                _embroideryViewerForm.FormClosed += (s, args) =>
+                                {
+                                    _embroideryViewerForm = null;
+                                };
+                            }
+
+                            // Load the file with PC Card as the intended location
+                            _embroideryViewerForm.LoadFileFromMemory(fileName, fileData, StorageLocation.PCCard);
+                        }
+                        catch (Exception ex)
+                        {
+                            MessageBox.Show($"Error loading file: {ex.Message}", "Load Error",
+                                MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        }
+                    }
+                }
+            }
+        }
+
+        private void FileControl_SelectionChanged(object? sender, EventArgs e)
+        {
+            if (sender is EmbroideryFileControl fileControl)
+            {
+                if (fileControl.Selected)
+                {
+                    _selectedFileControl = fileControl;
+                    UpdateDeleteMenuState();
+                }
+                else if (_selectedFileControl == fileControl)
+                {
+                    _selectedFileControl = null;
+                    UpdateDeleteMenuItemState();
+                }
+            }
+        }
+
+        private void UpdateDeleteMenuItemState()
+        {
+            if (InvokeRequired)
+            {
+                Invoke(new Action(() => UpdateDeleteMenuItemState()));
+                return;
+            }
+
+            if (_selectedFileControl == null)
+            {
+                deleteToolStripMenuItem.Enabled = false;
+            }
+            else
+            {
+                var file = _selectedFileControl.GetEmbroideryFile();
+                // Enable delete only if file is not readonly (bit 0x20 not set)
+                deleteToolStripMenuItem.Enabled = (file != null) && ((file.FileAttributes & 0x20) == 0);
+            }
+        }
+
+        private void UpdateDeleteMenuState()
+        {
+            UpdateDeleteMenuItemState();
+        }
+
+        private async void deleteToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            if (_selectedFileControl == null)
+            {
+                return;
+            }
+
+            var file = _selectedFileControl.GetEmbroideryFile();
+            if (file == null)
+            {
+                return;
+            }
+
+            // Determine storage location
+            StorageLocation location = StorageLocation.EmbroideryModuleMemory;
+            Control? parent = _selectedFileControl.Parent;
+            while (parent != null)
+            {
+                if (parent.Name == "flowLayoutPanelPcCardFiles")
+                {
+                    location = StorageLocation.PCCard;
+                    break;
+                }
+                parent = parent.Parent;
+            }
+
+            // Call the delete method
+            await DeleteEmbroideryFileAsync(file, location);
         }
     }
 }
