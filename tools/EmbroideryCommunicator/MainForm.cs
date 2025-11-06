@@ -35,9 +35,12 @@ namespace EmbroideryCommunicator
             Fast
         }
 
-        public MainForm()
+        public MainForm(bool debugMode = false)
         {
             InitializeComponent();
+            
+            // Hide debug menu unless debug mode is enabled
+            debugToolStripMenuItem.Visible = debugMode;
         }
 
         private void MainForm_Load(object sender, EventArgs e)

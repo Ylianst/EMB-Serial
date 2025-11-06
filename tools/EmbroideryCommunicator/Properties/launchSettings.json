@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "EmbroideryCommunicator": {
+      "commandName": "Project",
+      "commandLineArgs": "-debug"
+    }
+  }
+}

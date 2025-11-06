@@ -15,10 +15,10 @@
 
         private void InitializeComponent()
         {
-            ListViewGroup listViewGroup1 = new ListViewGroup("Sewing Machine", HorizontalAlignment.Left);
-            ListViewGroup listViewGroup2 = new ListViewGroup("Embroidery Module", HorizontalAlignment.Left);
-            ListViewGroup listViewGroup3 = new ListViewGroup("PC Card", HorizontalAlignment.Left);
-            ListViewGroup listViewGroup4 = new ListViewGroup("Serial Communication", HorizontalAlignment.Left);
+            ListViewGroup listViewGroup5 = new ListViewGroup("Sewing Machine", HorizontalAlignment.Left);
+            ListViewGroup listViewGroup6 = new ListViewGroup("Embroidery Module", HorizontalAlignment.Left);
+            ListViewGroup listViewGroup7 = new ListViewGroup("PC Card", HorizontalAlignment.Left);
+            ListViewGroup listViewGroup8 = new ListViewGroup("Serial Communication", HorizontalAlignment.Left);
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(MainForm));
             menuStrip = new MenuStrip();
             connectionToolStripMenuItem = new ToolStripMenuItem();
@@ -66,6 +66,7 @@
             mainPanel = new Panel();
             btnConnect = new Button();
             bannerPictureBox = new PictureBox();
+            toolStripMenuItem3 = new ToolStripSeparator();
             menuStrip.SuspendLayout();
             statusStrip.SuspendLayout();
             panelMain.SuspendLayout();
@@ -92,7 +93,7 @@
             // 
             // connectionToolStripMenuItem
             // 
-            connectionToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { selectCOMPortToolStripMenuItem, connectToolStripMenuItem, disconnectToolStripMenuItem, toolStripSeparator1, exitToolStripMenuItem });
+            connectionToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { selectCOMPortToolStripMenuItem, toolStripMenuItem3, connectToolStripMenuItem, disconnectToolStripMenuItem, toolStripSeparator1, exitToolStripMenuItem });
             connectionToolStripMenuItem.Name = "connectionToolStripMenuItem";
             connectionToolStripMenuItem.Size = new Size(98, 24);
             connectionToolStripMenuItem.Text = "&Connection";
@@ -215,6 +216,7 @@
             debugToolStripMenuItem.Name = "debugToolStripMenuItem";
             debugToolStripMenuItem.Size = new Size(68, 24);
             debugToolStripMenuItem.Text = "&Debug";
+            debugToolStripMenuItem.Visible = false;
             // 
             // showDeveloperDebugToolStripMenuItem
             // 
@@ -357,15 +359,15 @@
             machineInfoListView.Dock = DockStyle.Fill;
             machineInfoListView.FullRowSelect = true;
             machineInfoListView.GridLines = true;
-            listViewGroup1.Header = "Sewing Machine";
-            listViewGroup1.Name = "sewingMachineListViewGroup";
-            listViewGroup2.Header = "Embroidery Module";
-            listViewGroup2.Name = "embroideryModuleListViewGroup1";
-            listViewGroup3.Header = "PC Card";
-            listViewGroup3.Name = "pcCardListViewGroup";
-            listViewGroup4.Header = "Serial Communication";
-            listViewGroup4.Name = "serialCommListViewGroup";
-            machineInfoListView.Groups.AddRange(new ListViewGroup[] { listViewGroup1, listViewGroup2, listViewGroup3, listViewGroup4 });
+            listViewGroup5.Header = "Sewing Machine";
+            listViewGroup5.Name = "sewingMachineListViewGroup";
+            listViewGroup6.Header = "Embroidery Module";
+            listViewGroup6.Name = "embroideryModuleListViewGroup1";
+            listViewGroup7.Header = "PC Card";
+            listViewGroup7.Name = "pcCardListViewGroup";
+            listViewGroup8.Header = "Serial Communication";
+            listViewGroup8.Name = "serialCommListViewGroup";
+            machineInfoListView.Groups.AddRange(new ListViewGroup[] { listViewGroup5, listViewGroup6, listViewGroup7, listViewGroup8 });
             machineInfoListView.HeaderStyle = ColumnHeaderStyle.None;
             machineInfoListView.Location = new Point(289, 0);
             machineInfoListView.Name = "machineInfoListView";
@@ -486,6 +488,11 @@
             bannerPictureBox.TabIndex = 3;
             bannerPictureBox.TabStop = false;
             // 
+            // toolStripMenuItem3
+            // 
+            toolStripMenuItem3.Name = "toolStripMenuItem3";
+            toolStripMenuItem3.Size = new Size(196, 6);
+            // 
             // MainForm
             // 
             AutoScaleDimensions = new SizeF(8F, 20F);
@@ -567,5 +574,6 @@
         private ToolStripSeparator toolStripMenuItem2;
         private ToolStripSeparator toolStripMenuItem1;
         private ToolStripMenuItem deleteToolStripMenuItem;
+        private ToolStripSeparator toolStripMenuItem3;
     }
 }
