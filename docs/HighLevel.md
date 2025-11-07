@@ -33,14 +33,34 @@ R024040 --> 000206A000020764000000000000000000000000000000000000000000000000
 ```
 
 Read allocation of blocks (?), we see 0305 and the 03 is the number of user (Mx) files.
-This must indicate if a PC Card or build-in memory is present?
+This likely indicates how much space is currently allocated, total and free.
+
+The 3rd byte (0x2A) is the number of read only files
+The 4th byte is the number of user files
+
+
 ```
 R0206A0 --> 1D1B2A0380002C070200000305000000FFFFFF00FC6000000000000000000000
+            1D1B2A0F00000C070000000F052F0000FFFFFF00FFFFF0000000000000000000 <-- 100% full, 20 bits, 44/44
+            1D1B2A0D00000C070000000D052F0000FFFFFF00FFFFC0000000000000000000 <--  96% full, 18 bits
+            1D1B2A0500000C0700000006052F0000FFFFFF00FFE000000000000000000000 <--  82% full, 11 bits
+            1D1B2A0400000C0700000004052F0000FFFFFF00FE6000000000000000000000 <--  81% full,  9 bits
+            1D1B2A0400000C0700000005052F0000FFFFFF00FFA000000000000000000000 <--  81% full, 10 bits
+            1D1B2A0300000C0700000003052F0000FFFFFF00FE2000000000000000000000 <--  79% full,  8 bits
+            1D1B2A0200000C0700000002052F0000FFFFFF00FC2000000000000000000000 <--  77% full,  7 bits, 24+7/44
+
 ```
 
 - Select if you want to read from the Embroidery Module Memory or PC Card
     - Invoke function 0x00A1 with no arguments to read from Embroidery Module Memory.
     - Invoke function 0x0051 with no arguments to read fro PC Card.
+
+When calling function A1, you will see 0x63 show up at the 12th position in the RFFFED0, this may indicate the internal memory is currently selected. This 0x63 does not show up before calling 0x00A1 and does not show up before or after calling 0x0051.
+
+WFFFED000A1? --> Write 00A1 to FFFED0
+RFFFED0 -->
+   ASCII: .....@.....c....................
+   HEX: 00 02 00 00 00 40 00 00 00 82 00(63)00 00 00 00 00 00 00 00 00 00 00 00 03 00 00 01 A0 00 00 00
 
 - Invoke function 0x0031 with arguments (01, 00)    (Unknown)
 - Invoke function 0x0021 with no arguments.         (Unknown)
@@ -67,7 +87,9 @@ R0240B9 --> ACACACACACACACA4A4A4A4A4A4A4A4A4A4A4A4A4A4A4A4A4A4A4A40044726966
 ```
 
 - Download and hash addr 0x0240D5, length 0x000360 
-- Invoke function 0x0061 with arguments (01) - "Move 1 Page Forward" - Load second page of file names.
+- Invoke function 0x0031 with arguments (00) - "Move to Page 1" - Load first page of file names (done above)
+- Invoke function 0x0061 with arguments (01) - "Move to Page 2" - Load second page of file names.
+- Invoke function 0x00C1 with arguments (02) - "Move to Page 3" - Load third page of file names.
 
 - Next, read the file types again. This has one byte for each file with the bits indicating what type of file it is. Read until you hit the 0x00 byte, note that not all of them will be used as we only have 45 files total.
 ```
@@ -450,6 +472,8 @@ RFFFED0 -->
    ASCII: .....@..........................
    HEX: 00 02 00 00 00 40 00 00 00 82 00 00 00 00 00 00 00 00 00 00 00 00 00 00 03 00 00 01 10 00 00 00
 
+If the memory is full, function 0x0011 will return 0x8005 instead of 0x0002.
+
 (Write to 0x028E98 the main header, 176 bytes total)
   - 2 bytes (Some unknown length, around 5x the length of EXP)
   - 166 0x00 bytes
@@ -468,69 +492,7 @@ PS028F --> Upload 256 bytes to address 028F:
    HEX: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 11 36 00 00 01 3C*80 04 
    38 EE 80 04 38 EE 38 EE FF FF 00 01 0B FC 0B FC F3 05 F4 06 F4 FD F5 FD F7 FC F7 FC 0E 03 0D 03 0C 02 0C 03 07 FD 07 FD 03 FA FA 05 F9 05 F5 00 F5 00 0C 00 09 FE 09 FE 07 F8 01 F7 FB F6 F7 F7 00 FF 06 05 05 07 02 05 FF 01 04 00 F9 04 08 00 F6 03 0B 02 F6 00 09 04 F4 FD 0B 06 F7 FC 08 08 F5 F8 09 0C F5 F5 09 0E F5 F3 09 10 F7 F3 05 0E F8 F0 05 11 FB F3 01 0E FB EF 02 13 FB ED 01 14 FC EC 00 14 FE EC FE 13 FF ED FD 12 00 EE FC 11 02 EF FA 10 03 EF F9 0F 04 F1 F9 0E 03 F0 FA 0E 02 F1 FB 0E 01 F1 FC 0E 00 F1 FC 0D 00 F2 FC 0D 00 F3 FD 0C FF F3
 PS0290 --> Machine ready (OE), waiting for upload data
-PS0290 --> Upload 256 bytes to address 0290:
-   ASCII: ................................................................................................................................................................................................................................................................
-   HEX: FD 0B FF F5 FE 09 FE F8 FF 08 FD F8 00 07 FD FA 00 06 FC FC 01 04 FD FE 00 03 03 FD FC 02 F9 08 FC 06 FE 09 FF 07 05 0C 06 0A 05 03 F8 F8 FD F9 00 F3 07 F7 0C FD 08 01 07 00 0B 06 0A 06 03 0B 03 0B 00 07 00 08 FF 02 02 F6 02 F6 FC F5 FC F5 F8 FC F8 FC 09 05 05 08 06 08 05 08 FF 08 FF 09 FF F6 FE F7 FF F6 FA FA FA FA F5 FA F8 FF F9 FF FD 03 00 FC 04 04 00 FB 03 05 00 FB 03 06 01 FA 03 08 01 F9 01 08 04 F9 FF 09 05 F8 FD 0A 08 F7 FA 0B 0B F6 F7 0C 0C F6 F7 0D 0C F6 F6 0C 0D F6 F6 0D 0D F6 F4 0C 0E F8 F4 0A 0E F9 F3 0A 0E FA F3 08 0E FC F5 06 0C FF F3 03 0E 01 F1 01 0E 04 F1 FE 0E 07 F2 FC 0C 08 F4 FB 0B 08 F5 FB 09 08 F6 FB 07 08 F8 FC 06 07 F8 FC 04 06 FA FD 02 06 FA FE 00 03 FC FF 01 03 FB FF 02 03 FB FF 01 04 FF FC 00 02 FF FF F9 00 FC FF 01 0D FE 08 FD 08
-PS0291 --> Machine ready (OE), waiting for upload data
-PS0291 --> Upload 256 bytes to address 0291:
-   ASCII: ................................................................................................................................................................................................................................................................
-   HEX: F4 FE FE F8 FE F8 F9 00 F9 FF F9 FE FD F9 FD FA 02 F9 00 0A 0B 08 0B 02 03 0B 0A 09 0C FB 02 F9 FF 01 FC 06 FB 06 F9 FC F9 FB F9 F5 F5 FE FE FE 08 03 08 03 05 07 04 06 0B 04 08 F9 FE F4 FE F8 FE 01 03 FF FE 05 04 FF FC 04 06 00 FA 03 09 02 F7 01 0B 04 F7 FF 09 05 F6 FD 09 08 F7 FA 06 08 FA FA 03 09 FA F6 03 0C FB F3 00 0E FD F1 FE 10 00 F4 FC 0B 02 F2 FA 0C 04 F3 F9 0A 05 F4 F7 08 06 F7 F9 04 08 F9 F9 00 06 FE FD FD 03 00 FE FE 02 02 FF FF 01 FE 01 00 00 FD FE 07 FF F9 FC 0B FF F6 FD 0B 01 F5 FB 0C 02 F3 FA 0C 04 F5 F8 0A 08 F4 F5 09 08 F5 F5 08 09 F6 F4 07 0A F7 F5 06 08 FA F7 03 0B FA F5 02 08 FD F7 FF 0A 00 F8 FC 06 01 FC FB 05 04 00 F9 03 03 01 FC 03 03 02 FB 02 03 02 FC 02 03 FF FF 04 FF 0B 01 0A 03 09 06 05 09 04 09 03 0D FE 0B FC 07 FC 06 F6 05 F9 01
-PS0292 --> Machine ready (OE), waiting for upload data
-PS0292 --> Upload 256 bytes to address 0292:
-   ASCII: ................................................................................................................................................................................................................................................................
-   HEX: F8 00 F5 FE F6 FC F7 F9 F8 F6 FA F8 F8 F7 F9 F6 F8 F8 F6 F8 FA FC F3 FC FB FF 07 FE F7 FA F8 FA FD F4 FE F4 00 F4 00 F4 FF F5 00 F4 FE F5 FA F9 F9 FA F9 FC F8 FF FE 05 01 08 07 08 07 07 0D 05 0B 02 0A 03 0A 03 0C 02 0C 03 09 02 09 02 08 06 08 06 05 07 04 08 04 07 F9 F6 FA F6 F9 F6 F6 FD F5 FC F6 FD 0A 02 0A 03 09 06 08 07 09 06 03 08 02 08 00 02 00 0C F5 06 F5 00 03 FA 03 06 01 F9 FD 00 FF FE FE FE 04 00 F8 02 0A 00 F5 04 0D FE F5 07 0B FD F8 07 09 FB FF 05 03 FB 00 05 00 FC 03 03 FF FD 05 02 FD FD 05 00 FC FE 07 FF FA FF 0A FB F6 00 0B FC F5 01 0C FB F4 01 0B FB F3 02 0C FA F2 02 0D FB F1 03 0E F9 F1 04 0D F8 F1 05 0E F8 F0 06 0D F7 F1 07 0D F5 F2 09 0C F4 F2 0A 0B F4 F2 0A 0A F3 F3 0A 0A F4 F3 0A 09 F4 F7 08 05 F6 F7 0C 05 F3 F9 0D 03 F2 F9 0D 03 F1 FA 0D
-PS0293 --> Machine ready (OE), waiting for upload data
-PS0293 --> Upload 256 bytes to address 0293:
-   ASCII: ................................................................................................................................................................................................................................................................
-   HEX: 02 F3 FA 0C 01 F3 FB 0C 01 F4 FB 0A 00 F6 FD 09 FF F7 FE 08 FE F7 FE 09 FD F7 FE 09 FF F7 FD 08 FE F9 FE 05 FE FB FD 04 FF FB FE 05 FF FA FF 05 FD FA 00 06 FA FC F8 F9 F9 00 F7 F8 F9 F9 FE F7 00 FA 0D 03 07 09 07 09 03 08 03 08 FF 03 F6 FF F4 01 F6 04 F9 04 F9 05 FD 03 06 FA 07 FC 07 FD 07 FE 08 FE 0D FF 0C 03 0C 02 0C 05 0A 07 08 0A 06 0C 04 0C 01 0D 00 0D FE 05 FA 0D F8 0B F5 08 F7 06 F5 03 F6 02 F5 00 FD FF F6 FB F8 F8 FA F5 05 0A 07 07 08 05 0A 03 0C FF 0C FD 0B FB 09 F9 09 F8 05 FA 04 F6 03 F4 00 F5 FF F5 FD F4 FA F6 F9 F6 F6 F9 F4 FA F3 FD F7 FF FD 08 FE 08 01 0B 01 0B 01 0B 03 07 04 08 08 05 08 04 07 FF 03 F7 FF F8 FC F9 FB F9 F8 FA F9 FD FA FC F6 FB F8 FC F9 FC F8 FC F9 FD F7 FD F7 FD F8 FE F9 FE F6 F9 FA FA 00 FA 0B 02 F9 FD FC 05 02 06 0B 07 07 02
-PS0294 --> Machine ready (OE), waiting for upload data
-PS0294 --> Upload 256 bytes to address 0294:
-   ASCII: ................................................................................................................................................................................................................................................................
-   HEX: 07 03 08 03 09 04 08 03 09 03 08 03 08 04 0C 05 06 04 07 04 05 05 05 06 04 07 02 07 01 07 FD 04 FC 02 F4 FC FA F6 FB F6 FF F3 FF F2 FF F3 FE F4 FE F4 F9 F5 FA F8 FF 00 03 FE FE 06 05 FD FD 06 07 FD FA 06 0A FE F8 05 0D FF F3 05 0F FE F2 06 10 FD F0 05 11 FF EF 04 13 00 ED 03 13 01 ED 04 13 00 EE 04 12 00 EE 04 12 00 EE 04 12 00 EE 04 13 00 EC 03 14 01 EC 03 15 01 EB 03 15 01 EC 03 14 01 ED 03 12 00 EE 04 12 00 EF 04 11 FF F0 05 10 FE F1 06 0F FD F1 07 10 FC F1 08 0F FB F4 08 0C FA F6 0A 0B F9 F8 0A 08 F9 FB 09 07 F9 FD 0A 05 F8 FE 0A 04 F8 00 08 03 FA 02 05 01 FE 03 02 00 FD FE 02 F9 02 FE 00 01 03 06 06 07 04 06 04 04 06 04 06 04 07 04 08 03 09 03 08 03 08 02 07 03 09 03 09 06 06 05 06 0A 02 04 FA 04 FA FE F7 FE F7 F5 FB FD 07 FC F8 0C 01 08 08 02 0C FD 07
-PS0295 --> Machine ready (OE), waiting for upload data
-PS0295 --> Upload 256 bytes to address 0295:
-   ASCII: ................................................................................................................................................................................................................................................................
-   HEX: FC 07 F8 FD F7 FD 02 02 0C 04 0A F9 FE F5 FE F5 F9 FC F7 00 FE 03 01 05 FE FD 07 04 F7 F6 0B 09 F8 F4 0A 09 FB F7 05 08 00 FA 02 06 FF FA 02 05 01 FB 00 05 04 FB FD 07 07 FD FB 05 0A FF F7 03 0B 00 F7 03 0B 01 F6 01 0A 04 F6 FF 09 07 F6 FC 09 07 F6 FD 09 07 F6 FB 08 07 F6 FB 07 08 F9 FA 03 08 FA F7 01 0B FD F5 FF 0C FE F4 FE 0C 01 F5 FB 09 03 F7 FA 06 06 F7 F6 07 08 F7 F6 05 08 FA F7 02 06 FB F7 01 06 FC F8 00 07 FC F8 00 07 FC F8 01 07 FB F9 01 06 FB F9 01 05 FB FA 01 05 FB FA 01 05 FB FA 01 05 FB F9 01 05 FB FA 01 05 FB FA 01 04 FB FB 01 03 FB FB 02 03 FB FC 01 02 FB FC 01 02 FB FD 01 01 FB FD 01 01 FC FE 01 00 FB FE 01 FF FC FE 01 FF FC FE 02 FF FB FE 02 02 FF FF 00 FA FD FE FF FF 00 F9 FC F6 FE F7 01 FA 05 FD 05 05 F9 0A FC 07 02 08 02 04 07 04 0A FB 0B
-PS0296 --> Machine ready (OE), waiting for upload data
-PS0296 --> Upload 256 bytes to address 0296:
-   ASCII: ................................................................................................................................................................................................................................................................
-   HEX: FB 02 F5 00 F8 FD 04 03 0C 01 08 FE 05 F9 01 F7 FE FA 02 04 FE FA FF 09 FE F9 FF 09 FE FA FF 08 FE F9 FE 08 FE F9 FF 09 FE F7 FE 09 00 F7 FC 0A 01 F6 FB 08 02 F7 FA 07 02 F9 FA 04 03 FB F9 03 03 FB FC 03 FA FE F6 FA F7 FA FA F5 FA F5 FE F6 FF F6 FE F6 FE F5 FE F5 FE F9 FE F9 00 FE 04 09 04 0A 04 09 03 0C 02 0D 03 0C 04 09 03 0A 04 09 01 01 FA F6 F9 F6 FA F6 FE F5 FD F6 FE F5 FD F2 FE F3 FB F9 FC FC FE FE FD FF 01 FC 00 08 03 FB FE 07 06 FC FC 07 09 FC F8 07 0A FD F7 07 0C FD F4 07 0F FB F2 09 11 FA F0 09 12 FB EF 09 13 FA EF 09 13 FB ED 08 15 FC EB 08 16 FC EB 07 15 FD EB 07 16 FD EB 06 16 FE EB 06 15 FE EB 06 16 FE EB 06 15 FD EC 06 15 FD EC 07 15 FC EC 08 14 FA ED 0A 14 F9 EE 0B 12 F8 EF 0B 12 F8 F0 0C 10 F7 F2 0C 0D F8 F5 0C 0E F4 F4 0F 0D F3 F5 10 0D F4
-PS0297 --> Machine ready (OE), waiting for upload data
-PS0297 --> Upload 256 bytes to address 0297:
-   ASCII: ........................................./......................................................................................................................................................................................................................
-   HEX: F6 0F 0B F4 F9 0E 09 F4 FB 0E 06 F5 FE 0D 05 F6 FF 0C 04 F7 00 0A 02 F9 02 09 01 F9 02 06 00 FC 03 03 FF FE 01 01 00 FF FB 2F 00 FF 00 01 02 09 05 09 06 08 07 04 08 04 0B FF 0C FF 05 FB 05 FA 01 F6 00 F5 F7 FC 04 03 05 0B FD 08 FD 07 F4 04 F3 03 F5 FA F5 FA FD F8 FC F7 02 09 02 09 09 05 08 04 08 00 08 00 0A FC 0A FC 00 F6 01 F5 F9 FD FC FE FE 02 01 FC 01 08 01 F6 02 0C 02 F3 00 0F 04 F2 FE 0D 04 F5 FE 0D 05 F5 FC 0A 07 F9 FA 07 08 FD F6 06 0D FD F6 04 0B 01 F2 01 0E 03 F1 01 0F 04 F3 FE 0B 06 F4 FD 09 07 F3 F9 0B 0B F3 F6 0A 0D F4 F4 09 0F F7 F5 06 0D F9 F5 04 0D F8 EF 04 13 FB F1 01 0F FC EE 00 13 FE F0 FF 10 FF ED FD 13 00 EE FC 12 01 EE FB 12 03 ED F9 10 05 EF F8 0F 05 F0 F7 0D 07 F2 F5 0C 08 F3 F4 0A 0A F4 F4 08 0B F6 F2 07 0B F6 F3 06 0A F7 F5 05 08 F7
-PS0298 --> Machine ready (OE), waiting for upload data
-PS0298 --> Upload 256 bytes to address 0298:
-   ASCII: .............................................................................................................)..................................................................................................................................................
-   HEX: F7 05 07 FB F9 01 08 FC F8 FF 08 FF F8 FD 07 FE F9 FD 07 FF FA FD 07 FF FB FD 05 01 FD FD 04 00 FE FD 05 FF FF FE 03 FF FE FD 02 03 FF FF 00 02 00 FF 0F 13 FF 04 02 04 08 00 02 F8 FA FF 02 09 01 FA FB FF FE FF FC 00 02 FE FE 06 04 F8 FD 0C 07 F4 FA 0F 07 F6 FB 0C 09 EF FA 12 09 F1 FC 0C 04 FA FE 03 02 FD FE 03 01 FF 00 01 B8 29 FF FF 00 FD 00 02 FD FA FD 0A FB FB FB FB 09 FF FC 0A F8 F5 00 F6 01 F6 09 F7 07 FE 07 FE 09 01 F7 01 F7 00 FA 08 FA 07 01 09 00 09 08 07 06 FD 03 01 FF FA FF 0B 00 F2 FC 13 01 EB FB 16 02 EA FA 16 03 E9 FA 16 04 EE F9 10 06 EE F7 10 06 F3 F7 0A 0A F2 F5 0B 0A F6 F5 06 0A FB F5 02 10 FC F0 01 0D FE F3 FE 0F 01 F1 FB 0F 02 F2 FA 0F 02 F3 FB 0A 02 F7 FA 0A 04 F8 F9 0A 06 F9 F8 08 05 FA F8 08 06 FB F8 06 05 FF F9 04 05 00 F8 03 06 01 FA
-PS0299 --> Machine ready (OE), waiting for upload data
-PS0299 --> Upload 256 bytes to address 0299:
-   ASCII: ................................................................................................................................................................................................................................................................
-   HEX: 02 06 02 FA 00 06 03 FA 00 06 03 FB 01 05 03 FB 01 05 03 FD 00 04 01 00 02 04 FB F5 F8 F7 F7 FA F3 FC F9 FF F9 FE F7 00 F7 00 F7 04 F8 04 FA 07 FB 07 FF 08 FF 08 07 01 07 00 FC F6 08 F8 00 08 00 07 FA F7 04 04 F9 09 FA FB FA FA 05 F8 05 F8 06 FC 07 FC F7 07 F7 07 00 0A 00 0A 0D FE 01 F3 05 FE FF FE 04 01 F6 FF 0D 07 EE F9 10 0D F2 F6 0C 0D F0 F2 0E 11 EF F3 0C 10 F6 F4 07 0D F7 F2 05 0E FC F3 01 0D FF F0 FD 0F 01 F3 FC 0A 05 F2 F8 0B 06 F6 F9 07 08 F7 F7 05 08 FC F8 FF 0C 01 F4 FA 0D 04 F5 F9 0A 04 F9 F9 09 06 FA F7 09 07 FA F6 09 07 FB F5 07 0A FD F5 05 09 FF F5 04 09 00 F6 04 07 00 F8 04 07 00 F8 04 07 FF F8 05 07 FF F9 05 07 FF F9 04 06 00 FA 04 06 00 FA 04 06 00 FB 03 05 01 FC 03 05 01 FC 03 05 01 FD 02 04 01 FD 03 05 01 FD 02 04 02 FE 01 04 03 FE 01 04
-PS029A --> Machine ready (OE), waiting for upload data
-PS029A --> Upload 256 bytes to address 029A:
-   ASCII: ................................................................................................................................................................................................................................................................
-   HEX: 03 FE 00 05 03 FE 00 05 03 FF 01 05 03 00 01 01 02 05 01 06 00 F9 FF F9 FD F4 FD FA FD F9 F8 F7 FA FB F9 FB F7 FB F6 FB F6 FD F7 FC F7 FF F8 FF F4 02 FB 01 0A 04 06 08 00 0E FD 06 FF 00 05 F7 00 F6 FD F9 F6 FB FD 00 0A FE 08 00 08 00 08 02 09 01 08 03 09 03 08 05 08 05 06 05 07 05 03 07 04 06 02 09 03 0A FF 01 FD F6 FD F6 FB F6 FB F5 FB F8 FC F8 F7 F7 F6 F8 F7 FB F6 FB F6 FE F7 FE F6 00 F6 00 F7 04 F6 04 FB 09 FB 08 03 0D 03 0D 0A 09 07 02 08 01 F6 FC F7 FC FB F7 FC F8 02 F5 02 F5 08 F9 09 F9 0C FE 0D FF FF FF F2 03 F3 04 FA 09 F9 0A FA 09 04 0C 04 0B 09 04 09 03 0C FE 00 01 FF FC FD 07 FF FA FD 07 00 F9 FC 07 01 F9 FB 08 03 F7 F8 09 06 F6 F5 09 09 F6 F2 09 0C F5 F0 08 0D F6 EF 07 0E F7 F0 05 0E F8 EF 05 0F F9 EE 03 11 F9 EC 04 13 F9 ED 03 12 FA ED 01 13 FC
-PS029B --> Machine ready (OE), waiting for upload data
-PS029B --> Upload 256 bytes to address 029B:
-   ASCII: ................................................................................................................................................................................................................................................................
-   HEX: EC 00 11 FF EF FC 15 03 EC FA 10 03 F1 F9 10 05 F1 F8 12 08 F0 F4 12 09 EF F2 12 0C F0 F0 12 0D F2 F1 0F 0E F5 F0 0D 0E F7 F0 0B 0E F8 EF 09 0E FB F0 07 0E FD F1 06 0E FE F2 04 0D 00 F2 03 0D 01 F3 02 0C 02 F3 02 0C 02 F4 01 0C 04 F4 00 0C 04 F5 FF 0B 05 F5 FF 0B 05 F7 FE 0A 06 F7 FE 0A 05 F8 FE 09 06 F9 FE 08 06 FA FD 07 06 FC FE 05 05 FD FE 05 06 FD FE 05 06 FD FE 05 05 FD FE 05 05 FE FF 04 04 FF FF 03 04 00 00 03 04 00 00 03 01 00 07 08 03 07 04 07 01 02 FC F9 FC F8 FA F9 FB F8 FC F8 FC F8 FC F5 FD F5 FD F6 FD F7 FD F7 FD F6 FA FA FB F9 F8 FC F9 FC F6 FF F6 00 F9 01 F9 02 FB 05 FA 04 FE 0C FD 0B 04 0A 03 0B 0B 04 0B 03 0A FE 0A FE 05 F9 05 F9 00 F2 FF 09 00 0A F7 05 F8 05 F5 00 F5 01 F7 F9 F7 F9 FE F5 FF F6 03 01 01 0D 02 0D 08 05 08 04 0D 00 0D 00 06 F8
-PS029C --> Machine ready (OE), waiting for upload data
-PS029C --> Upload 256 bytes to address 029C:
-   ASCII: ................................................................................................................................................................................................................................................................
-   HEX: 07 F9 00 F2 F9 F6 F4 FD F4 01 FC 02 0A FD 0D 02 FC FF 01 FC 02 06 03 FC 00 07 04 FC FE 06 06 FE FB 04 07 FF FA 03 09 01 F7 03 0A 02 F7 02 0B 04 F3 FE 0B 07 F4 FC 0A 09 F4 F9 09 09 F4 F8 09 0B F5 F7 08 0C F7 F5 06 0C F8 F5 05 0D F9 F5 03 0D FC F6 00 0A FE F7 FE 0A 00 F4 FC 0C 01 F3 FC 0D 00 F3 FC 0E 01 F4 FB 0A 04 F3 F8 0C 06 F3 F6 0B 08 F4 F5 0A 09 F4 F3 09 0B F6 F1 07 0C F7 F1 06 0C F8 F1 05 0E F8 F1 04 0F FA F0 02 0F FB F0 01 10 FC F0 00 11 FE EF FD 11 00 EF FC 11 01 F1 FB 0E 02 F3 FB 0D 02 F5 FA 09 03 FA FB 0A 05 F9 F8 08 06 FB F8 07 04 FC F9 06 04 FD F9 06 06 FD F8 06 07 FE F7 05 08 FF F6 05 0A 00 F6 04 09 00 F6 04 0A 01 F6 02 0C 02 F5 00 0C 05 F4 FE 0E 07 F3 FC 0E 08 F4 FC 0C 07 F5 FC 0C 08 F6 FA 0C 09 F7 FA 0B 09 F7 F9 0B 0A F8 F9 0A 0A F9 F8 0A 0B F9
-PS029D --> Machine ready (OE), waiting for upload data
-PS029D --> Upload 256 bytes to address 029D:
-   ASCII: ................................................................................................................................................................................................................................................................
-   HEX: F8 09 0B FA F7 09 0B FB F7 09 0B FB F7 08 0A FB F8 09 0A FB F8 08 09 FC F8 08 09 FC F8 07 09 FD F8 07 09 FD F8 07 08 FD F9 06 08 FE F9 06 09 FE F8 06 09 FD F8 07 09 FD F9 07 09 FD F8 06 09 FD F9 07 08 FD FA 06 07 FE FB 06 07 FD FC 06 05 FE FD 05 04 FE FE 06 03 FD FE 06 04 FC FE 07 05 FC FD 06 05 FD FE 06 04 FE FF 05 03 FE FF 05 03 FF FF 04 02 FF 00 05 02 FE 00 06 02 FE 00 05 02 FF 00 05 01 FF 00 01 01 04 FE FC 80 01 00 00 80 04 0E F9 80 04 0D F9 80 04 0E FA 80 04 0D F9 80 04 0E F9 80 04 0D F9 80 04 0E F9 80 04 0D F9 80 04 0E F9 80 04 0E FA 80 04 0D F9 80 04 0E F9 80 04 0D F9 80 04 0E F9 80 04 0D FA 80 04 0E F9 0D F9 00 01 FE 03 02 FE FE 01 FC 03 F9 01 F8 FF F8 FF F4 FF F8 01 F8 01 F5 04 FB 02 0B FB 0D FD 0E 00 0E 00 0A 02 08 FF 04 FB F8 06 F8 00 F8 FF F8 00
-PS029E --> Machine ready (OE), waiting for upload data
-PS029E --> Upload 256 bytes to address 029E:
-   ASCII: ................................................................................................................................................................................................................................................................
-   HEX: F8 00 F8 FF F5 03 F9 01 F8 02 F7 06 FD 02 FE F9 FD F9 F7 FC F7 FB F6 FE F6 FF F3 00 F8 00 FA 01 FC 02 09 FE 0A FF 0E 00 0E 00 09 04 09 04 06 05 05 06 FE F7 F7 FE F6 FE F7 FE F5 FE F4 FE F6 FF F4 04 00 03 00 01 FE FA 06 05 FE FA 06 05 FE FA 05 05 FF FA 05 06 FF FA 04 06 00 F8 04 08 00 F7 04 09 00 F7 04 0A 00 F6 04 0A 00 F6 03 0B 01 F5 02 0C 02 F5 01 0C 03 F4 00 0D 05 F4 FE 0D 06 F4 FD 0D 07 F4 FC 0E 07 F4 FB 0E 0A F3 F9 0F 0B F2 F7 0E 0C F3 F7 0E 0D F4 F4 0F 0F F3 F2 10 11 F2 F1 11 12 F2 F3 11 0F F4 FF 02 00 FF 80 04 01 0D 80 04 01 0E 80 04 01 0D 80 04 01 0E 80 04 02 0D 80 04 01 0D 80 04 01 0E 80 04 01 0D 80 04 01 0E 01 0D FF 02 00 FF FF 01 F8 01 F5 FD F6 FA F6 F8 F8 F9 F9 F8 F6 F7 FA FB FB FB F6 F8 F4 FC F9 FE 08 02 07 02 07 05 07 05 08 07 08 07 08 08 08 08
-PS029F --> Machine ready (OE), waiting for upload data
-PS029F --> Upload 256 bytes to address 029F:
-   ASCII: ..................................................................................................................................................................................1.....................................................5.......................
-   HEX: 08 06 07 05 07 04 06 04 0B 02 07 FE FD 01 01 00 80 04 F3 01 80 04 F2 00 80 04 F3 01 80 04 F3 00 80 04 F2 01 80 04 F3 01 80 04 F3 00 80 04 F2 01 80 04 F3 00 80 04 F3 01 80 04 F2 00 F3 01 FF FF 00 01 00 FE 00 FC FA F5 FB F7 F6 F7 F5 FA F9 FC F9 FC F5 FC F3 FF F8 FF FB 01 0B FE 08 01 07 02 07 03 07 02 07 04 07 03 06 04 06 04 08 08 05 0C 04 0A 01 04 00 FF DF B5 00 FF FE FF 02 01 F9 F8 FA F8 FC F6 FC F7 FC F3 FD F9 FD F9 FC FA F6 FA F8 FC F6 00 FC 01 08 FE 0D 05 09 06 06 08 03 07 04 08 04 0D 03 07 02 07 07 0B 06 06 01 01 FE FF 01 01 31 FD 01 00 00 01 FF FD 02 03 06 FF FC FA FE 05 01 04 FE 00 FE FF FF FD 03 05 FE F8 05 0B FE F2 05 0E FF F1 04 0F 00 F6 03 05 FF FE 01 01 FF FD 01 03 FF FF 00 01 35 F3 01 00 FF FC 03 01 01 FF FD FD FF 04 FF 03 01 02 FD FE 08 02 F5 F9
+(... MANY MORE WRITES HERE ...)
 PS02A0 --> Machine ready (OE), waiting for upload data
 PS02A0 --> Upload 256 bytes to address 02A0:
    ASCII: ..................................................................-........................................................2....<.......Dg.... .[.?..a9..~..]I..s..-Dg.... 4j....P9..~..]I..s..-Dg.... 4j....P9..~..]I..s..-Dg.... 4j....P9..~..]I..s..-Dg.... 4
@@ -646,6 +608,8 @@ R024415 -->
    HEX: 70 6D 30 30 38 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
 
 L0240D5000360 --> Sum starting at 0240D5 with length 000360 is 00004CC9
+
+This is to get page 2 below. To get page 3, write 02 to 0201E1 and invoke 00C1
 
 W0201E101? --> Write 01 to 0201E1
 WFFFED00061? --> Write 0061 to FFFED0

@@ -136,7 +136,7 @@ namespace EmbroideryCommunicator
         
         // Response parsing
         private StringBuilder _responseBuffer = new();
-        private readonly int _responseTimeoutMs = 2000;
+        private readonly int _responseTimeoutMs = 5000;
         
         // Background processing
         private CancellationTokenSource? _processingCts;
@@ -2238,7 +2238,11 @@ namespace EmbroideryCommunicator
                 int commandTimeout = _responseTimeoutMs;
                 if (queuedCommand.Command.StartsWith("R") || queuedCommand.Command.StartsWith("N"))
                 {
-                    commandTimeout = 5000; // 5 seconds for read commands
+                    commandTimeout = 10000; // 10 seconds for read commands
+                }
+                else if (queuedCommand.Command.StartsWith("W"))
+                {
+                    commandTimeout = 14000; // 14 seconds for write commands
                 }
 
                 // Send command character by character
@@ -3154,6 +3158,7 @@ namespace EmbroideryCommunicator
                             }
                         }
                         file.FileName = nameBuilder.ToString().Trim();
+                        if (file.FileName.Length == 0) { file.FileName = file.FileId.ToString(); }
 
                         // Load preview data if requested
                         if (loadPreviews)
@@ -3263,11 +3268,23 @@ namespace EmbroideryCommunicator
                             return null;
                         }
 
-                        var invokeFunc61Result = await InvokeFunctionAsync(0x0061);
-                        if (!invokeFunc61Result.Success)
+                        if (pageIndex == 1)
                         {
-                            RaiseDebugMessage($"ReadEmbroideryFiles: Failed to invoke function 0x0061: {invokeFunc61Result.ErrorMessage}");
-                            return null;
+                            var invokeFunc61Result = await InvokeFunctionAsync(0x0061);
+                            if (!invokeFunc61Result.Success)
+                            {
+                                RaiseDebugMessage($"ReadEmbroideryFiles: Failed to invoke function 0x0061: {invokeFunc61Result.ErrorMessage}");
+                                return null;
+                            }
+                        }
+                        else if (pageIndex == 2)
+                        {
+                            var invokeFuncC1Result = await InvokeFunctionAsync(0x00C1);
+                            if (!invokeFuncC1Result.Success)
+                            {
+                                RaiseDebugMessage($"ReadEmbroideryFiles: Failed to invoke function 0x00C1: {invokeFuncC1Result.ErrorMessage}");
+                                return null;
+                            }
                         }
                     }
                 }
@@ -4262,9 +4279,9 @@ namespace EmbroideryCommunicator
                 }
                 RaiseDebugMessage("DeleteEmbroideryFile: Argument 1 set successfully");
 
-                // Step 10: Invoke method 0x0801 - This performs the delete. Wait an extra 4 seconds for the operation to complete.
+                // Step 10: Invoke method 0x0801 - This performs the delete. Wait an extra 6 seconds for the operation to complete.
                 RaiseDebugMessage("DeleteEmbroideryFile: Invoking delete function 0x0801");
-                var invokeFunc801Result = await InvokeFunctionAsync(0x0801, 2000);
+                var invokeFunc801Result = await InvokeFunctionAsync(0x0801, 6000);
                 if (!invokeFunc801Result.Success)
                 {
                     RaiseDebugMessage($"DeleteEmbroideryFile: Failed to invoke delete function 0x0801: {invokeFunc801Result.ErrorMessage}");
@@ -4320,8 +4337,8 @@ namespace EmbroideryCommunicator
         /// <param name="file">The embroidery file to write (must have FileName, FileData, and PreviewImageData populated)</param>
         /// <param name="location">Storage location to write to (EmbroideryModuleMemory or PCCard)</param>
         /// <param name="progress">Optional progress callback for the write operation</param>
-        /// <returns>True if write succeeded, false otherwise</returns>
-        public async Task<bool> WriteEmbroideryFileAsync(EmbroideryFile file, StorageLocation location, Action<int, int>? progress = null)
+        /// <returns>CommandResult indicating success or failure, with specific error codes</returns>
+        public async Task<CommandResult> WriteEmbroideryFileAsync(EmbroideryFile file, StorageLocation location, Action<int, int>? progress = null)
         {
             RaiseDebugMessage($"WriteEmbroideryFile: Starting write of '{file?.FileName}' to {location}");
             
@@ -4329,25 +4346,25 @@ namespace EmbroideryCommunicator
             if (file == null)
             {
                 RaiseDebugMessage("WriteEmbroideryFile: File is null");
-                return false;
+                return new CommandResult { Success = false, ErrorMessage = "File is null" };
             }
 
             if (string.IsNullOrEmpty(file.FileName))
             {
                 RaiseDebugMessage("WriteEmbroideryFile: FileName is null or empty");
-                return false;
+                return new CommandResult { Success = false, ErrorMessage = "FileName is null or empty" };
             }
 
             if (file.FileData == null || file.FileData.Length == 0)
             {
                 RaiseDebugMessage("WriteEmbroideryFile: FileData is null or empty");
-                return false;
+                return new CommandResult { Success = false, ErrorMessage = "FileData is null or empty" };
             }
 
             if (file.PreviewImageData == null || file.PreviewImageData.Length == 0)
             {
                 RaiseDebugMessage("WriteEmbroideryFile: PreviewImageData is null or empty");
-                return false;
+                return new CommandResult { Success = false, ErrorMessage = "PreviewImageData is null or empty" };
             }
 
             // Step 1: Create data blocks
@@ -4364,21 +4381,21 @@ namespace EmbroideryCommunicator
             catch (Exception ex)
             {
                 RaiseDebugMessage($"WriteEmbroideryFile: Failed to create data blocks: {ex.Message}");
-                return false;
+                return new CommandResult { Success = false, ErrorMessage = $"Failed to create data blocks: {ex.Message}" };
             }
 
             // Step 2: Check connection
             if (State != ConnectionState.Connected)
             {
                 RaiseDebugMessage("WriteEmbroideryFile: Not connected");
-                return false;
+                return new CommandResult { Success = false, ErrorMessage = "Not connected" };
             }
 
             // Step 3: Check if already busy
             if (IsBusy)
             {
                 RaiseDebugMessage("WriteEmbroideryFile: Already busy with another operation");
-                return false;
+                return new CommandResult { Success = false, ErrorMessage = "Already busy with another operation" };
             }
 
             SetBusyState(true, "Writing embroidery file");
@@ -4393,7 +4410,7 @@ namespace EmbroideryCommunicator
                 if (currentMode == null)
                 {
                     RaiseDebugMessage("WriteEmbroideryFile: Failed to get session mode");
-                    return false;
+                    return new CommandResult { Success = false, ErrorMessage = "Failed to get session mode" };
                 }
                 RaiseDebugMessage($"WriteEmbroideryFile: Current mode is {currentMode}");
 
@@ -4405,7 +4422,7 @@ namespace EmbroideryCommunicator
                     if (!sessionStartResult.Success)
                     {
                         RaiseDebugMessage($"WriteEmbroideryFile: Session start failed: {sessionStartResult.ErrorMessage}");
-                        return false;
+                        return new CommandResult { Success = false, ErrorMessage = $"Session start failed: {sessionStartResult.ErrorMessage}" };
                     }
                     sessionStarted = true;
                     RaiseDebugMessage("WriteEmbroideryFile: Session start successful");
@@ -4429,13 +4446,13 @@ namespace EmbroideryCommunicator
                         if (!pcCardInserted)
                         {
                             RaiseDebugMessage("WriteEmbroideryFile: No PC card present");
-                            return false;
+                            return new CommandResult { Success = false, ErrorMessage = "No PC card present" };
                         }
                     }
                     else
                     {
                         RaiseDebugMessage("WriteEmbroideryFile: Failed to read PC card status");
-                        return false;
+                        return new CommandResult { Success = false, ErrorMessage = "Failed to read PC card status" };
                     }
                 }
 
@@ -4450,7 +4467,7 @@ namespace EmbroideryCommunicator
                 if (!selectStorageResult.Success)
                 {
                     RaiseDebugMessage($"WriteEmbroideryFile: Failed to select storage source: {selectStorageResult.ErrorMessage}");
-                    return false;
+                    return new CommandResult { Success = false, ErrorMessage = $"Failed to select storage source: {selectStorageResult.ErrorMessage}" };
                 }
                 RaiseDebugMessage("WriteEmbroideryFile: Storage source selected successfully");
 
@@ -4460,7 +4477,18 @@ namespace EmbroideryCommunicator
                 if (!readyUploadResult.Success)
                 {
                     RaiseDebugMessage($"WriteEmbroideryFile: Failed to ready module for upload: {readyUploadResult.ErrorMessage}");
-                    return false;
+                    return new CommandResult { Success = false, ErrorMessage = $"Failed to ready module for upload: {readyUploadResult.ErrorMessage}" };
+                }
+                
+                // Check if machine returned 0x8005 (machine full/out of space)
+                if (readyUploadResult.BinaryData != null && readyUploadResult.BinaryData.Length >= 2)
+                {
+                    ushort responseValue = (ushort)((readyUploadResult.BinaryData[0] << 8) | readyUploadResult.BinaryData[1]);
+                    if (responseValue == 0x8005)
+                    {
+                        RaiseDebugMessage("WriteEmbroideryFile: Machine is full (0x8005)");
+                        return new CommandResult { Success = false, ErrorMessage = "Machine is full and cannot accept any more files" };
+                    }
                 }
                 RaiseDebugMessage("WriteEmbroideryFile: Embroidery module ready for upload");
 
@@ -4470,7 +4498,7 @@ namespace EmbroideryCommunicator
                 if (!writeMainResult.Success)
                 {
                     RaiseDebugMessage($"WriteEmbroideryFile: Failed to write main data block: {writeMainResult.ErrorMessage}");
-                    return false;
+                    return new CommandResult { Success = false, ErrorMessage = $"Failed to write main data block: {writeMainResult.ErrorMessage}" };
                 }
                 RaiseDebugMessage("WriteEmbroideryFile: Main data block written successfully");
 
@@ -4480,7 +4508,7 @@ namespace EmbroideryCommunicator
                 if (!writePreviewResult.Success)
                 {
                     RaiseDebugMessage($"WriteEmbroideryFile: Failed to write preview data block: {writePreviewResult.ErrorMessage}");
-                    return false;
+                    return new CommandResult { Success = false, ErrorMessage = $"Failed to write preview data block: {writePreviewResult.ErrorMessage}" };
                 }
                 RaiseDebugMessage("WriteEmbroideryFile: Preview data block written successfully");
 
@@ -4490,7 +4518,7 @@ namespace EmbroideryCommunicator
                 if (!writeBlockSizeResult.Success)
                 {
                     RaiseDebugMessage($"WriteEmbroideryFile: Failed to write block size: {writeBlockSizeResult.ErrorMessage}");
-                    return false;
+                    return new CommandResult { Success = false, ErrorMessage = $"Failed to write block size: {writeBlockSizeResult.ErrorMessage}" };
                 }
 
                 // Step 11: Write 0xA4 to 0x0240B9
@@ -4499,7 +4527,7 @@ namespace EmbroideryCommunicator
                 if (!writeAttributeResult.Success)
                 {
                     RaiseDebugMessage($"WriteEmbroideryFile: Failed to write attribute: {writeAttributeResult.ErrorMessage}");
-                    return false;
+                    return new CommandResult { Success = false, ErrorMessage = $"Failed to write attribute: {writeAttributeResult.ErrorMessage}" };
                 }
 
                 // Step 12: Write the filename to 0x0240D5 (32 bytes, padded with 0x00)
@@ -4510,7 +4538,7 @@ namespace EmbroideryCommunicator
                 if (filenameBytes.Length > 31)
                 {
                     RaiseDebugMessage($"WriteEmbroideryFile: Filename too long ({filenameBytes.Length} bytes UTF-8, max 31)");
-                    return false;
+                    return new CommandResult { Success = false, ErrorMessage = $"Filename too long ({filenameBytes.Length} bytes UTF-8, max 31)" };
                 }
                 
                 // Create 32-byte padded filename buffer
@@ -4522,27 +4550,27 @@ namespace EmbroideryCommunicator
                 if (!writeFilenameResult.Success)
                 {
                     RaiseDebugMessage($"WriteEmbroideryFile: Failed to write filename: {writeFilenameResult.ErrorMessage}");
-                    return false;
+                    return new CommandResult { Success = false, ErrorMessage = $"Failed to write filename: {writeFilenameResult.ErrorMessage}" };
                 }
                 RaiseDebugMessage("WriteEmbroideryFile: Filename written successfully");
 
-                // Step 13: Invoke method 0x0201 (with 4 second delay for machine to store data)
+                // Step 13: Invoke method 0x0201 with 5 second wait
                 RaiseDebugMessage("WriteEmbroideryFile: Invoking store function 0x0201 (waiting 4 seconds)");
-                var invokeStoreResult = await InvokeFunctionAsync(0x0201, 2000);
+                var invokeStoreResult = await InvokeFunctionAsync(0x0201, 5000);
                 if (!invokeStoreResult.Success)
                 {
                     RaiseDebugMessage($"WriteEmbroideryFile: Failed to invoke store function 0x0201: {invokeStoreResult.ErrorMessage}");
-                    return false;
+                    return new CommandResult { Success = false, ErrorMessage = $"Failed to invoke store function 0x0201: {invokeStoreResult.ErrorMessage}" };
                 }
                 RaiseDebugMessage("WriteEmbroideryFile: Store function 0x0201 invoked successfully");
 
                 RaiseDebugMessage("WriteEmbroideryFile: File written successfully");
-                return true;
+                return new CommandResult { Success = true, Response = "File written successfully" };
             }
             catch (Exception ex)
             {
                 RaiseDebugMessage($"WriteEmbroideryFile: Exception occurred: {ex.Message}");
-                return false;
+                return new CommandResult { Success = false, ErrorMessage = $"Exception occurred: {ex.Message}" };
             }
             finally
             {

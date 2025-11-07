@@ -1953,7 +1953,7 @@ namespace EmbroideryCommunicator
                 ShowProgressBar(true, $"Uploading {embroideryFile.FileName}...");
 
                 // Upload the file to the machine
-                bool success = await _serialStack.WriteEmbroideryFileAsync(
+                CommandResult result = await _serialStack.WriteEmbroideryFileAsync(
                     embroideryFile,
                     StorageLocation.EmbroideryModuleMemory,
                     (current, total) => UpdateProgress(current, total, false)
@@ -1962,7 +1962,7 @@ namespace EmbroideryCommunicator
                 // Hide progress bar
                 ShowProgressBar(false);
 
-                if (success)
+                if (result.Success)
                 {
                     UpdateStatus($"Uploaded {embroideryFile.FileName}");
 
@@ -1977,9 +1977,15 @@ namespace EmbroideryCommunicator
                         MessageBox.Show("Machine is currently busy with another operation. Please wait for the current operation to complete.",
                             "Machine Busy", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     }
+                    // Check if the error is due to machine being full
+                    else if (result.ErrorMessage != null && result.ErrorMessage.Contains("0x8005"))
+                    {
+                        MessageBox.Show("The machine is full and cannot accept any more files. Please delete some files to make space.",
+                            "Machine Full", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
                     else
                     {
-                        MessageBox.Show("Failed to upload file to machine", "Upload Error",
+                        MessageBox.Show($"Failed to upload file to machine: {result.ErrorMessage ?? "Unknown error"}", "Upload Error",
                             MessageBoxButtons.OK, MessageBoxIcon.Error);
                     }
                     UpdateStatus("Upload failed");
