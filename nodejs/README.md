@@ -4,10 +4,14 @@ A Node.js application for communicating with embroidery machines (like Bernina A
 
 ## Overview
 
-This project provides a robust interface to communicate with embroidery machines over a serial connection. It implements the character-by-character echo protocol with built-in retry logic and error handling.
+This project provides a robust interface to communicate with embroidery machines over a serial connection. It consists of two main components:
+
+1. **SerialStack.js**: Low-level serial communication module with character-by-character echo protocol
+2. **Relay.js**: TCP server that relays commands to the embroidery machine, providing network access to the serial interface
 
 ## Features
 
+### SerialStack Features
 - **Automatic baud rate detection**: Automatically detects the machine's baud rate (19200, 57600, 115200, or 4800)
 - **Character-by-character transmission**: Sends commands one character at a time, waiting for echo confirmation
 - **Automatic retry logic**: Built-in retry mechanism for Read, Large Read, and Sum operations
@@ -15,12 +19,25 @@ This project provides a robust interface to communicate with embroidery machines
 - **Checksum verification**: Sum command for verifying data integrity
 - **Robust error handling**: Handles timeout, echo mismatch, and machine error responses
 
+### Relay.js Features
+- **TCP to Serial Bridge**: Exposes embroidery machine over TCP on port 8888
+- **Automatic Initialization**: On connection, automatically opens serial port, closes any active embroidery session, and upgrades to maximum baud rate (57600)
+- **Command Queueing**: Queues incoming commands until initialization completes for accurate responses
+- **Single Connection**: Only allows one TCP client at a time to prevent conflicts
+- **Comprehensive Logging**: Logs all incoming commands and outgoing responses for debugging
+- **Systemd Integration**: Can be installed as a background service with automatic restart
+- **Custom Protocol**: Implements a structured TCP protocol for reliable communication (see docs/TcpProtocol.md)
+
 ## Files
 
 - **SerialStack.js**: Core module that provides low-level serial communication operations
+- **Relay.js**: TCP server that provides network access to the embroidery machine
+- **TcpProtocol.js**: Protocol handler for TCP communication
 - **TestStack.js**: Test application demonstrating usage of SerialStack
+- **TestRelay.js**: Test application demonstrating usage of Relay.js TCP interface
 - **package.json**: Node.js package configuration
-- **docs/SerialProtocol.md**: Detailed protocol documentation
+- **docs/SerialProtocol.md**: Detailed serial protocol documentation
+- **docs/TcpProtocol.md**: Detailed TCP protocol documentation
 
 ## Installation
 
@@ -36,7 +53,96 @@ npm install
 
 ## Usage
 
-### Basic Example
+### Using Relay.js (TCP Server)
+
+Relay.js provides a TCP server that exposes the embroidery machine over the network on port 8888. This is the recommended way to use EmbroideryStack as it handles all initialization automatically and can run as a background service.
+
+#### Running Relay.js
+
+```bash
+# Run in foreground (development/testing)
+node Relay.js
+
+# View help and available commands
+node Relay.js --help
+
+# Install as systemd service and start it (requires sudo)
+sudo node Relay.js --install
+
+# Start the service
+sudo node Relay.js --start
+
+# Stop the service
+sudo node Relay.js --stop
+
+# Uninstall the service
+sudo node Relay.js --uninstall
+```
+
+#### Relay.js Command-Line Arguments
+
+- **`--help`** or **`-h`**: Display help information with all available commands
+- **`--install`**: Install Relay.js as a systemd service, enable it to start on boot, and start it immediately
+- **`--uninstall`**: Stop the service, disable it from starting on boot, and remove the systemd service file
+- **`--start`**: Start the relay service (must be installed first)
+- **`--stop`**: Stop the relay service
+- **(no arguments)**: Run the server in foreground mode
+
+#### Service Management
+
+When installed as a service, Relay.js runs in the background and automatically:
+- Starts on system boot
+- Restarts automatically if it crashes (after 10 seconds)
+- Logs to systemd journal for easy monitoring
+
+Useful systemd commands:
+```bash
+# Check service status
+sudo systemctl status relay
+
+# View live logs
+sudo journalctl -u relay -f
+
+# View recent logs
+sudo journalctl -u relay -n 50
+
+# Restart the service
+sudo systemctl restart relay
+```
+
+#### How Relay.js Works
+
+When a TCP client connects to Relay.js on port 8888:
+
+1. **Automatic Initialization**: 
+   - Creates SerialStack instance
+   - Opens serial port with automatic baud rate detection
+   - Checks for and closes any existing embroidery session
+   - Upgrades to maximum baud rate (57600)
+   - Only after initialization completes, commands are processed
+
+2. **Command Processing**:
+   - Commands received during initialization are queued
+   - Once initialization completes, queued commands are processed in order
+   - Subsequent commands are handled immediately
+   - All requests and responses are logged for debugging
+
+3. **Connection Management**:
+   - Only one TCP client can connect at a time (prevents conflicts)
+   - Additional connection attempts are rejected with a "busy" message
+   - When client disconnects, serial port is closed gracefully
+
+4. **Protocol**:
+   - Uses a custom structured TCP protocol (see docs/TcpProtocol.md)
+   - Supports commands: GCFG, SCFG, STAT, READ, LRED, WRIT, UPLD, CSUM, SOPE, SCLO, BAUD, RSET
+   - All responses include request ID for matching requests/responses
+   - Error responses include error codes and messages
+
+See **TestRelay.js** for example TCP client code.
+
+### Using SerialStack.js Directly
+
+For direct serial port access without the TCP layer:
 
 ```javascript
 const SerialStack = require('./SerialStack');
@@ -66,12 +172,16 @@ async function example() {
 example();
 ```
 
-### Running the Test Application
+### Running the Test Applications
 
 ```bash
+# Test SerialStack directly
 npm test
 # or
 node TestStack.js
+
+# Test Relay.js TCP interface (requires Relay.js running)
+node TestRelay.js
 ```
 
 ## SerialStack API

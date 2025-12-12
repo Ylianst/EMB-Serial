@@ -1,11 +1,236 @@
 const net = require('net');
 const SerialStack = require('./SerialStack');
 const TcpProtocol = require('./TcpProtocol');
+const { execSync } = require('child_process');
+const fs = require('fs');
+const path = require('path');
 
 // Configuration
 const PORT = 8888;
 const HOST = '0.0.0.0';
 const RELAY_VERSION = '1.0.0';
+const SERVICE_NAME = 'relay';
+
+// Process command line arguments
+const args = process.argv.slice(2);
+
+if (args.length > 0) {
+  const command = args[0];
+  
+  switch (command) {
+    case '--help':
+    case '-h':
+      showHelp();
+      process.exit(0);
+      break;
+      
+    case '--install':
+      installService();
+      process.exit(0);
+      break;
+      
+    case '--uninstall':
+      uninstallService();
+      process.exit(0);
+      break;
+      
+    case '--start':
+      startService();
+      process.exit(0);
+      break;
+      
+    case '--stop':
+      stopService();
+      process.exit(0);
+      break;
+      
+    default:
+      console.error(`Unknown command: ${command}`);
+      console.log('Run with --help to see available commands');
+      process.exit(1);
+  }
+}
+
+/**
+ * Show help information
+ */
+function showHelp() {
+  console.log(`
+Relay.js v${RELAY_VERSION} - TCP to Serial Relay Server
+
+USAGE:
+  node Relay.js [COMMAND]
+
+COMMANDS:
+  --help, -h        Show this help message
+  --install         Install as systemd service and start it
+  --uninstall       Stop and uninstall systemd service
+  --start           Start the systemd service
+  --stop            Stop the systemd service
+  (no arguments)    Run server in foreground
+
+DESCRIPTION:
+  Relay.js provides a TCP server on port ${PORT} that relays commands to
+  an embroidery machine via serial connection. It automatically initializes
+  the serial connection, closes any active sessions, and upgrades to maximum
+  baud rate when a client connects.
+
+EXAMPLES:
+  node Relay.js                 # Run in foreground
+  node Relay.js --install       # Install and start as service
+  node Relay.js --stop          # Stop the service
+  node Relay.js --uninstall     # Uninstall the service
+`);
+}
+
+/**
+ * Install systemd service
+ */
+function installService() {
+  console.log('Installing Relay.js as systemd service...');
+  
+  try {
+    // Get absolute paths
+    const scriptPath = path.resolve(__filename);
+    const workingDir = path.dirname(scriptPath);
+    const nodePath = execSync('which node').toString().trim();
+    
+    // Create systemd service file content
+    const serviceContent = `[Unit]
+Description=Relay.js TCP to Serial Relay Server
+After=network.target
+
+[Service]
+Type=simple
+User=${process.env.USER || 'root'}
+WorkingDirectory=${workingDir}
+ExecStart=${nodePath} ${scriptPath}
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+`;
+
+    // Write service file
+    const serviceFile = `/etc/systemd/system/${SERVICE_NAME}.service`;
+    console.log(`Creating service file: ${serviceFile}`);
+    
+    try {
+      fs.writeFileSync(serviceFile, serviceContent);
+    } catch (error) {
+      console.error(`Failed to write service file. You may need to run with sudo.`);
+      console.error(`Error: ${error.message}`);
+      process.exit(1);
+    }
+    
+    // Reload systemd
+    console.log('Reloading systemd daemon...');
+    execSync('systemctl daemon-reload');
+    
+    // Enable service
+    console.log('Enabling service to start on boot...');
+    execSync(`systemctl enable ${SERVICE_NAME}.service`);
+    
+    // Start service
+    console.log('Starting service...');
+    execSync(`systemctl start ${SERVICE_NAME}.service`);
+    
+    console.log(`\n✓ Service installed and started successfully!`);
+    console.log(`\nUseful commands:`);
+    console.log(`  sudo systemctl status ${SERVICE_NAME}   # Check service status`);
+    console.log(`  sudo journalctl -u ${SERVICE_NAME} -f   # View live logs`);
+    console.log(`  node Relay.js --stop                    # Stop the service`);
+    console.log(`  node Relay.js --uninstall               # Uninstall the service`);
+    
+  } catch (error) {
+    console.error(`Failed to install service: ${error.message}`);
+    console.error('Make sure you run this command with sudo if needed.');
+    process.exit(1);
+  }
+}
+
+/**
+ * Uninstall systemd service
+ */
+function uninstallService() {
+  console.log('Uninstalling Relay.js systemd service...');
+  
+  try {
+    // Stop service
+    console.log('Stopping service...');
+    try {
+      execSync(`systemctl stop ${SERVICE_NAME}.service`);
+    } catch (error) {
+      console.log('Service was not running');
+    }
+    
+    // Disable service
+    console.log('Disabling service...');
+    try {
+      execSync(`systemctl disable ${SERVICE_NAME}.service`);
+    } catch (error) {
+      console.log('Service was not enabled');
+    }
+    
+    // Remove service file
+    const serviceFile = `/etc/systemd/system/${SERVICE_NAME}.service`;
+    console.log(`Removing service file: ${serviceFile}`);
+    try {
+      fs.unlinkSync(serviceFile);
+    } catch (error) {
+      console.error(`Failed to remove service file. You may need to run with sudo.`);
+      console.error(`Error: ${error.message}`);
+      process.exit(1);
+    }
+    
+    // Reload systemd
+    console.log('Reloading systemd daemon...');
+    execSync('systemctl daemon-reload');
+    
+    console.log('\n✓ Service uninstalled successfully!');
+    
+  } catch (error) {
+    console.error(`Failed to uninstall service: ${error.message}`);
+    console.error('Make sure you run this command with sudo if needed.');
+    process.exit(1);
+  }
+}
+
+/**
+ * Start systemd service
+ */
+function startService() {
+  console.log('Starting Relay.js service...');
+  
+  try {
+    execSync(`systemctl start ${SERVICE_NAME}.service`);
+    console.log('✓ Service started successfully!');
+    console.log(`\nCheck status with: sudo systemctl status ${SERVICE_NAME}`);
+    console.log(`View logs with: sudo journalctl -u ${SERVICE_NAME} -f`);
+  } catch (error) {
+    console.error(`Failed to start service: ${error.message}`);
+    console.error('Make sure the service is installed first with: node Relay.js --install');
+    process.exit(1);
+  }
+}
+
+/**
+ * Stop systemd service
+ */
+function stopService() {
+  console.log('Stopping Relay.js service...');
+  
+  try {
+    execSync(`systemctl stop ${SERVICE_NAME}.service`);
+    console.log('✓ Service stopped successfully!');
+  } catch (error) {
+    console.error(`Failed to stop service: ${error.message}`);
+    process.exit(1);
+  }
+}
 
 // Track active connection and serial stack
 let activeConnection = null;
@@ -33,20 +258,77 @@ const server = net.createServer((socket) => {
   activeConnection = socket;
   console.log(`Connection accepted from ${socket.remoteAddress}:${socket.remotePort}`);
 
-  // Create SerialStack instance for this connection
-  try {
-    console.log('Creating SerialStack instance...');
-    serialStack = new SerialStack(config.serialPort, config.baudRate);
-    console.log('SerialStack instance created');
-  } catch (error) {
-    console.error(`Failed to create SerialStack: ${error.message}`);
-    socket.end('Failed to initialize serial connection\n');
-    activeConnection = null;
-    return;
-  }
-
   // Buffer for accumulating incoming data
   let receiveBuffer = Buffer.alloc(0);
+  
+  // Track initialization state
+  let isInitialized = false;
+  let messageQueue = [];
+
+  // Create and initialize SerialStack instance for this connection
+  (async () => {
+    try {
+      console.log('Creating SerialStack instance...');
+      serialStack = new SerialStack(config.serialPort, config.baudRate);
+      console.log('SerialStack instance created');
+
+      // Open the serial port with auto-detection
+      console.log('Opening serial port with auto-detection...');
+      await serialStack.open();
+      console.log(`Serial port opened at ${serialStack.baudRate} baud`);
+
+      // Close any existing embroidery session
+      try {
+        const isSessionOpen = await serialStack.IsEmbroiderySessionOpen();
+        if (isSessionOpen) {
+          console.log('Closing existing embroidery session...');
+          await serialStack.EndEmbroiderySession();
+          console.log('Embroidery session closed');
+        } else {
+          console.log('No active embroidery session to close');
+        }
+      } catch (error) {
+        console.log('Could not check/close embroidery session:', error.message);
+      }
+
+      // Upgrade to maximum speed (57600)
+      if (serialStack.baudRate !== 57600) {
+        console.log(`Upgrading speed from ${serialStack.baudRate} to 57600 baud...`);
+        try {
+          await serialStack.upgradeSpeed();
+          console.log(`Successfully upgraded to ${serialStack.baudRate} baud`);
+        } catch (error) {
+          console.log(`Could not upgrade to 57600, staying at ${serialStack.baudRate} baud:`, error.message);
+        }
+      } else {
+        console.log('Already at maximum speed (57600 baud)');
+      }
+
+      console.log('SerialStack fully initialized and ready');
+      isInitialized = true;
+
+      // Process any queued messages
+      if (messageQueue.length > 0) {
+        console.log(`Processing ${messageQueue.length} queued message(s)...`);
+        for (const queuedMessage of messageQueue) {
+          handleMessage(socket, queuedMessage);
+        }
+        messageQueue = [];
+      }
+    } catch (error) {
+      console.error(`Failed to initialize SerialStack: ${error.message}`);
+      socket.end('Failed to initialize serial connection\n');
+      activeConnection = null;
+      if (serialStack) {
+        try {
+          await serialStack.close();
+        } catch (closeError) {
+          console.error(`Error closing SerialStack: ${closeError.message}`);
+        }
+        serialStack = null;
+      }
+    }
+  })();
 
   // Handle incoming data
   socket.on('data', (data) => {
@@ -77,8 +359,14 @@ const server = net.createServer((socket) => {
       // Remove the decoded message from the buffer
       receiveBuffer = receiveBuffer.slice(message.totalLength);
 
-      // Handle the message
-      handleMessage(socket, message);
+      // Check if initialization is complete
+      if (!isInitialized) {
+        console.log(`Queueing message ${message.messageType} until initialization completes...`);
+        messageQueue.push(message);
+      } else {
+        // Handle the message immediately
+        handleMessage(socket, message);
+      }
     }
   });
 
@@ -214,11 +502,13 @@ function handleMessage(socket, message) {
 
       default:
         console.warn(`Unknown message type: ${messageType}`);
+        const errorMsg = `Unknown message type: ${messageType}`;
         const errorResponse = protocol.createErrorResponse(
           requestId,
-          `Unknown message type: ${messageType}`,
+          errorMsg,
           protocol.ErrorCodes.INVALID_FORMAT
         );
+        console.log(`→ Sending error response (${errorResponse.length} bytes): ${errorMsg}`);
         socket.write(errorResponse);
         break;
     }
@@ -229,6 +519,7 @@ function handleMessage(socket, message) {
       error.message,
       protocol.ErrorCodes.INVALID_PARAMETERS
     );
+    console.log(`→ Sending error response (${errorResponse.length} bytes): ${error.message}`);
     socket.write(errorResponse);
   }
 }
@@ -238,58 +529,29 @@ function handleMessage(socket, message) {
  */
 function handleGetConfig(socket, requestId) {
   console.log('Handling GCFG - Get Configuration');
-  const response = protocol.createConfigResponse(requestId, {
+  const responseData = {
     serialPort: config.serialPort,
     baudRate: config.baudRate,
     relayVersion: RELAY_VERSION
-  });
+  };
+  const response = protocol.createConfigResponse(requestId, responseData);
+  console.log(`→ Sending GCFG response (${response.length} bytes):`, JSON.stringify(responseData, null, 2));
   socket.write(response);
 }
 
 /**
  * Handle SCFG - Set Configuration
+ * Note: Always returns success, ignores payload
  */
 function handleSetConfig(socket, requestId, payload) {
-  console.log('Handling SCFG - Set Configuration');
-  try {
-    const newConfig = protocol.parseJsonPayload(payload);
-    
-    // Only allow configuration changes when serial port is not open
-    if (serialStack && serialStack.isOpen) {
-      const errorResponse = protocol.createErrorResponse(
-        requestId,
-        'Cannot change configuration while serial port is open',
-        protocol.ErrorCodes.INVALID_PARAMETERS
-      );
-      socket.write(errorResponse);
-      return;
-    }
-    
-    if (newConfig.serialPort) {
-      config.serialPort = newConfig.serialPort;
-    }
-    if (newConfig.baudRate) {
-      config.baudRate = newConfig.baudRate;
-    }
-
-    // Recreate SerialStack with new configuration
-    if (serialStack) {
-      serialStack = new SerialStack(config.serialPort, config.baudRate);
-    }
-
-    const response = protocol.createConfigResponse(requestId, {
-      success: true,
-      message: 'Configuration updated'
-    });
-    socket.write(response);
-  } catch (error) {
-    const errorResponse = protocol.createErrorResponse(
-      requestId,
-      `Failed to set configuration: ${error.message}`,
-      protocol.ErrorCodes.INVALID_PARAMETERS
-    );
-    socket.write(errorResponse);
-  }
+  console.log('Handling SCFG - Set Configuration (ignoring payload, always returning success)');
+  
+  const responseData = {
+    success: true
+  };
+  const response = protocol.createConfigResponse(requestId, responseData);
+  console.log(`→ Sending SCFG response (${response.length} bytes):`, JSON.stringify(responseData, null, 2));
+  socket.write(response);
 }
 
 /**
@@ -315,6 +577,7 @@ async function handleGetStatus(socket, requestId) {
   };
 
   const response = protocol.createStatusResponse(requestId, status);
+  console.log(`→ Sending STAT response (${response.length} bytes):`, JSON.stringify(status, null, 2));
   socket.write(response);
 }
 
@@ -325,11 +588,13 @@ async function handleRead(socket, requestId, payload) {
   console.log('Handling READ - Read Memory');
   try {
     if (!serialStack || !serialStack.isOpen) {
+      const errorMsg = 'Serial port not connected';
       const errorResponse = protocol.createErrorResponse(
         requestId,
-        'Serial port not connected',
+        errorMsg,
         protocol.ErrorCodes.PORT_NOT_CONNECTED
       );
+      console.log(`→ Sending READ error response (${errorResponse.length} bytes): ${errorMsg}`);
       socket.write(errorResponse);
       return;
     }
@@ -338,6 +603,7 @@ async function handleRead(socket, requestId, payload) {
     const hexData = await serialStack.read(address);
     
     const response = protocol.createReadDataResponse(requestId, hexData);
+    console.log(`→ Sending READ response (${response.length} bytes): Address ${address}, Data: ${hexData}`);
     socket.write(response);
   } catch (error) {
     console.error('Read error:', error.message);
@@ -346,6 +612,7 @@ async function handleRead(socket, requestId, payload) {
       `Read failed: ${error.message}`,
       protocol.ErrorCodes.MACHINE_ERROR
     );
+    console.log(`→ Sending READ error response (${errorResponse.length} bytes): ${error.message}`);
     socket.write(errorResponse);
   }
 }
@@ -357,11 +624,13 @@ async function handleLargeRead(socket, requestId, payload) {
   console.log('Handling LRED - Large Read Memory');
   try {
     if (!serialStack || !serialStack.isOpen) {
+      const errorMsg = 'Serial port not connected';
       const errorResponse = protocol.createErrorResponse(
         requestId,
-        'Serial port not connected',
+        errorMsg,
         protocol.ErrorCodes.PORT_NOT_CONNECTED
       );
+      console.log(`→ Sending LRED error response (${errorResponse.length} bytes): ${errorMsg}`);
       socket.write(errorResponse);
       return;
     }
@@ -372,6 +641,7 @@ async function handleLargeRead(socket, requestId, payload) {
     // Convert string to Buffer for binary data
     const dataBuffer = Buffer.from(binaryData, 'latin1');
     const response = protocol.createLargeDataResponse(requestId, dataBuffer);
+    console.log(`→ Sending LRED response (${response.length} bytes): Address ${address}, Data length: ${dataBuffer.length} bytes`);
     socket.write(response);
   } catch (error) {
     console.error('Large read error:', error.message);
@@ -380,6 +650,7 @@ async function handleLargeRead(socket, requestId, payload) {
       `Large read failed: ${error.message}`,
       protocol.ErrorCodes.MACHINE_ERROR
     );
+    console.log(`→ Sending LRED error response (${errorResponse.length} bytes): ${error.message}`);
     socket.write(errorResponse);
   }
 }
@@ -391,11 +662,13 @@ async function handleWrite(socket, requestId, payload) {
   console.log('Handling WRIT - Write Memory');
   try {
     if (!serialStack || !serialStack.isOpen) {
+      const errorMsg = 'Serial port not connected';
       const errorResponse = protocol.createErrorResponse(
         requestId,
-        'Serial port not connected',
+        errorMsg,
         protocol.ErrorCodes.PORT_NOT_CONNECTED
       );
+      console.log(`→ Sending WRIT error response (${errorResponse.length} bytes): ${errorMsg}`);
       socket.write(errorResponse);
       return;
     }
@@ -404,6 +677,7 @@ async function handleWrite(socket, requestId, payload) {
     await serialStack.write(address, data);
     
     const response = protocol.createWriteAckResponse(requestId, 'O');
+    console.log(`→ Sending WRIT response (${response.length} bytes): Success - Address ${address}, Data: ${data}`);
     socket.write(response);
   } catch (error) {
     console.error('Write error:', error.message);
@@ -412,6 +686,7 @@ async function handleWrite(socket, requestId, payload) {
       `Write failed: ${error.message}`,
       protocol.ErrorCodes.MACHINE_ERROR
     );
+    console.log(`→ Sending WRIT error response (${errorResponse.length} bytes): ${error.message}`);
     socket.write(errorResponse);
   }
 }
@@ -423,11 +698,13 @@ async function handleUpload(socket, requestId, payload) {
   console.log('Handling UPLD - Upload Block');
   try {
     if (!serialStack || !serialStack.isOpen) {
+      const errorMsg = 'Serial port not connected';
       const errorResponse = protocol.createErrorResponse(
         requestId,
-        'Serial port not connected',
+        errorMsg,
         protocol.ErrorCodes.PORT_NOT_CONNECTED
       );
+      console.log(`→ Sending UPLD error response (${errorResponse.length} bytes): ${errorMsg}`);
       socket.write(errorResponse);
       return;
     }
@@ -436,6 +713,7 @@ async function handleUpload(socket, requestId, payload) {
     await serialStack.upload(address, data);
     
     const response = protocol.createUploadAckResponse(requestId, 'O');
+    console.log(`→ Sending UPLD response (${response.length} bytes): Success - Address ${address}, Data length: ${data.length} bytes`);
     socket.write(response);
   } catch (error) {
     console.error('Upload error:', error.message);
@@ -444,6 +722,7 @@ async function handleUpload(socket, requestId, payload) {
       `Upload failed: ${error.message}`,
       protocol.ErrorCodes.MACHINE_ERROR
     );
+    console.log(`→ Sending UPLD error response (${errorResponse.length} bytes): ${error.message}`);
     socket.write(errorResponse);
   }
 }
@@ -455,11 +734,13 @@ async function handleChecksum(socket, requestId, payload) {
   console.log('Handling CSUM - Calculate Checksum');
   try {
     if (!serialStack || !serialStack.isOpen) {
+      const errorMsg = 'Serial port not connected';
       const errorResponse = protocol.createErrorResponse(
         requestId,
-        'Serial port not connected',
+        errorMsg,
         protocol.ErrorCodes.PORT_NOT_CONNECTED
       );
+      console.log(`→ Sending CSUM error response (${errorResponse.length} bytes): ${errorMsg}`);
       socket.write(errorResponse);
       return;
     }
@@ -470,6 +751,7 @@ async function handleChecksum(socket, requestId, payload) {
     // Convert sum value to 8-character hex string
     const checksumHex = sumValue.toString(16).toUpperCase().padStart(8, '0');
     const response = protocol.createChecksumResponse(requestId, checksumHex);
+    console.log(`→ Sending CSUM response (${response.length} bytes): Address ${address}, Length ${length}, Checksum: ${checksumHex}`);
     socket.write(response);
   } catch (error) {
     console.error('Checksum error:', error.message);
@@ -478,6 +760,7 @@ async function handleChecksum(socket, requestId, payload) {
       `Checksum failed: ${error.message}`,
       protocol.ErrorCodes.MACHINE_ERROR
     );
+    console.log(`→ Sending CSUM error response (${errorResponse.length} bytes): ${error.message}`);
     socket.write(errorResponse);
   }
 }
@@ -489,11 +772,13 @@ async function handleSessionOpen(socket, requestId) {
   console.log('Handling SOPE - Session Open');
   try {
     if (!serialStack || !serialStack.isOpen) {
+      const errorMsg = 'Serial port not connected';
       const errorResponse = protocol.createErrorResponse(
         requestId,
-        'Serial port not connected',
+        errorMsg,
         protocol.ErrorCodes.PORT_NOT_CONNECTED
       );
+      console.log(`→ Sending SOPE error response (${errorResponse.length} bytes): ${errorMsg}`);
       socket.write(errorResponse);
       return;
     }
@@ -501,6 +786,7 @@ async function handleSessionOpen(socket, requestId) {
     const wasStarted = await serialStack.StartEmbroiderySession();
     
     const response = protocol.createSessionAckResponse(requestId, 'O');
+    console.log(`→ Sending SOPE response (${response.length} bytes): Session opened successfully`);
     socket.write(response);
   } catch (error) {
     console.error('Session open error:', error.message);
@@ -509,6 +795,7 @@ async function handleSessionOpen(socket, requestId) {
       `Session open failed: ${error.message}`,
       protocol.ErrorCodes.SESSION_ALREADY_OPEN
     );
+    console.log(`→ Sending SOPE error response (${errorResponse.length} bytes): ${error.message}`);
     socket.write(errorResponse);
   }
 }
@@ -520,11 +807,13 @@ async function handleSessionClose(socket, requestId) {
   console.log('Handling SCLO - Session Close');
   try {
     if (!serialStack || !serialStack.isOpen) {
+      const errorMsg = 'Serial port not connected';
       const errorResponse = protocol.createErrorResponse(
         requestId,
-        'Serial port not connected',
+        errorMsg,
         protocol.ErrorCodes.PORT_NOT_CONNECTED
       );
+      console.log(`→ Sending SCLO error response (${errorResponse.length} bytes): ${errorMsg}`);
       socket.write(errorResponse);
       return;
     }
@@ -532,6 +821,7 @@ async function handleSessionClose(socket, requestId) {
     const wasEnded = await serialStack.EndEmbroiderySession();
     
     const response = protocol.createSessionAckResponse(requestId, 'O');
+    console.log(`→ Sending SCLO response (${response.length} bytes): Session closed successfully`);
     socket.write(response);
   } catch (error) {
     console.error('Session close error:', error.message);
@@ -540,6 +830,7 @@ async function handleSessionClose(socket, requestId) {
       `Session close failed: ${error.message}`,
       protocol.ErrorCodes.SESSION_NOT_OPEN
     );
+    console.log(`→ Sending SCLO error response (${errorResponse.length} bytes): ${error.message}`);
     socket.write(errorResponse);
   }
 }
@@ -552,11 +843,13 @@ async function handleBaudChange(socket, requestId, payload) {
   console.log('Handling BAUD - Auto-detect and upgrade to maximum baud rate');
   try {
     if (!serialStack) {
+      const errorMsg = 'Serial stack not initialized';
       const errorResponse = protocol.createErrorResponse(
         requestId,
-        'Serial stack not initialized',
+        errorMsg,
         protocol.ErrorCodes.PORT_NOT_CONFIGURED
       );
+      console.log(`→ Sending BAUD error response (${errorResponse.length} bytes): ${errorMsg}`);
       socket.write(errorResponse);
       return;
     }
@@ -594,6 +887,7 @@ async function handleBaudChange(socket, requestId, payload) {
     }
     
     const response = protocol.createBaudAckResponse(requestId, 'O');
+    console.log(`→ Sending BAUD response (${response.length} bytes): Successfully set to ${serialStack.baudRate} baud`);
     socket.write(response);
   } catch (error) {
     console.error('Baud rate change error:', error.message);
@@ -602,6 +896,7 @@ async function handleBaudChange(socket, requestId, payload) {
       `Baud rate change failed: ${error.message}`,
       protocol.ErrorCodes.BAUD_CHANGE_FAILED
     );
+    console.log(`→ Sending BAUD error response (${errorResponse.length} bytes): ${error.message}`);
     socket.write(errorResponse);
   }
 }
@@ -613,11 +908,13 @@ async function handleReset(socket, requestId) {
   console.log('Handling RSET - Protocol Reset');
   try {
     if (!serialStack || !serialStack.isOpen) {
+      const errorMsg = 'Serial port not connected';
       const errorResponse = protocol.createErrorResponse(
         requestId,
-        'Serial port not connected',
+        errorMsg,
         protocol.ErrorCodes.PORT_NOT_CONNECTED
       );
+      console.log(`→ Sending RSET error response (${errorResponse.length} bytes): ${errorMsg}`);
       socket.write(errorResponse);
       return;
     }
@@ -625,6 +922,7 @@ async function handleReset(socket, requestId) {
     await serialStack.resync();
     
     const response = protocol.createResetAckResponse(requestId, 'O');
+    console.log(`→ Sending RSET response (${response.length} bytes): Protocol reset successful`);
     socket.write(response);
   } catch (error) {
     console.error('Reset error:', error.message);
@@ -633,6 +931,7 @@ async function handleReset(socket, requestId) {
       `Reset failed: ${error.message}`,
       protocol.ErrorCodes.MACHINE_ERROR
     );
+    console.log(`→ Sending RSET error response (${errorResponse.length} bytes): ${error.message}`);
     socket.write(errorResponse);
   }
 }
@@ -640,6 +939,12 @@ async function handleReset(socket, requestId) {
 // Handle graceful shutdown
 process.on('SIGINT', async () => {
   console.log('\nShutting down server...');
+  
+  // Set a timeout to force exit if graceful shutdown hangs
+  const forceExitTimeout = setTimeout(() => {
+    console.log('Force exiting after timeout...');
+    process.exit(0);
+  }, 2000); // 2 second timeout
   
   // Close SerialStack if it exists
   if (serialStack) {
@@ -659,12 +964,18 @@ process.on('SIGINT', async () => {
     serialStack = null;
   }
   
+  // Destroy active connection immediately instead of graceful end
   if (activeConnection) {
-    activeConnection.end();
+    activeConnection.destroy();
+    activeConnection = null;
   }
   
+  // Close the server
   server.close(() => {
     console.log('Server closed');
+    clearTimeout(forceExitTimeout);
     process.exit(0);
   });
+  
+  // If server.close() callback doesn't fire, the timeout will handle it
 });
